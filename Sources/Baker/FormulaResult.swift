@@ -8,7 +8,13 @@ struct FormulaResult {
     enum Phase { case recognising, ready, failed }
     var phase: Phase = .recognising
     var confidence: Double?
+    var originalConfidence: Double?
     var wasEdited = false
+    var originalLatex = ""
+    var model = "unknown"
+    var confidenceMethod: String?
+    var diagnostics: FormulaDiagnostics?
+    var unicodeOverride: String?
     var latex = ""
     var unicode = ""
     var keynote = ""

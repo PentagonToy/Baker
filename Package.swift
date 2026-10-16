@@ -11,16 +11,20 @@ let package = Package(
                .executable(name: "BakerCaptureRegression", targets: ["BakerCaptureRegression"]),
                .executable(name: "BakerClipboardRegression", targets: ["BakerClipboardRegression"]),
                .executable(name: "BakerFormulaRegression", targets: ["BakerFormulaRegression"]),
-               .executable(name: "BakerScrollRegression", targets: ["BakerScrollRegression"])],
+               .executable(name: "BakerScrollRegression", targets: ["BakerScrollRegression"]),
+               .executable(name: "BakerOAuthRegression", targets: ["BakerOAuthRegression"]),
+               .executable(name: "BakerLanguageRegression", targets: ["BakerLanguageRegression"])],
     targets: [
-        .target(name: "BakerCore"),
-        .executableTarget(name: "Baker", dependencies: ["BakerCore"], resources: [.copy("Resources/formula_worker.py")]),
+        .target(name: "BakerCore", resources: [.copy("Resources/Fonts"), .copy("Resources/Tessdata")]),
+        .executableTarget(name: "Baker", dependencies: ["BakerCore"], resources: [.copy("Resources/formula_worker.py"), .copy("Resources/formula-model.json")]),
         .executableTarget(name: "BakerRegression", dependencies: ["BakerCore"], path: "Tests/BakerRegression"),
         .executableTarget(name: "BakerPDFRegression", dependencies: ["BakerCore"], path: "Tests/BakerPDFRegression"),
         .executableTarget(name: "BakerRecordingRegression", dependencies: ["BakerCore"], path: "Tests/BakerRecordingRegression"),
         .executableTarget(name: "BakerCaptureRegression", dependencies: ["BakerCore"], path: "Tests/BakerCaptureRegression"),
         .executableTarget(name: "BakerClipboardRegression", dependencies: ["BakerCore"], path: "Tests/BakerClipboardRegression"),
         .executableTarget(name: "BakerFormulaRegression", dependencies: ["BakerCore"], path: "Tests/BakerFormulaRegression"),
-        .executableTarget(name: "BakerScrollRegression", dependencies: ["BakerCore"], path: "Tests/BakerScrollRegression")
+        .executableTarget(name: "BakerScrollRegression", dependencies: ["BakerCore"], path: "Tests/BakerScrollRegression"),
+        .executableTarget(name: "BakerOAuthRegression", dependencies: ["BakerCore"], path: "Tests/BakerOAuthRegression"),
+        .executableTarget(name: "BakerLanguageRegression", dependencies: ["BakerCore"], path: "Tests/BakerLanguageRegression")
     ]
 )

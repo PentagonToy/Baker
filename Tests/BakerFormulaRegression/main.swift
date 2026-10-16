@@ -41,6 +41,14 @@ func run() throws {
     let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     guard !FileManager.default.fileExists(atPath: root.path) else { throw RegressionFailure(description: "Evidence directory already exists.") }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let integrity = root.appendingPathComponent("integrity.bin")
+    try Data("abc".utf8).write(to: integrity)
+    try ModelIntegrity.verify(integrity, bytes: 3, sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    try rejects("Model byte count") { try ModelIntegrity.verify(integrity, bytes: 4, sha256: "invalid") }
+    try rejects("Model SHA-256") { try ModelIntegrity.verify(integrity, bytes: 3, sha256: String(repeating: "0", count: 64)) }
+    let linked = root.appendingPathComponent("linked-model.bin")
+    try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: integrity)
+    try rejects("Model symlinks") { try ModelIntegrity.verify(linked, bytes: 3, sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") }
     let burgers = #"\frac{\partial u}{\partial t}+u\frac{\partial u}{\partial x}=\nu\frac{\partial^2u}{\partial x^2}"#
     let actualBurgers = #"{\frac{\partial u}{\partial t}}+u\;{\frac{\partial u}{\partial x}}=\nu\;{\frac{\partial^{2}u}{\partial x^{2}}}"#
     let userArray = #"\mathbf{x}=\left[\begin{array}{l}0 \\ 1\end{array}\right]"#
@@ -81,6 +89,11 @@ func run() throws {
     try rejects("Unavailable font") { _ = try FormulaRenderer.render("x", fontName: "BakerMissingMathFont") }
     let serialisations: [(LatexCopyStyle, String)] = [(.bare, "x^2"), (.inlineDollar, "$x^2$"), (.inlineBracket, #"\(x^2\)"#), (.displayDollar, "$$\nx^2\n$$"), (.displayBracket, "\\[\nx^2\n\\]"), (.equation, "\\begin{equation}\nx^2\n\\end{equation}")]
     for (style, expected) in serialisations { try check(style.format("  x^2\n") == expected, "LaTeX copy wrapper: " + style.rawValue) }
+    for (source, expected) in [
+        (#"v _ { x } = v _ { x 0 }"#, #"v_{x}=v_{x0}"#),
+        (#"\alpha x + \text{a b} \, y"#, #"\alpha x+\text{a b}\,y"#),
+        (#"\operatorname*{arg max} x"#, #"\operatorname*{arg max}x"#)
+    ] { try check(LatexWhitespace.compact(source) == expected, "Safe token whitespace: " + source) }
     let converted = KeynoteLatex.convert(userArray)
     try check(converted.text == keynoteMatrix && converted.warnings.isEmpty, "Exact Keynote array-to-bmatrix example preserves bold font")
     for (left, right, environment) in [("(", ")", "pmatrix"), ("[", "]", "bmatrix"), ("|", "|", "vmatrix"), (#"\Vert"#, #"\Vert"#, "Vmatrix"), (".", ".", "matrix")] {
@@ -115,6 +128,11 @@ func run() throws {
     try rejects("Matrix column bound") { _ = try FormulaRenderer.render("\\begin{matrix}" + Array(repeating: "x", count: 17).joined(separator: "&") + "\\end{matrix}") }
     let oversizedCells = "\\begin{matrix}" + Array(repeating: Array(repeating: "x", count: 16).joined(separator: "&"), count: 17).joined(separator: "\\\\") + "\\end{matrix}"
     try rejects("Matrix total-cell bound") { _ = try FormulaRenderer.render(oversizedCells) }
+    // Output adapters must not adopt destructive KaTeX/regex cleanup from references.
+    for source in [#"\mbox{velocity}"#, #"\hbox{a b}"#, #"\scalebox{2}{x}"#, #"\unknown{\alpha}"#, #"\text{literal \{a\}}"#] {
+        try check(KeynoteLatex.convert(source).text == source, "Compatibility corpus preserves unsupported/literal source: " + source)
+        try check(LatexCopyStyle.displayDollar.format(source) == "$$\n" + source + "\n$$", "Markdown wrapper preserves source: " + source)
+    }
     summary["checks"] = checks
     try JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys]).write(to: root.appendingPathComponent("validation.json"))
     print("BakerFormulaRegression: \(checks) checks passed")

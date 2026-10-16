@@ -1,0 +1,3 @@
+Baker bundles unmodified Latin Modern Math 1.959, TeX Gyre Termes Math 1.543 and TeX Gyre Pagella Math 1.632 OpenType fonts from TeX Live 2026. See the corresponding original README, MANIFEST, GUST-FONT-LICENSE and LPPL files for authorship and redistribution terms. Font binaries are unchanged. Only the three named font files and their notices are included; the manifests describe the complete upstream distributions.
+
+Upstream: https://www.gust.org.pl/projects/e-foundry

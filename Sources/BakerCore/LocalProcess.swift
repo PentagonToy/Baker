@@ -7,7 +7,7 @@ public struct ProcessResult {
 }
 
 /// File-backed output prevents pipe deadlocks. A private directory is removed on exit.
-public func runProcess(_ executable: URL, arguments: [String], timeout: TimeInterval = 180, input: Data? = nil) throws -> ProcessResult {
+public func runProcess(_ executable: URL, arguments: [String], timeout: TimeInterval = 180, input: Data? = nil, environment: [String: String] = [:]) throws -> ProcessResult {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("baker-process-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                           attributes: [.posixPermissions: 0o700])
@@ -22,6 +22,7 @@ public func runProcess(_ executable: URL, arguments: [String], timeout: TimeInte
     let process = Process()
     process.executableURL = executable
     process.arguments = arguments
+    if !environment.isEmpty { process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override } }
     process.standardOutput = output
     process.standardError = errors
     let inputHandle: FileHandle

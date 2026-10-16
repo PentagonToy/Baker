@@ -8,6 +8,10 @@ import SwiftUI
 struct BakerApp {
     static func main() {
         let application = NSApplication.shared
+        if let identifier = Bundle.main.bundleIdentifier,
+           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            existing.activate(options: []); return
+        }
         let delegate = BakerDelegate()
         application.delegate = delegate
         withExtendedLifetime(delegate) { application.run() }
@@ -19,6 +23,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = Workbench()
     private var statusItem: NSStatusItem!
     private lazy var overlays = CaptureOverlayController(model: model)
+    private var filesWorkspace: NSWindow?
     private var history: NSPanel?
     private var result: NSPanel?
     private var formulaWorkspace: NSPanel?
@@ -29,6 +34,8 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hiddenUtilityWindows: [NSWindow] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        model.onFormulaSetupNeeded = { [weak self] in self?.openSettings(.formula) }
+        model.onOpenFiles = { [weak self] format in self?.showFiles(format) }
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = BakerImages.template("baker_menubar_icon", folder: "BakerIcons", fallback: "viewfinder")
@@ -58,11 +65,15 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.hiddenUtilityWindows.forEach { $0.orderFrontRegardless() }
                 self.hiddenUtilityWindows = []
             } else {
-                self.hiddenUtilityWindows = [self.formulaWorkspace, self.result, self.history, self.export].compactMap { $0 }.filter { $0.isVisible }
+                self.hiddenUtilityWindows = [self.filesWorkspace, self.formulaWorkspace, self.result, self.history, self.export].compactMap { $0 }.filter { $0.isVisible }
                 self.hiddenUtilityWindows.forEach { $0.orderOut(nil) }
             }
         }
         model.onExportReady = { [weak self] in self?.showExport() }
+        if !UserDefaults.standard.bool(forKey: "hasShownRecognitionSetup") {
+            UserDefaults.standard.set(true, forKey: "hasShownRecognitionSetup")
+            openSettings(.formula)
+        }
         model.$problem.compactMap { $0 }.receive(on: RunLoop.main).sink { [weak self] message in
             self?.model.playCaptureFeedback(success: false)
             let alert = NSAlert(); alert.messageText = "Baker"; alert.informativeText = message
@@ -107,21 +118,21 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildMenu(_ menu: NSMenu) {
         menu.removeAllItems(); menu.autoenablesItems = false
         menu.addItem(heading("CAPTURE"))
-        menu.addItem(item("Area", #selector(captureRegion), symbol: "viewfinder", enabled: !model.busy))
+        menu.addItem(item("Area", #selector(captureRegion), symbol: "viewfinder", custom: "capture-area", enabled: !model.busy))
         menu.addItem(item("Scrolling", #selector(captureScroll), symbol: "scroll", custom: "capture-scroll", enabled: !model.busy))
         menu.addItem(item("Text", #selector(captureText), symbol: "text.viewfinder", custom: "capture-text", enabled: !model.busy))
         menu.addItem(item("Formula", #selector(captureFormula), symbol: "function", custom: "capture-formula", enabled: !model.busy))
         menu.addItem(.separator()); menu.addItem(heading("RECORD"))
-        menu.addItem(item("Video…", #selector(recordVideo), symbol: "video", enabled: !model.busy))
-        menu.addItem(item("GIF…", #selector(recordGIF), symbol: "photo.stack", enabled: !model.busy))
+        menu.addItem(item("Video…", #selector(recordVideo), symbol: "video", custom: "record-video", enabled: !model.busy))
+        menu.addItem(item("GIF…", #selector(recordGIF), symbol: "photo.stack", custom: "record-gif", enabled: !model.busy))
         if model.isRecording {
             menu.addItem(item("Stop Recording", #selector(stopRecording), symbol: "stop.circle.fill"))
         }
         menu.addItem(.separator()); menu.addItem(heading("CLIPBOARD & FILES"))
-        menu.addItem(item("Open Image…", #selector(openImage), symbol: "folder", enabled: !model.busy))
-        menu.addItem(item("Open Clipboard Image", #selector(pasteImage), symbol: "clipboard", enabled: !model.busy))
-        menu.addItem(item("Read Clipboard Text", #selector(readClipboard), symbol: "text.viewfinder", enabled: !model.busy))
-        let pdf = item("Convert PDF", #selector(pdfMarkdown), symbol: "doc.richtext", enabled: !model.busy)
+        menu.addItem(item("Open Files…", #selector(openImage), symbol: "folder", custom: "files-open", enabled: !model.busy))
+        menu.addItem(item("Open Clipboard Image", #selector(pasteImage), symbol: "clipboard", custom: "clipboard-image", enabled: !model.busy))
+        menu.addItem(item("Read Clipboard Text", #selector(readClipboard), symbol: "text.viewfinder", custom: "clipboard-text", enabled: !model.busy))
+        let pdf = item("Convert PDF", #selector(pdfMarkdown), symbol: "doc.richtext", custom: "convert-pdf", enabled: !model.busy)
         let pdfFormats = NSMenu(title: "PDF format"); pdfFormats.autoenablesItems = false
         pdfFormats.addItem(item("Markdown…", #selector(pdfMarkdown), symbol: "text.alignleft", enabled: !model.busy))
         pdfFormats.addItem(item("LaTeX…", #selector(pdfLatex), symbol: "function", enabled: !model.busy))
@@ -131,13 +142,13 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator()); menu.addItem(heading("RECENT"))
         menu.addItem(item("Last Capture…", #selector(showPreview), symbol: "photo", enabled: !model.captures.isEmpty))
-        menu.addItem(item("Capture History…", #selector(showHistory), symbol: "photo.stack"))
-        menu.addItem(item("Open Capture Folder", #selector(openCaptureFolder), symbol: "folder"))
+        menu.addItem(item("Capture History…", #selector(showHistory), symbol: "photo.stack", custom: "capture-history"))
+        menu.addItem(item("Open Capture Folder", #selector(openCaptureFolder), symbol: "folder", custom: "files-open"))
         menu.addItem(item("Formula Workspace…", #selector(showFormulaWorkspace), symbol: "function"))
         menu.addItem(item("Last Result…", #selector(showResult), symbol: "doc.text"))
         menu.addItem(item("Last Export…", #selector(showExport), symbol: "doc", enabled: model.exportURL != nil || model.isConvertingPDF))
         menu.addItem(.separator())
-        menu.addItem(item("Settings…", #selector(showSettings), symbol: "gearshape", key: ","))
+        menu.addItem(item("Settings…", #selector(showSettings), symbol: "gearshape", custom: "settings", key: ","))
         menu.addItem(item("Quit Baker", #selector(quit), symbol: "power", key: "q"))
     }
     @objc private func captureRegion() { model.capture(scrolling: false) }
@@ -145,14 +156,24 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func captureText() { model.capture(scrolling: false, action: .text) }
     @objc private func captureFormula() { model.capture(scrolling: false, action: .formula) }
     @objc private func captureUnicode() { model.capture(scrolling: false, action: .unicode) }
-    @objc private func openImage() { NSApp.activate(ignoringOtherApps: true); model.openImage() }
+    private func showFiles(_ format: PDFExportFormat? = nil) {
+        if let format { model.filesInbox.pdfFormat = format }
+        if filesWorkspace == nil {
+            let panel = FilesWorkspaceWindow()
+            panel.title = "Baker · Clipboard & Files"; panel.isReleasedWhenClosed = false
+            panel.contentView = NSHostingView(rootView: FilesWorkspace(model: model, inbox: model.filesInbox))
+            panel.center(); model.filesInbox.presentationWindow = panel; filesWorkspace = panel
+        }
+        filesWorkspace?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc private func openImage() { showFiles() }
     @objc private func pasteImage() { model.pasteImage() }
     @objc private func readClipboard() { model.pasteImage(recogniseText: true) }
     @objc private func recordVideo() { model.record(format: .video) }
     @objc private func recordGIF() { model.record(format: .gif) }
     @objc private func stopRecording() { model.stopRecording() }
-    @objc private func pdfMarkdown() { model.convertPDF(format: .markdown) }
-    @objc private func pdfLatex() { model.convertPDF(format: .latex) }
+    @objc private func pdfMarkdown() { showFiles(.markdown) }
+    @objc private func pdfLatex() { showFiles(.latex) }
     @objc private func cancelJob() { model.cancelJob() }
     @objc private func quit() { NSApp.terminate(nil) }
 
@@ -194,13 +215,16 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         result?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
-    @objc private func showSettings() {
+    @objc private func showSettings() { openSettings(.general) }
+    private func openSettings(_ page: SettingsPage) {
         if settings == nil {
-            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 620),
-                styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 860, height: 620),
+                styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.contentMinSize = NSSize(width: 780, height: 560)
             window.title = "Baker · Settings"; window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: BakerSettings(model: model)); window.center(); settings = window
         }
+        settings?.contentView = NSHostingView(rootView: BakerSettings(model: model, page: page))
         settings?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -259,49 +283,5 @@ private struct ResultView: View {
             if model.format == .unicode { Text(model.unicodeMessage).font(.caption).foregroundStyle(.secondary) }
             Text(model.status).font(.caption).foregroundStyle(.secondary)
         }.padding(16).frame(minWidth: 420, minHeight: 260)
-    }
-}
-
-private struct BakerSettings: View {
-    @ObservedObject var model: Workbench
-    @Environment(\.colorScheme) private var colorScheme
-    var body: some View {
-        ScrollView { Form {
-            HStack(spacing: 12) {
-                if let icon = BakerImages.appIcon(dark: colorScheme == .dark) {
-                    Image(nsImage: icon).resizable().scaledToFit().frame(width: 56, height: 56)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Baker").font(.title2.weight(.semibold))
-                    Text("Capture. Recognise. Create.").foregroundStyle(.secondary)
-                }
-            }
-            Divider()
-            Text("Clipboard workflow").font(.headline)
-            Toggle("Play capture sounds", isOn: $model.captureSounds)
-            Toggle("Copy captured images automatically", isOn: $model.copyCapturedImages)
-            Toggle("Copy recognised text automatically", isOn: $model.copyRecognisedText)
-            Text("Formula captures always copy the selected LaTeX, Keynote or Unicode format.").font(.caption).foregroundStyle(.secondary)
-            Toggle("Open result editor after recognition", isOn: $model.showResults)
-            Divider()
-            Picker("Unicode maths font", selection: $model.mathFont) {
-                ForEach(MathFont.allCases, id: \.self) { Text($0.rawValue).tag($0.rawValue) }
-            }
-            Text("𝑥² + 𝛼𝑥 + ½ = 0").font(Font(model.selectedMathFont.resolvedFont))
-            Text(model.selectedMathFont.installedFont == nil
-                 ? "This font is not installed. Using \(model.selectedMathFont.resolvedFont.familyName ?? "the system font") instead."
-                 : "Copies editable Unicode and formatted text. Paste normally to retain the maths font.")
-                .font(.caption).foregroundStyle(.secondary)
-            Divider()
-            Text("Capture previews").font(.headline)
-            Stepper("Visible captures: \(model.visibleCaptures)", value: $model.visibleCaptures, in: 1...5)
-            Text("Captures are saved in Pictures/Baker before appearing. Closing a preview keeps its file in history.").font(.caption).foregroundStyle(.secondary)
-            Button("Open Capture Folder", action: model.revealCaptures)
-            Divider()
-            Text("Local formula model").font(.headline)
-            TextField("Python executable", text: $model.python)
-            TextField("Model configuration JSON", text: $model.config)
-            Text("Choose an existing local runtime and model. No sign-in or online OCR service is used.").font(.caption).foregroundStyle(.secondary)
-        }.padding(24).frame(maxWidth: .infinity) }.frame(width: 600)
     }
 }

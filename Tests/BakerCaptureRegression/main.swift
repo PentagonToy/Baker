@@ -104,6 +104,11 @@ func run() throws {
     try rejects("32MP bound rejected from metadata") { _ = try archive.add(source: large) }
     try check(try files(directory) == beforeInvalid, "Rejected inputs leave archive files and index unchanged")
 
+    let otherWriter = try CaptureArchive(directory: directory)
+    let otherCapture = try otherWriter.add(source: source)
+    let recoveredCapture = try archive.add(source: source)
+    try check(archive.records.contains(otherCapture) && archive.records.contains(recoveredCapture), "Concurrent additive history reload keeps both captures")
+
     let changedIndex = directory.appendingPathComponent(CaptureArchive.indexFileName)
     let validIndex = try Data(contentsOf: changedIndex)
     try Data("corrupt index".utf8).write(to: changedIndex)
@@ -150,7 +155,43 @@ func run() throws {
     let fullIndex = try Data(contentsOf: full.appendingPathComponent(CaptureArchive.indexFileName))
     try rejects("Archive limit refuses without deleting history") { _ = try fullArchive.add(source: source) }
     try check(try Data(contentsOf: full.appendingPathComponent(CaptureArchive.indexFileName)) == fullIndex, "Archive limit preserves index")
-    try check(try files(full) == [CaptureArchive.indexFileName], "Archive limit creates no stray files")
+    try check(try files(full) == [".baker-history.lock", CaptureArchive.indexFileName].sorted(), "Archive limit creates no stray files")
+    let formulasFolder = root.appendingPathComponent("formula-history", isDirectory: true)
+    try FileManager.default.createDirectory(at: formulasFolder, withIntermediateDirectories: true)
+    let formulaArchive = try FormulaArchive(directory: formulasFolder)
+    try check(formulaArchive.formulas.isEmpty, "Older image archive without formula metadata opens")
+    let formulaID = UUID()
+    let saved = SavedFormula(id: formulaID, originalLatex: "x^2", latex: "x^3", unicodeOverride: "𝑥³", model: "fixture", confidenceMethod: "geometric_mean_token_probability_v1", confidence: nil, diagnostics: FormulaDiagnostics(tokenCount: 2, minimumTokenProbability: 0.5, ambiguousTokenCount: 1), format: "Unicode", style: "Bare LaTeX")
+    try formulaArchive.save(saved)
+    let reopenedFormulas = try FormulaArchive(directory: formulasFolder)
+    try check(reopenedFormulas.formulas[formulaID] == saved, "Formula metadata round trips original, edit, override and score provenance")
+    try check(saved.matchesSearchText.contains("x^2") && saved.matchesSearchText.contains("𝑥³"), "Search includes original and overridden output")
+    try reopenedFormulas.save(SavedFormula(id: UUID(), originalLatex: "y", latex: "y", unicodeOverride: nil, model: "fixture", confidenceMethod: nil, confidence: nil, diagnostics: nil, format: "LaTeX", style: "Bare LaTeX"))
+    try rejects("Stale formula writer refuses external changes") { try formulaArchive.save(saved) }
+    let oversizedFormula = SavedFormula(id: UUID(), originalLatex: String(repeating: "x", count: 32769), latex: "x", unicodeOverride: nil, model: "fixture", confidenceMethod: nil, confidence: nil, diagnostics: nil, format: "LaTeX", style: "Bare LaTeX")
+    try rejects("Bound oversized formula source") { try reopenedFormulas.save(oversizedFormula) }
+    let mismatchedScore = SavedFormula(id: UUID(), originalLatex: "x", latex: "y", unicodeOverride: nil, model: "fixture", confidenceMethod: "geometric_mean_token_probability_v1", confidence: 0.9, diagnostics: nil, format: "LaTeX", style: "Bare LaTeX")
+    try rejects("Edited source cannot retain original confidence") { try reopenedFormulas.save(mismatchedScore) }
+    let unknownScore = SavedFormula(id: UUID(), originalLatex: "x", latex: "x", unicodeOverride: nil, model: "fixture", confidenceMethod: "unknown", confidence: 0.9, diagnostics: nil, format: "LaTeX", style: "Bare LaTeX")
+    try rejects("Unknown confidence method cannot be displayed as known score") { try reopenedFormulas.save(unknownScore) }
+    let dataBeforeCorruption = try Data(contentsOf: formulasFolder.appendingPathComponent(FormulaArchive.fileName))
+    try Data("{}".utf8).write(to: formulasFolder.appendingPathComponent(FormulaArchive.fileName))
+    try rejects("Malformed formula metadata refuses instead of overwriting") { _ = try FormulaArchive(directory: formulasFolder) }
+    try check(try Data(contentsOf: formulasFolder.appendingPathComponent(FormulaArchive.fileName)) == Data("{}".utf8), "Corrupt formula bytes preserved")
+    try dataBeforeCorruption.write(to: formulasFolder.appendingPathComponent(FormulaArchive.fileName))
+    let migration = root.appendingPathComponent("location-migration")
+    let documents = migration.appendingPathComponent("Documents"), pictures = migration.appendingPathComponent("Pictures")
+    let legacy = pictures.appendingPathComponent("Baker")
+    try FileManager.default.createDirectory(at: legacy, withIntermediateDirectories: true)
+    try Data("metadata".utf8).write(to: legacy.appendingPathComponent(".baker-history.json"))
+    let moved = try CaptureLocation.prepare(documents: documents, pictures: pictures)
+    try check(moved == documents.appendingPathComponent("Baker", isDirectory: true), "Default archive is Documents/Baker")
+    try check(!FileManager.default.fileExists(atPath: legacy.path), "Legacy archive moved as a unit")
+    try check(try Data(contentsOf: moved.appendingPathComponent(".baker-history.json")) == Data("metadata".utf8), "Hidden metadata preserved")
+    try FileManager.default.createDirectory(at: legacy, withIntermediateDirectories: true)
+    try Data("older".utf8).write(to: legacy.appendingPathComponent("keep.txt"))
+    _ = try CaptureLocation.prepare(documents: documents, pictures: pictures)
+    try check(FileManager.default.fileExists(atPath: legacy.appendingPathComponent("keep.txt").path), "Both archives preserved when destination exists")
     let summary: [String: Any] = ["checks": checks, "recordsInArchive": archive.records.count, "sourcePreserved": true, "thumbnailMaximum": 600, "maximumRecords": CaptureArchive.maximumRecords]
     try JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys]).write(to: root.appendingPathComponent("validation.json"))
     print("BakerCaptureRegression: \(checks) checks passed")

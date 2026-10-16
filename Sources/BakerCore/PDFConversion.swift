@@ -7,7 +7,7 @@ public enum PDFExportFormat: String, CaseIterable, Sendable {
     case markdown, latex
     public var fileExtension: String { self == .markdown ? "md" : "tex" }
 }
-public enum PDFTextSource: String, Sendable { case textLayer, vision }
+public enum PDFTextSource: String, Sendable { case textLayer, vision, tesseract }
 
 /// Plain text with its original page location. No mathematical or table semantics are inferred.
 public struct PDFTextBlock: Sendable {
@@ -48,10 +48,13 @@ public struct PDFConversionReport: Sendable {
     public let bytesWritten: Int
     public let warnings: [String]
     public var totalPages: Int { pages.count }
-    public var ocrPages: Int { pages.filter { $0.source == .vision }.count }
+    public var ocrPages: Int { pages.filter { $0.source != .textLayer }.count }
 }
 
 public struct PDFConversionOptions: Sendable {
+    public var finnishTextMode = false
+    public var tesseractExecutable = ""
+    public var recognitionLanguages: [String] = []
     public var maximumPages = 2_000
     public var maximumOutputBytes = 64 * 1_024 * 1_024
     public var maximumPageCharacters = 250_000
@@ -113,7 +116,7 @@ public enum PDFConverter {
             let summary: PDFPageSummary = try autoreleasepool {
                 guard let page = document.page(at: index) else { throw BakerError(message: "PDF page \(index + 1) could not be read.") }
                 progress(.init(pageNumber: index + 1, totalPages: document.pageCount, phase: .reading, message: "Reading page \(index + 1) of \(document.pageCount)"))
-                let content = try extract(page: page, pageNumber: index + 1, maximumCharacters: options.maximumPageCharacters,
+                let content = try extract(page: page, pageNumber: index + 1, maximumCharacters: options.maximumPageCharacters, languages: options.recognitionLanguages, finnish: options.finnishTextMode, tesseractPath: options.tesseractExecutable,
                     isCancelled: isCancelled, beforeOCR: {
                         progress(.init(pageNumber: index + 1, totalPages: document.pageCount, phase: .recognising, message: "Recognising scanned page \(index + 1)"))
                     })
@@ -142,7 +145,7 @@ public enum PDFConverter {
         return PDFConversionReport(destination: destination, format: format, pages: summaries, bytesWritten: written, warnings: limitations + pageWarnings)
     }
 
-    private static func extract(page: PDFPage, pageNumber: Int, maximumCharacters: Int,
+    private static func extract(page: PDFPage, pageNumber: Int, maximumCharacters: Int, languages: [String], finnish: Bool, tesseractPath: String,
                                 isCancelled: () -> Bool, beforeOCR: () -> Void) throws -> PDFPageContent {
         let box = page.bounds(for: .cropBox)
         guard box.width.isFinite, box.height.isFinite, box.width > 0, box.height > 0,
@@ -169,10 +172,15 @@ public enum PDFConverter {
         beforeOCR()
         let image = try rasterise(page, box: box)
         if isCancelled() { throw CancellationError() }
+        if finnish || languages.contains("fi-FI") {
+            let text = clean(try FinnishOCR.recognise(image, executable: tesseractPath, languages: languages.contains("fi-FI") ? languages : ["fi-FI"]))
+            if isCancelled() { throw CancellationError() }
+            guard text.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the recognised text size limit.") }
+            return .init(pageNumber: pageNumber, pageSize: box.size, blocks: text.isEmpty ? [] : [.init(text: text, bounds: box, source: .tesseract)], source: .tesseract,
+                warnings: [text.isEmpty ? "No text was found on this page." : "Tesseract OCR used a bounded page raster. Paragraphs, columns and maths require review."])
+        }
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
+        try OCRLanguages.configure(request, languages: languages)
         try VNImageRequestHandler(cgImage: image).perform([request])
         if isCancelled() { throw CancellationError() }
         var count = 0

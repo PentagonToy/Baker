@@ -76,6 +76,8 @@ def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
         raise ValueError("Unsupported formula model special tokens.")
     generated = [1]
     log_probabilities = []
+    minimum_probability = 1.0
+    ambiguous_count = 0
     for _ in range(max_tokens):
         if time.monotonic() >= deadline:
             raise TimeoutError("Formula recognition exceeded its time limit.")
@@ -88,11 +90,14 @@ def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
             if not latex:
                 raise ValueError("The formula engine returned no LaTeX text.")
             confidence = float(np.exp(np.mean(log_probabilities)))
-            return {"latex": latex, "confidence": confidence, "confidence_method": "geometric_mean_token_probability_v1"}
+            return {"latex": latex, "confidence": confidence, "confidence_method": "geometric_mean_token_probability_v1", "model": "pix2text-mfr-1.5-pinned", "diagnostics": {"tokenCount": len(log_probabilities), "minimumTokenProbability": minimum_probability, "ambiguousTokenCount": ambiguous_count}}
         # Stable log-softmax of emitted content tokens; excludes start/end tokens.
         scores = logits[0, -1].astype(np.float64)
         shifted = scores - scores.max()
         log_probabilities.append(float(shifted[token] - np.log(np.exp(shifted).sum())))
+        probability = float(np.exp(log_probabilities[-1]))
+        minimum_probability = min(minimum_probability, probability)
+        ambiguous_count += int(probability < 0.8)  # diagnostic threshold, not an accuracy category
         generated.append(token)
     raise ValueError("Formula exceeds the decode token limit; capture a smaller equation.")
 
@@ -104,6 +109,7 @@ def recognise(image_path, settings):
     # Check dimensions before loading either model session.
     pixels = prepare_image(image_path, settings["max_image_pixels"], processor)
     import onnxruntime as ort
+    ort.disable_telemetry_events()
     from tokenizers import Tokenizer
 
     options = ort.SessionOptions()

@@ -1,3 +1,4 @@
+import Darwin
 import CoreGraphics
 import CryptoKit
 import Foundation
@@ -72,6 +73,19 @@ public final class CaptureArchive {
 
     /// Copies a supported still image; the caller's source is never moved or removed.
     @discardableResult public func add(source: URL) throws -> CaptureRecord {
+        let lockURL = directory.appendingPathComponent(".baker-history.lock")
+        let descriptor = open(lockURL.path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw BakerError(message: "Capture history could not be locked.") }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { throw BakerError(message: "Capture history is busy.") }
+        defer { flock(descriptor, LOCK_UN) }
+        let fresh = try CaptureArchive(directory: directory)
+        // Additive changes from another instance are safe. Deletions or edits require review.
+        let current = Dictionary(uniqueKeysWithValues: fresh.records.map { ($0.id, $0) })
+        guard records.allSatisfy({ current[$0.id] == $0 }) else {
+            throw BakerError(message: "Capture history was edited outside Baker. Restart Baker to reload it; existing images are preserved.")
+        }
+        records = fresh.records; indexFingerprint = fresh.indexFingerprint
         guard records.count < Self.maximumRecords else {
             throw BakerError(message: "Capture history has reached 10,000 images. Choose a new history folder; existing images have been kept.")
         }
@@ -97,6 +111,39 @@ public final class CaptureArchive {
             // Only this operation's freshly generated file is rolled back.
             do { try files.removeItem(at: destination) }
             catch { throw BakerError(message: "History could not be updated or its new image rolled back. The source and previous history remain intact.") }
+            throw error
+        }
+    }
+
+    /// Replaces the archived capture, retaining its ID/date and flattening edits as PNG.
+    public func replace(source: URL, record: CaptureRecord) throws -> CaptureRecord {
+        let descriptor = open(directory.appendingPathComponent(".baker-history.lock").path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw BakerError(message: "Capture history could not be locked.") }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { throw BakerError(message: "Capture history is busy.") }
+        defer { flock(descriptor, LOCK_UN) }
+        let fresh = try CaptureArchive(directory: directory)
+        guard fresh.records.contains(record) else { throw BakerError(message: "The capture changed while editing. Reopen it before saving.") }
+        let info = try Self.inspect(source)
+        guard info.fileExtension == "png" else { throw BakerError(message: "Edited captures must use flattened PNG data.") }
+        records = fresh.records; indexFingerprint = fresh.indexFingerprint
+        let updated = CaptureRecord(id: record.id, createdAt: record.createdAt, fileName: record.id.uuidString.lowercased() + ".png", pixelWidth: info.width, pixelHeight: info.height)
+        let original = fileURL(for: record), destination = fileURL(for: updated)
+        let originalData = try Data(contentsOf: original)
+        let replacement = try Data(contentsOf: source)
+        if destination != original, files.fileExists(atPath: destination.path) { throw BakerError(message: "An edited image already occupies this capture's destination.") }
+        try replacement.write(to: destination, options: .atomic)
+        do {
+            let changed = records.map { $0.id == record.id ? updated : $0 }
+            try persist(changed)
+            if original != destination { try files.removeItem(at: original) }
+            records = changed
+            return updated
+        } catch {
+            try originalData.write(to: original, options: .atomic)
+            if destination != original { try? files.removeItem(at: destination) }
+            // If persistence succeeded before a file removal failed, restore the old record too.
+            if try readIndex().map({ SHA256.hash(data: $0) }) == indexFingerprint { try persist(records) }
             throw error
         }
     }

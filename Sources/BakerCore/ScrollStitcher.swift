@@ -24,12 +24,12 @@ public struct ScrollCaptureBuffer {
         return try stitcher.append(image)
     }
 
-    /// Start immediately, then accept two matching samples or a stream-confirmed settled frame.
-    public mutating func observe(_ image: CGImage, settled: Bool = false) throws -> StitchOutcome? {
+    /// Start immediately. Continuous mode validates overlap; stable mode waits for matching samples.
+    public mutating func observe(_ image: CGImage, settled: Bool = false, allowMoving: Bool = false) throws -> StitchOutcome? {
         guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.") }
-        defer { candidate = image }
+        defer { candidate = allowMoving ? nil : image }
         if acceptedFrames == 0 { return try append(image) }
-        if !settled {
+        if !settled && !allowMoving {
             guard let candidate, try ScrollStitcher.isStable(candidate, image) else { return nil }
         }
         return try append(image)
@@ -83,7 +83,7 @@ public struct ScrollStitcher {
         if previous.error(to: signature, shift: 0) < 0.3 { return .unchanged }
         let minimumOverlap = max(64, signature.height / 4)
         let maximumShift = signature.height - minimumOverlap
-        let scores = (1...maximumShift).map { ($0, previous.error(to: signature, shift: $0)) }
+        let scores = (1...maximumShift).map { ($0, previous.error(to: signature, shift: $0, ceiling: 10)) }
         guard let best = scores.min(by: { $0.1 < $1.1 }), best.1 < 7 else {
             return .rejected("No overlap found. Return to the previous position and scroll down more slowly.")
         }
@@ -93,7 +93,7 @@ public struct ScrollStitcher {
             return .rejected("Repeated content makes alignment ambiguous. Select a more distinctive region.")
         }
         // A strong upward match means the user returned to an earlier position.
-        let reverse = (1...maximumShift).map { signature.error(to: previous, shift: $0) }.min() ?? 255
+        let reverse = (1...maximumShift).map { signature.error(to: previous, shift: $0, ceiling: 10) }.min() ?? 255
         guard reverse > best.1 + 0.3 else {
             return .rejected("Upward movement or repeated content detected. Continue down from the last accepted position.")
         }
@@ -172,10 +172,11 @@ private struct FrameSignature {
         self.features = features
     }
 
-    func error(to other: FrameSignature, shift: Int) -> Double {
+    func error(to other: FrameSignature, shift: Int, ceiling: Double = .infinity) -> Double {
         let overlap = height - shift
         // Test content at many rows. A fixed header/footer inside the selection raises the error.
         let rowStep = max(1, overlap / 80)
+        let maximumSamples = ((overlap + rowStep - 1) / rowStep) * ((columns + 1) / 2)
         var sum = 0, count = 0, fallbackSum = 0, fallbackCount = 0
         for y in stride(from: 0, to: overlap, by: rowStep) {
             for x in stride(from: 0, to: columns, by: 2) {
@@ -185,6 +186,8 @@ private struct FrameSignature {
                 // Blank margins must not swamp the text and diagram evidence.
                 if max(features[left], other.features[right]) >= 5 { sum += difference; count += 1 }
             }
+            // Exact lower bound: even all remaining zero-error samples cannot pass.
+            if count >= 8, Double(sum) > ceiling * Double(maximumSamples), Double(fallbackSum) > ceiling * Double(maximumSamples) { return 255 }
         }
         return count >= 8 ? Double(sum) / Double(count) : Double(fallbackSum) / Double(max(1, fallbackCount))
     }

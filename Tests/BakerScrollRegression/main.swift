@@ -78,6 +78,15 @@ do {
     try check(finished?.height == 660 && moving.state == .finished, "Finish produces exactly the accepted content")
     do { _ = try moving.finish(); throw BakerError(message: "Finish completed twice") }
     catch { try check(error.localizedDescription != "Finish completed twice", "a second Finish cannot produce another completion") }
+    var continuous = ScrollCaptureBuffer()
+    _ = try continuous.observe(crop(source, 0), allowMoving: true)
+    var continuousCorrect = true
+    for offset in stride(from: 20, through: 240, by: 20) {
+        if try continuous.observe(crop(source, offset), allowMoving: true) != .appended(20) { continuousCorrect = false }
+    }
+    try check(continuousCorrect && continuous.acceptedFrames == 13, "continuous moving frames append without a pause or duplicate sample")
+    let continuousImage = try continuous.finish()!
+    try check(samePixels(continuousImage, crop(source, 0, height: 720)), "continuous capture preserves every original page row")
     var idle = ScrollCaptureBuffer()
     _ = try idle.observe(crop(source, 0))
     try check(try idle.observe(crop(source, 140), settled: true) == .appended(140), "idle stream can settle a final frame without a duplicate capture")

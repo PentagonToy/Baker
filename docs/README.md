@@ -5,16 +5,19 @@
 
 # Baker user guide
 
-Open Baker’s menu-bar icon and follow the same categories here. Start with [Getting started](getting-started.md) for permissions and the local formula runtime.
+[Get started](help/getting-started.md), then choose a menu category.
 
-| Menu category | Guide |
+## Menu guide
+
+| Category | Tasks |
 | --- | --- |
-| [Capture](capture.md) | Area, Scrolling, Text and Formula; previews, confidence and copy formats |
-| [Record](record.md) | Video and GIF recording, controls and export limits |
-| [Clipboard & Files](clipboard-and-files.md) | Image files, clipboard recognition and PDF conversion |
-| [Recent](recent.md) | Last Capture, Capture History, Formula Workspace, Last Result and Last Export |
-| [Settings](settings.md) | Clipboard preferences, capture sounds, maths fonts and local runtime paths |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/symbols/capture-area-dark.svg"><img src="../others/assests/symbols/capture-area.svg" width="22" alt="Capture"></picture> [Capture](guide/capture.md) | Area, Scrolling, Text and Formula |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/symbols/record-video-dark.svg"><img src="../others/assests/symbols/record-video.svg" width="22" alt="Record"></picture> [Record](guide/record.md) | Video and GIF |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/symbols/clipboard-image-dark.svg"><img src="../others/assests/symbols/clipboard-image.svg" width="22" alt="Clipboard & Files"></picture> [Clipboard & Files](guide/clipboard-and-files.md) | Drop files, batch import, clipboard and PDF conversion |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/symbols/capture-history-dark.svg"><img src="../others/assests/symbols/capture-history.svg" width="22" alt="Recent"></picture> [Recent](guide/recent.md) | Captures, history, formula results and exports |
 
-[Unicode maths](unicode-maths.md) explains editable mathematical text and formatted pasting. [Troubleshooting](troubleshooting.md) covers permissions and workflow limitations.
+## Help
 
-Return to the [project overview](../README.md).
+[Cloud storage](help/cloud.md) · [Settings](help/settings.md) · [Formula](help/formula.md) · [Unicode maths](help/unicode-maths.md) · [Limits](help/limits.md) · [Troubleshooting](help/troubleshooting.md)
+
+[Baker home](index.md) · [Privacy and notices](legal/README.md)

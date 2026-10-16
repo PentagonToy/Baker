@@ -44,20 +44,12 @@ private final class ScrollStreamFrames: NSObject, SCStreamOutput, SCStreamDelega
 private actor ScrollAssembler {
     private var buffer = ScrollCaptureBuffer()
     private var sampledRevision = 0
-    private var pending: CGImage?
 
     func sample(_ frames: ScrollStreamFrames) throws -> (StitchOutcome, Int, Int, CGImage)? {
-        let image: CGImage
-        let outcome: StitchOutcome
-        if let (latest, revision) = try frames.image(after: sampledRevision) {
-            sampledRevision = revision; pending = latest
-            guard let accepted = try buffer.observe(latest, settled: frames.settled) else { return nil }
-            outcome = accepted; image = latest; pending = nil
-        } else {
-            guard let latest = pending, frames.settled else { return nil }
-            guard let accepted = try buffer.observe(latest, settled: true) else { return nil }
-            outcome = accepted; image = latest; pending = nil
-        }
+        guard let (image, revision) = try frames.image(after: sampledRevision) else { return nil }
+        sampledRevision = revision
+        // Match sharp captured frames continuously; overlap validation rejects unsafe samples.
+        guard let outcome = try buffer.observe(image, allowMoving: true) else { return nil }
         let previewSource: CGImage
         if case .appended(let pixels) = outcome {
             previewSource = image.cropping(to: CGRect(x: 0, y: image.height - pixels, width: image.width, height: pixels)) ?? image
@@ -73,8 +65,8 @@ private actor ScrollAssembler {
         guard let preview = context.makeImage() else { throw BakerError(message: "Could not prepare the scrolling preview.") }
         return (outcome, buffer.acceptedFrames, buffer.height, preview)
     }
-    func finish() throws -> CGImage? { pending = nil; return try buffer.finish() }
-    func cancel() { pending = nil; buffer.cancel() }
+    func finish() throws -> CGImage? { return try buffer.finish() }
+    func cancel() { buffer.cancel() }
 }
 
 @MainActor
@@ -114,7 +106,7 @@ final class ScrollCaptureSession: ObservableObject {
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
                 configuration.captureResolution = .best
                 configuration.showsCursor = false; configuration.capturesAudio = false
-                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 8)
+                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 12)
                 configuration.queueDepth = 3
                 let value = SCStream(filter: capture.filter, configuration: configuration, delegate: frames)
                 stream = value
@@ -139,7 +131,7 @@ final class ScrollCaptureSession: ObservableObject {
                         case .appended(let pixels):
                             preview = NSImage(cgImage: thumbnail, size: .zero)
                             message = "+\(pixels) px added. Keep scrolling down, or finish."
-                        case .unchanged: message = "No new content yet. Scroll down, then pause briefly."
+                        case .unchanged: message = "No new content. Keep scrolling down, or finish."
                         case .rejected(let reason): message = reason
                         }
                         if finishRequestedAt != nil { break }

@@ -19,14 +19,27 @@ final class Workbench: ObservableObject {
     @Published var exportSummary = ""
     @Published var isRecording = false
     @Published var isConvertingPDF = false
+    let formulaSetup = FormulaSetup()
+    var onFormulaSetupNeeded: (() -> Void)?
+    @AppStorage("developerRuntimeOverrides") var developerRuntimeOverrides = false
     @AppStorage("formulaPython") var python = ""
     @AppStorage("formulaConfig") var config = ""
     @AppStorage("copyCapturedImages") var copyCapturedImages = true
     @AppStorage("copyRecognisedText") var copyRecognisedText = true
     @AppStorage("showResults") var showResults = false
+    var finnishTextMode: Bool { selectedOCRLanguages.contains("fi-FI") }
+    var textEngineExecutable: String { developerRuntimeOverrides ? tesseractExecutable : FinnishOCR.defaultExecutable }
+    @AppStorage("tesseractExecutable") var tesseractExecutable = FinnishOCR.defaultExecutable
+    @Published private(set) var ocrLanguageSelection = OCRLanguages.defaults.joined(separator: ",") {
+        didSet { formulaPreferences.set(ocrLanguageSelection, forKey: "ocrLanguages") }
+    }
+    var selectedOCRLanguages: [String] { OCRLanguages.normalized(ocrLanguageSelection.split(separator: ",").map(String.init)) }
+    func setOCRLanguage(_ code: String, enabled: Bool) {
+        ocrLanguageSelection = OCRLanguages.setting(code, enabled: enabled, in: selectedOCRLanguages).joined(separator: ",")
+    }
     @AppStorage("captureSounds") var captureSounds = true
     private let feedback = CaptureFeedback()
-    @Published var mathFont = UserDefaults.standard.string(forKey: "mathFont") ?? MathFont.stixTwo.rawValue {
+    @Published var mathFont = UserDefaults.standard.string(forKey: "mathFont") ?? MathFont.latinModern.rawValue {
         didSet { UserDefaults.standard.set(mathFont, forKey: "mathFont") }
     }
     @Published var captures: [CaptureRecord] = []
@@ -41,6 +54,14 @@ final class Workbench: ObservableObject {
     @Published var activeCaptureID: UUID?
     @Published var focusedFormulaID: UUID?
     private(set) var formulaCapturePending = false
+    @Published var savedFormulas: [UUID: SavedFormula] = [:]
+    @Published var formulaHistoryLimit = 50 {
+        didSet { formulaPreferences.set(formulaHistoryLimit, forKey: "formulaHistoryLimit"); applyFormulaRetention() }
+    }
+    @Published var formulaHistoryDays = 0 {
+        didSet { formulaPreferences.set(formulaHistoryDays, forKey: "formulaHistoryDays"); applyFormulaRetention() }
+    }
+    private var formulaSaveTask: Task<Void, Never>?
     @Published var formulaResults: [UUID: FormulaResult] = [:]
     var onFormulaReady: ((UUID) -> Void)?
     var onEditResult: (() -> Void)?
@@ -60,17 +81,36 @@ final class Workbench: ObservableObject {
     init(captureDirectory: URL? = nil, clipboard: NSPasteboard = .general, formulaPreferences: UserDefaults = .standard) {
         self.clipboard = clipboard
         self.formulaPreferences = formulaPreferences
+        _developerRuntimeOverrides = AppStorage(wrappedValue: false, "developerRuntimeOverrides", store: formulaPreferences)
         _python = AppStorage(wrappedValue: "", "formulaPython", store: formulaPreferences)
         _config = AppStorage(wrappedValue: "", "formulaConfig", store: formulaPreferences)
         _copyCapturedImages = AppStorage(wrappedValue: true, "copyCapturedImages", store: formulaPreferences)
         _copyRecognisedText = AppStorage(wrappedValue: true, "copyRecognisedText", store: formulaPreferences)
         _showResults = AppStorage(wrappedValue: false, "showResults", store: formulaPreferences)
         _captureSounds = AppStorage(wrappedValue: true, "captureSounds", store: formulaPreferences)
-        let directory = captureDirectory ?? FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first!
+        let directory = captureDirectory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent("Baker", isDirectory: true)
+        var locationError: String?
+        if captureDirectory == nil {
+            do { _ = try CaptureLocation.prepare(documents: directory.deletingLastPathComponent(), pictures: FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first!) }
+            catch { locationError = "Could not move the previous captures to Documents: \(error.localizedDescription)" }
+        }
         captureStore = CaptureStore(directory: directory)
+        formulaHistoryLimit = max(1, min(500, formulaPreferences.object(forKey: "formulaHistoryLimit") as? Int ?? 50))
+        formulaHistoryDays = [0, 10, 30].contains(formulaPreferences.integer(forKey: "formulaHistoryDays")) ? formulaPreferences.integer(forKey: "formulaHistoryDays") : 0
+        _tesseractExecutable = AppStorage(wrappedValue: FinnishOCR.defaultExecutable, "tesseractExecutable", store: formulaPreferences)
+        let previousLanguages = formulaPreferences.string(forKey: "ocrLanguages")?.split(separator: ",").map(String.init) ?? OCRLanguages.defaults
+        let migrated = formulaPreferences.bool(forKey: "finnishTextMode") ? ["fi-FI"] : previousLanguages
+        ocrLanguageSelection = OCRLanguages.normalized(migrated).joined(separator: ",")
+        formulaPreferences.set(ocrLanguageSelection, forKey: "ocrLanguages")
+        formulaPreferences.removeObject(forKey: "finnishTextMode")
         Task {
-            do { let records = try await captureStore.records(); if captures.isEmpty { captures = records } }
+            if let locationError { problem = locationError }
+            do {
+                let records = try await captureStore.records(); if captures.isEmpty { captures = records }
+                do { savedFormulas = try await captureStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays) }
+                catch { problem = "Formula history could not be opened: \(error.localizedDescription)" }
+            }
             catch { problem = "Capture history could not be opened: \(error.localizedDescription)" }
         }
     }
@@ -80,6 +120,7 @@ final class Workbench: ObservableObject {
         if let cached = thumbnailCache[record.id] { return cached }
         return NSImage(cgImage: try await captureStore.thumbnail(record), size: .zero)
     }
+    func searchCaptures(_ query: String) async throws -> Set<UUID> { try await captureStore.search(query) }
     func revealCaptures() { NSWorkspace.shared.open(captureStore.directory) }
     func copyCapture(_ record: CaptureRecord) async -> Bool { await copyImageFile(captureURL(record)) }
     private func copyImageFile(_ url: URL) async -> Bool {
@@ -94,9 +135,19 @@ final class Workbench: ObservableObject {
             return true
         } catch { problem = error.localizedDescription; return false }
     }
+    func confirmCaptureSaved(_ record: CaptureRecord) async -> Bool {
+        do {
+            _ = try await captureStore.thumbnail(record)
+            status = "Saved to \(captureURL(record).deletingLastPathComponent().path)."
+            return true
+        } catch { problem = error.localizedDescription; return false }
+    }
     func saveCapture(_ record: CaptureRecord) { saveImageFile(captureURL(record)) }
     func selectCapture(_ record: CaptureRecord, action: CaptureAction) {
         guard !busy else { return }
+        if (action == .formula || action == .unicode), savedFormulas[record.id] != nil {
+            openSavedFormula(record.id); return
+        }
         let url = captureURL(record)
         guard let selected = NSImage(contentsOf: url) else { problem = "The saved image could not be opened."; return }
         if case .image = action { pinImage(selected); return }
@@ -121,16 +172,36 @@ final class Workbench: ObservableObject {
     private var documentTask: Task<PDFConversionReport, Error>?
     private var ownedExportDirectory: URL?
     private var pendingDocumentDirectory: URL?
+    private var dropboxController: DropboxController?
+    var dropbox: DropboxController {
+        if let dropboxController { return dropboxController }
+        let controller = DropboxController(model: self); dropboxController = controller; return controller
+    }
+    private var driveController: GoogleDriveController?
+    var googleDrive: GoogleDriveController {
+        if let driveController { return driveController }
+        let controller = GoogleDriveController(model: self); driveController = controller; return controller
+    }
+    func flushFormulaHistory() async { _ = await formulaSaveTask?.value }
+    func restoreCloudFormula(_ original: SavedFormula, for id: UUID) async throws {
+        let value = SavedFormula(id: id, originalLatex: original.originalLatex, latex: original.latex, unicodeOverride: original.unicodeOverride,
+            model: original.model, confidenceMethod: original.confidenceMethod, confidence: original.confidence, diagnostics: original.diagnostics,
+            format: original.format, style: original.style, unicodeText: original.unicodeText, originalConfidence: original.originalConfidence)
+        try Task.checkCancellation(); try await captureStore.saveFormula(value); adoptFormulas(try await captureStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays)); formulaResults.removeValue(forKey: id)
+    }
+    lazy var filesInbox = FilesInbox(model: self)
+    var onOpenFiles: ((PDFExportFormat?) -> Void)?
     private var shuttingDown = false
     private var pinWindows: [NSWindow] = []
-    var selectedMathFont: MathFont { MathFont(rawValue: mathFont) ?? .stixTwo }
+    var selectedMathFont: MathFont { MathFont(rawValue: mathFont) ?? .latinModern }
 
     var output: String {
-        switch format { case .text: return text; case .latex: return (activeCaptureID.flatMap { formulaResults[$0]?.style } ?? preferredLatexStyle).format(latex); case .markdown: return LatexCopyStyle.displayDollar.format(latex); case .unicode: return unicode; case .keynote: return KeynoteLatex.convert(latex).text }
+        switch format { case .text: return text; case .latex: return (activeCaptureID.flatMap { formulaResults[$0]?.style } ?? preferredLatexStyle).format(latex); case .markdown: return LatexCopyStyle.displayDollar.format(latex); case .unicode: return unicode; case .keynote: return LatexWhitespace.compact(KeynoteLatex.convert(latex).text) }
     }
 
     func openImage(asFormula: Bool = false) {
         guard !busy, !shuttingDown else { return }
+        if !asFormula, let onOpenFiles { onOpenFiles(nil); return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic, .bmp]
         panel.allowsMultipleSelection = false
@@ -154,7 +225,7 @@ final class Workbench: ObservableObject {
             }
         }
     }
-    private func accept(_ stored: StoredCapture) async throws {
+    private func accept(_ stored: StoredCapture, notify: Bool = true) async throws {
         try Task.checkCancellation()
         guard !shuttingDown else { throw CancellationError() }
         let url = captureURL(stored.record)
@@ -168,7 +239,55 @@ final class Workbench: ObservableObject {
         imageURL = url; image = loaded; activeCaptureID = stored.record.id
         text = ""; latex = ""; unicode = ""; unicodeMessage = ""; format = .text
         status = "Capture saved."
-        onImageReady?()
+        if notify { onImageReady?() }
+    }
+    func saveEditedCapture(_ image: CGImage, replacing record: CaptureRecord) async throws -> CaptureRecord {
+        guard !busy, !shuttingDown else { throw BakerError(message: "Wait for the current operation before saving edits.") }
+        busy = true; defer { busy = false }
+        await flushFormulaHistory()
+        let stored = try await captureStore.replace(image: image, record: record)
+        savedFormulas.removeValue(forKey: record.id); formulaResults.removeValue(forKey: record.id)
+        if focusedFormulaID == record.id { focusedFormulaID = nil }
+        try await accept(stored, notify: false)
+        if copyCapturedImages { _ = await copyCapture(stored.record) }
+        status = "Capture overwritten. Previous OCR result removed."
+        return stored.record
+    }
+    private func adoptFormulas(_ values: [UUID: SavedFormula]) {
+        savedFormulas = values
+        formulaResults = formulaResults.filter { values[$0.key] != nil || $0.value.phase == .recognising }
+        if let id = focusedFormulaID, values[id] == nil { focusedFormulaID = nil }
+    }
+    func applyFormulaRetention() {
+        guard !shuttingDown else { return }
+        let previous = formulaSaveTask, limit = formulaHistoryLimit, days = formulaHistoryDays
+        formulaSaveTask = Task {
+            _ = await previous?.value
+            do { adoptFormulas(try await captureStore.maintainFormulas(limit: limit, days: days)) }
+            catch { problem = "Formula retention could not be updated: \(error.localizedDescription)" }
+        }
+    }
+    func clearPreviewCache() {
+        guard !busy else { return }
+        thumbnailCache = [:]; formulaResults = [:]; focusedFormulaID = nil; image = nil
+        status = "Cached previews cleared. Saved files and formula history remain."
+    }
+    func clearFormulaHistory() {
+        guard !busy else { return }
+        let previous = formulaSaveTask
+        formulaSaveTask = Task {
+            _ = await previous?.value
+            do {
+                try await captureStore.clearFormulas(); adoptFormulas([:])
+                latex = ""; unicode = ""; unicodeMessage = ""
+                status = "Formula history cleared. Capture images and cloud files remain."
+            } catch { problem = "Formula history could not be cleared: \(error.localizedDescription)" }
+        }
+    }
+    func importFileIntoHistory(_ url: URL) async throws -> CaptureRecord {
+        let stored = try await captureStore.add(file: url)
+        try await accept(stored)
+        return stored.record
     }
     func importImage(_ image: CGImage) async throws {
         let stored = try await captureStore.add(image: image)
@@ -198,6 +317,10 @@ final class Workbench: ObservableObject {
     func warmCaptureSelection() { captureService.warmSelection() }
 
     func capture(scrolling: Bool, action: CaptureAction = .image) {
+        if (action == .formula || action == .unicode), !developerRuntimeOverrides, !formulaSetup.ready {
+            status = "Prepare formula recognition in Settings → Formula."
+            onFormulaSetupNeeded?(); return
+        }
         guard !busy, !shuttingDown else { return }
         formulaCapturePending = action == .formula || action == .unicode
         busy = true
@@ -274,7 +397,13 @@ final class Workbench: ObservableObject {
 
     func recognise(formula: Bool, outputFormat: OutputFormat = .latex) {
         guard !busy, !shuttingDown, let url = imageURL else { return }
-        let selectedPython = python, selectedConfig = config, captureID = activeCaptureID
+        if formula, !developerRuntimeOverrides, !formulaSetup.ready {
+            status = "Prepare formula recognition with one download in Settings → Formula."
+            onFormulaSetupNeeded?(); return
+        }
+        let selectedPython = developerRuntimeOverrides ? python : formulaSetup.python
+        let selectedConfig = developerRuntimeOverrides ? config : formulaSetup.configuration
+        let captureID = activeCaptureID, languages = selectedOCRLanguages, finnish = finnishTextMode, tesseractPath = textEngineExecutable
         busy = true
         if formula, let captureID {
             if formulaResults[captureID] == nil, formulaResults.count >= 8,
@@ -291,7 +420,7 @@ final class Workbench: ObservableObject {
                 try Task.checkCancellation()
                 guard !shuttingDown else { throw CancellationError() }
                 let task = Task.detached(priority: .userInitiated) {
-                    let result = formula ? try recogniseFormulaResult(url, python: selectedPython, config: selectedConfig) : FormulaRecognition(latex: try recogniseText(url), confidence: nil)
+                    let result = formula ? try recogniseFormulaResult(url, python: selectedPython, config: selectedConfig) : FormulaRecognition(latex: try recogniseText(url, languages: languages, finnish: finnish, tesseractPath: tesseractPath), confidence: nil)
                     try Task.checkCancellation()
                     return result
                 }
@@ -309,8 +438,8 @@ final class Workbench: ObservableObject {
                         : rendered.warnings.joined(separator: " ")
                     if let captureID {
                         let keynote = KeynoteLatex.convert(result)
-                        formulaResults[captureID] = FormulaResult(phase: .ready, confidence: recognition.confidence, latex: result, unicode: unicode,
-                            keynote: keynote.text, keynoteWarning: keynote.warnings.joined(separator: " "), warning: unicodeMessage, format: outputFormat, style: preferredLatexStyle)
+                        formulaResults[captureID] = FormulaResult(phase: .ready, confidence: recognition.confidence, originalConfidence: recognition.confidence, originalLatex: result, model: recognition.model, confidenceMethod: recognition.confidenceMethod, diagnostics: recognition.diagnostics, latex: result, unicode: unicode,
+                            keynote: LatexWhitespace.compact(keynote.text), keynoteWarning: keynote.warnings.joined(separator: " "), warning: unicodeMessage, format: outputFormat, style: preferredLatexStyle)
                         copyFormula(captureID)
                         let fontName = selectedMathFont.resolvedFont.fontName
                         let renderTask = Task.detached(priority: .userInitiated) { try FormulaRenderer.render(result, fontName: fontName) }
@@ -348,6 +477,54 @@ final class Workbench: ObservableObject {
         }
     }
 
+    private func persistFormula(_ id: UUID) {
+        guard let result = formulaResults[id], result.phase == .ready else { return }
+        let value = SavedFormula(id: id, originalLatex: result.originalLatex.isEmpty ? result.latex : result.originalLatex,
+            latex: result.latex, unicodeOverride: result.unicodeOverride, model: result.model,
+            confidenceMethod: result.confidenceMethod, confidence: result.confidence, diagnostics: result.diagnostics,
+            format: result.format.rawValue, style: result.style.rawValue, unicodeText: result.unicode, originalConfidence: result.originalConfidence ?? result.confidence, savedAt: savedFormulas[id]?.savedAt ?? Date())
+        guard savedFormulas[id] != value else { return }
+        let previous = formulaSaveTask
+        formulaSaveTask = Task {
+            _ = await previous?.value
+            do {
+                try await captureStore.saveFormula(value)
+                adoptFormulas(try await captureStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays))
+            } catch { problem = "Formula could not be saved: \(error.localizedDescription)" }
+        }
+    }
+    func recogniseSavedFormula(_ record: CaptureRecord) {
+        guard !busy, !shuttingDown else { return }
+        imageURL = captureURL(record); activeCaptureID = record.id
+        recognise(formula: true, outputFormat: preferredFormulaFormat)
+    }
+    func openSavedFormula(_ id: UUID) {
+        guard !busy, !shuttingDown, let value = savedFormulas[id] else { return }
+        if formulaResults[id]?.phase != .ready {
+            if formulaResults.count >= 8, let oldest = captures.reversed().first(where: { formulaResults[$0.id] != nil }) { formulaResults.removeValue(forKey: oldest.id) }
+            let converted = UnicodeMath.convert(value.latex, italicVariables: true), keynote = KeynoteLatex.convert(value.latex)
+            formulaResults[id] = FormulaResult(phase: .ready, confidence: value.confidence, originalConfidence: value.originalConfidence, wasEdited: value.originalLatex != value.latex,
+                originalLatex: value.originalLatex, model: value.model, confidenceMethod: value.confidenceMethod,
+                diagnostics: value.diagnostics, unicodeOverride: value.unicodeOverride, latex: value.latex,
+                unicode: value.unicodeOverride ?? converted.text, keynote: LatexWhitespace.compact(keynote.text),
+                keynoteWarning: keynote.warnings.joined(separator: " "), warning: converted.warnings.joined(separator: " "),
+                format: OutputFormat(rawValue: value.format) ?? .latex, style: LatexCopyStyle(rawValue: value.style) ?? .bare)
+            let fontName = selectedMathFont.resolvedFont.fontName
+            busy = true
+            formulaEditJob = Task {
+                defer { busy = false; formulaEditJob = nil; formulaRenderTask = nil }
+                guard !shuttingDown, !Task.isCancelled else { return }
+                do {
+                    let render = Task.detached { try FormulaRenderer.render(value.latex, fontName: fontName) }
+                    formulaRenderTask = render
+                    let rendered = try await render.value
+                    guard !shuttingDown, !Task.isCancelled, !render.isCancelled, formulaResults[id]?.latex == value.latex else { return }
+                    formulaResults[id]?.preview = NSImage(cgImage: rendered, size: NSSize(width: CGFloat(rendered.width) / 2, height: CGFloat(rendered.height) / 2))
+                } catch { formulaResults[id]?.previewError = error.localizedDescription }
+            }
+        }
+        focusedFormulaID = id; onFormulaReady?(id)
+    }
     func chooseFormulaFormat(_ id: UUID, _ selected: OutputFormat) {
         guard selected != .text, formulaResults[id]?.phase == .ready else { return }
         formulaResults[id]?.format = selected
@@ -372,15 +549,17 @@ final class Workbench: ObservableObject {
     func applyFormulaEdits() {
         guard !busy, let id = activeCaptureID, formulaResults[id]?.phase == .ready else { return }
         if format == .unicode {
+            formulaResults[id]?.unicodeOverride = unicode
             formulaResults[id]?.unicode = unicode
             formulaResults[id]?.format = .unicode
             copyFormula(id)
             return
         }
         if formulaResults[id]?.latex != latex { formulaResults[id]?.confidence = nil; formulaResults[id]?.wasEdited = true }
+        formulaResults[id]?.unicodeOverride = nil
         formulaResults[id]?.latex = latex
         let keynote = KeynoteLatex.convert(latex)
-        formulaResults[id]?.keynote = keynote.text
+        formulaResults[id]?.keynote = LatexWhitespace.compact(keynote.text)
         formulaResults[id]?.keynoteWarning = keynote.warnings.joined(separator: " ")
         let converted = UnicodeMath.convert(latex, italicVariables: true)
         unicode = converted.text; unicodeMessage = converted.warnings.joined(separator: " ")
@@ -403,6 +582,7 @@ final class Workbench: ObservableObject {
         }
     }
     func copyFormula(_ id: UUID) {
+        persistFormula(id)
         guard let result = formulaResults[id], result.phase == .ready else { return }
         clipboardRequest += 1
         do {
@@ -540,6 +720,7 @@ final class Workbench: ObservableObject {
     func stopRecording() { recordingSession?.stop() }
 
     func convertPDF(format: PDFExportFormat) {
+        if let onOpenFiles { onOpenFiles(format); return }
         guard !busy, !shuttingDown else { return }
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
@@ -554,8 +735,9 @@ final class Workbench: ObservableObject {
         pendingDocumentDirectory = directory
         exportSummary = "Extracting readable text one page at a time. Mathematical layout may need correction."
         status = "Preparing PDF…"; onExportReady?()
+        var options = PDFConversionOptions(); options.recognitionLanguages = selectedOCRLanguages; options.finnishTextMode = finnishTextMode; options.tesseractExecutable = textEngineExecutable
         let worker = Task.detached { [self] in
-            try PDFConverter.convert(source: source, destination: destination, format: format,
+            try PDFConverter.convert(source: source, destination: destination, format: format, options: options,
                 isCancelled: { Task.isCancelled }, progress: { [self] progress in
                     Task { @MainActor [self] in
                         guard self.isConvertingPDF else { return }
@@ -581,6 +763,8 @@ final class Workbench: ObservableObject {
     }
 
     func cancelJob() {
+        driveController?.cancel(); dropboxController?.cancel()
+        filesInbox.cancel()
         recognitionJob?.cancel(); formulaEditJob?.cancel(); recognitionTask?.cancel(); formulaRenderTask?.cancel(); documentTask?.cancel(); recordingSession?.cancel(); scrollSession?.cancel()
         importTask?.cancel(); captureTask?.cancel(); captureService.cancelSelection()
     }
@@ -623,7 +807,10 @@ final class Workbench: ObservableObject {
     }
 
     func shutdown() async {
+        formulaSetup.cancel()
         shuttingDown = true
+        await driveController?.shutdown(); await dropboxController?.shutdown()
+        await filesInbox.close()
         let recognition = recognitionTask, document = documentTask
         let recognitionOperation = recognitionJob, editOperation = formulaEditJob
         recognitionOperation?.cancel(); editOperation?.cancel()
@@ -639,6 +826,7 @@ final class Workbench: ObservableObject {
         await scrolling?.cancelAndWait()
         _ = await capturing?.result
         _ = await importing?.result
+        _ = await formulaSaveTask?.value
         _ = await recognition?.result
         _ = await recognitionOperation?.result
         _ = await editOperation?.result

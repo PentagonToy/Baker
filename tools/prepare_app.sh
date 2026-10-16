@@ -4,10 +4,15 @@ set -euo pipefail
 source_dir="${0:A:h:h}"
 output_root="${BAKER_BUILD_DIRECTORY:-/Volumes/PentagonToy/Workspace/Agents/Repository/baker/local-build}"
 build_system="${BAKER_BUILD_SYSTEM:-swiftbuild}"
+build_configuration="${BAKER_BUILD_CONFIGURATION:-release}"
+case "$build_configuration" in
+    debug|release) ;;
+    *) print -u2 "Choose BAKER_BUILD_CONFIGURATION=debug or release"; exit 1 ;;
+esac
 mkdir -p "$output_root"
 cd "$source_dir"
-swift build --build-system "$build_system" --scratch-path "$output_root/swift-build" -c debug --arch arm64 --product Baker
-binary_dir="$(swift build --build-system "$build_system" --scratch-path "$output_root/swift-build" -c debug --arch arm64 --show-bin-path)"
+swift build --build-system "$build_system" --scratch-path "$output_root/swift-build" -c "$build_configuration" --arch arm64 --product Baker
+binary_dir="$(swift build --build-system "$build_system" --scratch-path "$output_root/swift-build" -c "$build_configuration" --arch arm64 --show-bin-path)"
 app="$output_root/Baker.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary_dir/Baker" "$app/Contents/MacOS/Baker"
@@ -15,7 +20,20 @@ cp "$binary_dir/Baker" "$app/Contents/MacOS/Baker"
 # engine emits a flat .bundle that cannot be signed as a nested macOS bundle.
 old_resource="$app/Contents/MacOS/Baker_Baker.bundle"
 if [[ -d "$old_resource" ]]; then rm -rf -- "$old_resource"; fi
+cp -R "$source_dir/Sources/BakerCore/Resources/Tessdata" "$app/Contents/Resources/"
+cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$app/Contents/Resources/"
+# A release contains a relocatable interpreter, OCR libraries and Tesseract.
+# Build this separately with tools/bundle_runtime.py; never copy a virtualenv.
+if [[ -n "${BAKER_RUNTIME_DIRECTORY:-}" ]]; then
+    if [[ -d "$app/Contents/Resources/Runtime" ]]; then rm -rf -- "$app/Contents/Resources/Runtime"; fi
+    cp -R "$BAKER_RUNTIME_DIRECTORY" "$app/Contents/Resources/Runtime"
+    find "$app/Contents/Resources/Runtime" -type d -name __pycache__ -prune -exec rm -rf {} +
+elif [[ "$build_configuration" == release && ! -d "$app/Contents/Resources/Runtime" ]]; then
+    print -u2 "A complete release needs BAKER_RUNTIME_DIRECTORY; see tools/bundle_runtime.py"
+    exit 1
+fi
 mkdir -p "$app/Contents/Resources/BakerIcons" "$app/Contents/Resources/BakerSymbols"
 for asset in "$source_dir"/others/assests/icons/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerIcons/"; done
 for asset in "$source_dir"/others/assests/symbols/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerSymbols/"; done
@@ -41,8 +59,17 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
+if [[ -f "$app/Contents/Resources/Runtime/manifest.json" ]]; then
+    minimum_os="$(plutil -extract minimum_macos raw -o - "$app/Contents/Resources/Runtime/manifest.json")"
+    /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $minimum_os" "$app/Contents/Info.plist"
+fi
 # A persistent signing identity gives privacy permissions a stable app identity.
 # Ad-hoc signing is local-build fallback; rebuilding can require renewed consent.
 signing_identity="${BAKER_SIGN_IDENTITY:--}"
+if [[ -d "$app/Contents/Resources/Runtime" ]]; then
+    while IFS= read -r -d '' native_file; do
+        if file -b "$native_file" | grep -q 'Mach-O'; then codesign --force --sign "$signing_identity" "$native_file"; fi
+    done < <(find "$app/Contents/Resources/Runtime" -type f -print0)
+fi
 codesign --force --sign "$signing_identity" "$app"
 print "Prepared: $app"

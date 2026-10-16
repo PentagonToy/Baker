@@ -109,6 +109,9 @@ class WorkerTests(unittest.TestCase):
             def decode(self, *args, **kwargs): return "x"
         result = worker.decode_tokens(Decoder(), None, Tokenizer(), MODEL, 2, time.monotonic() + 10)
         self.assertAlmostEqual(result["confidence"], .5)
+        self.assertEqual(result["diagnostics"]["tokenCount"], 1)
+        self.assertEqual(result["diagnostics"]["ambiguousTokenCount"], 1)
+        self.assertAlmostEqual(result["diagnostics"]["minimumTokenProbability"], .5)
 
     def test_json_stdout_and_diagnostics_stderr(self):
         def recognise(*args):

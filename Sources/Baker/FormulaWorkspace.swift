@@ -58,7 +58,7 @@ struct FormulaWorkspace: View {
                                 } else if result.phase == .failed {
                                     VStack(spacing: 10) {
                                         Text(result.error).font(.callout).foregroundStyle(.black).textSelection(.enabled)
-                                        Button("Try Again") { model.selectCapture(record, action: .formula) }.disabled(model.busy)
+                                        Button("Try Again") { model.recogniseSavedFormula(record) }.disabled(model.busy)
                                     }.padding(16)
                                 } else if let error = result.previewError {
                                     VStack(spacing: 8) { Text(result.latex).font(.system(.body, design: .monospaced)); Text(error).font(.caption) }
@@ -80,6 +80,22 @@ struct FormulaWorkspace: View {
                                 }.help("Model token confidence, not a verified probability that the entire equation is correct. Compare the original before using it.")
                             } else {
                                 Text(result.wasEdited ? "Edited · OCR confidence no longer applies" : "OCR confidence unavailable").font(.caption).foregroundStyle(.secondary)
+                            }
+                            DisclosureGroup("Recognition details") {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text("Model: " + result.model)
+                                    if let score = result.originalConfidence { Text("Original OCR score: " + score.formatted(.percent.precision(.fractionLength(1)))) }
+                                    Text("Original OCR score method: " + (result.confidenceMethod ?? "unavailable"))
+                                    if let diagnostics = result.diagnostics {
+                                        Text("Original OCR: \(diagnostics.tokenCount) tokens · \(diagnostics.ambiguousTokenCount) below 80% token confidence")
+                                        Text("Lowest token score: " + diagnostics.minimumTokenProbability.formatted(.percent.precision(.fractionLength(1))))
+                                        Text("Token uncertainty is not a per-symbol error count. Edited output is not rescored.").foregroundStyle(.secondary)
+                                    }
+                                    if result.wasEdited { Text("Original OCR LaTeX: " + result.originalLatex).textSelection(.enabled) }
+                                    Button("Recognise Again") {
+                                        model.recogniseSavedFormula(record)
+                                    }.disabled(model.busy)
+                                }.font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                             }
                             Text("Copy format").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                             formatRow(.latex, text: result.style.format(result.latex), result: result, id: record.id)
@@ -133,7 +149,7 @@ struct FormulaWorkspace: View {
     private func formatRow(_ format: OutputFormat, text: String, result: FormulaResult, id: UUID) -> some View {
         HStack(spacing: 10) {
             Text(format.rawValue).font(.system(size: 12, weight: .semibold)).frame(width: 78, alignment: .leading)
-            ScrollView(.horizontal) { Text(text.replacingOccurrences(of: "\n", with: " ↵ ")).font(.system(size: 12, design: .monospaced)).lineLimit(1).textSelection(.enabled) }.scrollContentBackground(.hidden).frame(height: 18)
+            ScrollView(.horizontal) { Text(text.replacingOccurrences(of: "\n", with: " ↵ ")).font(format == .unicode ? Font(model.selectedMathFont.resolvedFont.withSize(16)) : .system(size: 12, design: .monospaced)).lineLimit(1).textSelection(.enabled) }.scrollContentBackground(.hidden).frame(height: format == .unicode ? 24 : 18)
             if format == .unicode && !result.warning.isEmpty { Button { state.showUnicodeWarning.toggle() } label: { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
                     .buttonStyle(.borderless).help(result.warning).accessibilityLabel("Unicode representation warning: " + result.warning)
                     .onHover { hovering in state.showUnicodeWarning = hovering }

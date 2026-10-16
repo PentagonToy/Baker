@@ -1,6 +1,6 @@
 import Foundation
 
-/// Wrappers change the paste format without rewriting the recognised expression.
+/// Copy formats compact ordinary math whitespace and wrap the recognised expression.
 public enum LatexCopyStyle: String, CaseIterable, Sendable {
     case bare = "Bare LaTeX"
     case inlineDollar = "Inline $…$"
@@ -10,7 +10,7 @@ public enum LatexCopyStyle: String, CaseIterable, Sendable {
     case equation = "Numbered equation"
 
     public func format(_ source: String) -> String {
-        let body = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = LatexWhitespace.compact(source)
         switch self {
         case .bare: return body
         case .inlineDollar: return "$" + body + "$"

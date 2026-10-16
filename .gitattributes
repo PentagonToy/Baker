@@ -1,0 +1,2 @@
+# Preserve original upstream font notices byte-for-byte, including their whitespace.
+Sources/BakerCore/Resources/Fonts/*.txt whitespace=-blank-at-eol,-blank-at-eof
