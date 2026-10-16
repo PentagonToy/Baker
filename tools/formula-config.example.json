@@ -1,0 +1,7 @@
+{
+  "model_dir": "/absolute/path/to/prepared/mfr-1.5",
+  "threads": 2,
+  "max_new_tokens": 256,
+  "timeout_seconds": 45,
+  "max_image_pixels": 12000000
+}
