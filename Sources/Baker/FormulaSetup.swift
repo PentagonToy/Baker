@@ -30,7 +30,12 @@ final class FormulaSetup: ObservableObject {
     var python: String { runtime.appendingPathComponent("python/bin/python3.12").path }
     var configuration: String { directory.appendingPathComponent("baker-config.json").path }
     var usesBundledModel: Bool {
-        (try? Self.manifest())?.bundledOnly == true || FileManager.default.fileExists(atPath: (Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr/encoder_model.onnx").path ?? ""))
+        (try? Self.manifest())?.bundledOnly == true || bundledModel != nil
+    }
+    private var bundledModel: URL? {
+        guard let resources = Bundle.main.resourceURL else { return nil }
+        return ["Runtime/mfr", "DocumentEngine/mfr"].map { resources.appendingPathComponent($0) }
+            .first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("encoder_model.onnx").path) }
     }
     var runtimeAvailable: Bool { FileManager.default.isExecutableFile(atPath: python) }
     init(runtime: URL? = nil, root: URL? = nil) {
@@ -79,7 +84,7 @@ final class FormulaSetup: ObservableObject {
             do {
                 let manifest = try Self.manifest(), directory = directory
                 if !FileManager.default.fileExists(atPath: configuration) {
-                    guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr"),
+                    guard let bundled = bundledModel,
                           FileManager.default.fileExists(atPath: bundled.appendingPathComponent("encoder_model.onnx").path) else {
                         message = manifest.bundledOnly == true ? "The included formula model is missing. Reinstall Baker." : "Download the formula model once. Recognition then runs offline."; return
                     }
@@ -102,7 +107,7 @@ final class FormulaSetup: ObservableObject {
             do {
                 let manifest = try Self.manifest()
                 if manifest.bundledOnly == true {
-                    guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr"),
+                    guard let bundled = bundledModel,
                           files.fileExists(atPath: bundled.appendingPathComponent("encoder_model.onnx").path) else {
                         throw BakerError(message: "The included model is missing. Reinstall Baker.")
                     }

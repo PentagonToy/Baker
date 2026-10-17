@@ -21,6 +21,7 @@ final class Workbench: ObservableObject {
     @Published var isConvertingPDF = false
     @Published var documentProgress = DocumentProgress()
     let formulaSetup = FormulaSetup()
+    let pdfEngineSetup = PDFEngineSetup()
     var onFormulaSetupNeeded: (() -> Void)?
     @AppStorage("developerRuntimeOverrides") var developerRuntimeOverrides = false
     @AppStorage("formulaPython") var python = ""
@@ -750,6 +751,8 @@ final class Workbench: ObservableObject {
 
     var preparedDocumentEngine: PDFDocumentEngine? {
         let resources = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main : Bundle.module
+        if !developerRuntimeOverrides && pdfEngineSetup.working { return nil }
+        if !developerRuntimeOverrides, let engine = pdfEngineSetup.engine { return engine }
         if !developerRuntimeOverrides, let root = resources.resourceURL?.appendingPathComponent("DocumentEngine"),
            FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("python/bin/python3.12").path),
            FileManager.default.fileExists(atPath: root.appendingPathComponent("document-engine.json").path),
@@ -757,8 +760,8 @@ final class Workbench: ObservableObject {
             return PDFDocumentEngine(python: root.appendingPathComponent("python/bin/python3.12"), worker: worker,
                                      configuration: root.appendingPathComponent("document-engine.json"))
         }
-        let selectedConfig = developerRuntimeOverrides ? config : formulaSetup.configuration
-        let selectedPython = developerRuntimeOverrides ? python : formulaSetup.python
+        guard developerRuntimeOverrides else { return nil }
+        let selectedConfig = config, selectedPython = python
         let configuration = URL(fileURLWithPath: selectedConfig).deletingLastPathComponent().appendingPathComponent("document-engine.json")
         guard !selectedConfig.isEmpty, !selectedPython.isEmpty,
               FileManager.default.fileExists(atPath: configuration.path),
@@ -769,6 +772,7 @@ final class Workbench: ObservableObject {
     func convertPDF(format: PDFExportFormat) {
         if let onOpenFiles { onOpenFiles(format); return }
         guard !busy, !shuttingDown else { return }
+        guard preparedDocumentEngine != nil else { problem = "Prepare the optional PDF engine in Settings → PDF Conversion first."; return }
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]; panel.allowsMultipleSelection = false
@@ -857,9 +861,10 @@ final class Workbench: ObservableObject {
     }
 
     func shutdown() async {
-        formulaSetup.cancel()
+        formulaSetup.cancel(); pdfEngineSetup.cancel()
         shuttingDown = true
         await filesInbox.close()
+        await pdfEngineSetup.close()
         let recognition = recognitionTask, document = documentTask
         let recognitionOperation = recognitionJob, editOperation = formulaEditJob
         recognitionOperation?.cancel(); editOperation?.cancel()

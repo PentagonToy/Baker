@@ -136,8 +136,22 @@ def build(config, build_only):
             key = hashlib.sha256((BUILDER / 'pack_document_engine.py').read_bytes() + document_configuration.read_bytes() + environment).hexdigest()[:16]
             document = root / ('document-engine-' + key)
             run([config['document_python'], BUILDER / 'pack_document_engine.py', '--destination', document, '--configuration', document_configuration])
+        separate = bool(config.get('small_ocr_payload')) and not config.get('include_pdf_engine', False)
+        distribution = Path(config['pdf_distribution']).expanduser() if config.get('pdf_distribution') else job / 'pdf-distribution'
+        if separate:
+            if config.get('pdf_distribution'):
+                if not (distribution / 'pdf-engine.json').is_file(): raise ValueError('Select a tested PDF distribution with its pinned descriptor.')
+            else:
+                run([config['document_python'], BUILDER / 'package_pdf_engine.py', '--source', document, '--destination', distribution,
+                     '--signing-identity', config.get('signing_identity', '-')])
+            descriptor = json.loads((distribution / 'pdf-engine.json').read_text())
+            if not build_only and not descriptor.get('available'):
+                raise ValueError('The optional PDF download is not published. Use --build-only to test, or include_pdf_engine=true to install a complete offline app. The installed app was not replaced.')
         env = dict(os.environ, BAKER_BUILD_DIRECTORY=str(root / 'native'), BAKER_BUILD_SYSTEM='native', BAKER_BUILD_CONFIGURATION='release',
-                   BAKER_RUNTIME_DIRECTORY=config['formula_runtime'], BAKER_DOCUMENT_ENGINE_DIRECTORY=str(document))
+                   BAKER_RUNTIME_DIRECTORY=config['formula_runtime'], BAKER_FORMULA_MODELS_DIRECTORY=str(document))
+        env.pop('BAKER_DOCUMENT_ENGINE_DIRECTORY', None)
+        if separate: env['BAKER_PDF_ENGINE_MANIFEST'] = str(distribution / 'pdf-engine.json')
+        else: env['BAKER_DOCUMENT_ENGINE_DIRECTORY'] = str(document)
         if config.get('signing_identity'): env['BAKER_SIGN_IDENTITY'] = config['signing_identity']
         run([ROOT / 'tools/prepare_app.sh'], cwd=ROOT, env=env)
         app = root / 'native/Baker.app'
@@ -146,6 +160,11 @@ def build(config, build_only):
             packaged_version = plistlib.load(stream).get('CFBundleShortVersionString')
         if packaged_version != (ROOT/'VERSION').read_text().strip(): raise ValueError('Packaged app version does not match VERSION.')
         engine = app / 'Contents/Resources/DocumentEngine'
+        if separate:
+            archive = next(distribution.glob('*.tar.gz'))
+            run([app / 'Contents/Resources/Runtime/python/bin/python3.12', '-I', '-B', app / 'Contents/Resources/pdf_engine_install.py',
+                 '--archive', archive, '--descriptor', distribution / 'pdf-engine.json', '--stage', job / 'installed-pdf'])
+            engine = job / 'installed-pdf/PDFEngine'
         run([engine / 'python/bin/python3.12', '-I', '-B', app / 'Contents/Resources/document_worker.py',
              '--source', config['smoke_pdf'], '--output', job / 'pdf-check', '--config', engine / 'document-engine.json'])
         for index, case in enumerate(config.get('table_checks', [])):
@@ -160,7 +179,7 @@ def build(config, build_only):
         report = {'version':(ROOT/'VERSION').read_text().strip(), 'app':str(app), 'git_head':subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip(),
                   'binary_sha256':hashlib.file_digest((app / 'Contents/MacOS/Baker').open('rb'),'sha256').hexdigest(),
                   'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT/'Sources').rglob('*')) if p.is_file()},
-                  'document_engine':str(document), 'smoke_test':'passed', 'installed':False}
+                  'document_engine':str(engine), 'pdf_distribution':str(distribution) if separate else None, 'smoke_test':'passed', 'installed':False}
         (job / 'build-report.json').write_text(json.dumps(report, indent=2))
         if not build_only:
             install = Path(config['install_path']).expanduser()

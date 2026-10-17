@@ -78,10 +78,34 @@ final class FilesInbox: ObservableObject {
     }
     func start() {
         guard !running, !model.busy, items.contains(where: { $0.phase == .waiting }) else { return }
-        running = true; model.busy = true
+        running = true
         let format = pdfFormat
         task = Task {
-            defer { running = false; model.busy = false; task = nil }
+            var ownsBusy = false
+            defer { running = false; if ownsBusy { model.busy = false }; task = nil }
+            if items.contains(where: { $0.phase == .waiting && $0.url.pathExtension.lowercased() == "pdf" }), model.preparedDocumentEngine == nil {
+                do {
+                    if !model.pdfEngineSetup.working {
+                        guard model.pdfEngineSetup.available else { message = model.pdfEngineSetup.message; return }
+                        let alert = NSAlert()
+                        alert.messageText = "Download the PDF engine?"
+                        alert.informativeText = "PDF conversion needs a one-time download of \(model.pdfEngineSetup.downloadSize) (\(model.pdfEngineSetup.installedSize) installed). Recognition then runs on this Mac. Your queued files will convert after installation."
+                        alert.addButton(withTitle: "Download & Continue"); alert.addButton(withTitle: "Not Now")
+                        guard alert.runModal() == .alertFirstButtonReturn else { message = "PDF files are waiting. Download the engine when you are ready."; return }
+                    }
+                    message = "Preparing PDF engine…"
+                    try await model.pdfEngineSetup.waitUntilReady()
+                    message = ""
+                } catch { message = error.localizedDescription; return }
+            }
+            do {
+                while model.busy {
+                    message = "Waiting for the current capture…"
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                try Task.checkCancellation()
+            } catch { message = "Processing cancelled. Your files remain in the list."; return }
+            model.busy = true; ownsBusy = true
             for index in items.indices {
                 if Task.isCancelled { break }
                 guard items[index].phase == .waiting else { continue }
@@ -92,11 +116,12 @@ final class FilesInbox: ObservableObject {
                 defer { if access { source.stopAccessingSecurityScopedResource() } }
                 do {
                     if source.pathExtension.lowercased() == "pdf" {
+                        guard let engine = model.preparedDocumentEngine else { throw BakerError(message: "Install the PDF engine before converting PDFs.") }
                         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("baker-inbox-" + UUID().uuidString)
                         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
                         folders.append(folder)
                         let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
-                        var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = model.preparedDocumentEngine
+                        var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = engine
                         let worker = Task.detached {
                             try PDFConverter.convert(source: source, destination: destination, format: format, options: options, isCancelled: { Task.isCancelled }, progress: { progress in
                                 Task { @MainActor [weak self] in
@@ -152,6 +177,10 @@ final class FilesInbox: ObservableObject {
 struct FilesWorkspace: View {
     @ObservedObject var model: Workbench
     @ObservedObject var inbox: FilesInbox
+    @ObservedObject private var pdfSetup: PDFEngineSetup
+    init(model: Workbench, inbox: FilesInbox) {
+        self.model = model; self.inbox = inbox; self.pdfSetup = model.pdfEngineSetup
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -164,12 +193,12 @@ struct FilesWorkspace: View {
                 Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
                 Text("Drop images and PDFs here").font(.headline)
                 Text("Select several files · originals stay in place").font(.caption).foregroundStyle(.secondary)
-                Button("Choose Files…", action: inbox.browse).disabled(model.busy)
+                Button("Choose Files…", action: inbox.browse).disabled(model.busy || inbox.running)
             }.frame(maxWidth: .infinity).padding(24)
                 .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? BakerTheme.accent : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
                 .onDrop(of: [UTType.fileURL.identifier], isTargeted: $inbox.targeted) { providers in
-                    guard !model.busy else { return false }
+                    guard !model.busy, !inbox.running else { return false }
                     for provider in providers.prefix(50) {
                         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { value, _ in
                             let url = (value as? URL) ?? (value as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
@@ -181,12 +210,15 @@ struct FilesWorkspace: View {
             HStack {
                 Picker("PDF output", selection: $inbox.pdfFormat) {
                     Text("Markdown").tag(PDFExportFormat.markdown); Text("LaTeX").tag(PDFExportFormat.latex)
-                }.frame(width: 220).disabled(model.busy)
-                Text(model.preparedDocumentEngine == nil ? "PDF text extraction" : "Local document recognition").font(.caption).foregroundStyle(.secondary)
+                }.frame(width: 220).disabled(model.busy || inbox.running)
+                Text(model.preparedDocumentEngine == nil ? "PDF engine download required" : "Local document recognition").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Clear", action: inbox.clear).disabled(model.busy)
+                Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
                 else { Button("Process Files", action: inbox.start).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
+            }
+            if model.preparedDocumentEngine == nil && inbox.items.contains(where: { $0.url.pathExtension.lowercased() == "pdf" }) {
+                PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
             }
             List(inbox.items) { file in
                 HStack {

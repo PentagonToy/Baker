@@ -14,7 +14,7 @@ Baker combines small task-specific engines with native macOS recognition. Captur
 
 The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Baker retains fast MFR recognition for individual formula images rather than loading the larger document model for every capture.
 
-The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its bundled MLX library requires macOS 26.2 or later.
+The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
 
 ## What the Baker adaptation changes
 
@@ -22,7 +22,7 @@ The document checkpoint is a quantised GLM-OCR derivative with a rank-4 LoRA ada
 
 The adapter was trained for 40 updates on 54 checked, authored examples. Validation and test examples have separate content. PaddleOCR, Apple Vision, Tesseract and GLM-OCR supplied candidate teacher outputs that were checked against authored targets. User captures and research PDFs were excluded from training. The small dataset does not establish broad accuracy gains over the base model.
 
-Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) of Z.ai GLM-OCR, then applies its own mixed precision and adapter. The pinned source revisions are `24f15402e83baa0a80eeeaecf5480e172abc6f2e` for that MLX conversion and `1cef9f0bdcd6a4c63df7de1311fb0894593340cc` for MFR. Prepared builds retain model hashes, package versions, upstream notices and provenance under `Contents/Resources/DocumentEngine` and `Contents/Resources/Runtime`. The checked inference code, evaluation and packaging tools are in [`tools/recognition`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition).
+Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) of Z.ai GLM-OCR, then applies its own mixed precision and adapter. The pinned source revisions are `24f15402e83baa0a80eeeaecf5480e172abc6f2e` for that MLX conversion and `1cef9f0bdcd6a4c63df7de1311fb0894593340cc` for MFR. The published 0.0.1 build retains PDF provenance under `Contents/Resources/DocumentEngine`. Development builds move this engine to `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`; capture models stay in `Contents/Resources/Runtime/mfr`. Both retain model hashes, package versions and upstream notices. Packaging changes do not alter the selected weights or adapter. The checked inference code, evaluation and packaging tools are in [`tools/recognition`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition).
 
 ## Repositories studied
 

@@ -16,6 +16,8 @@ Closing a thumbnail keeps its saved file. Done in the capture editor overwrites 
 
 The complete app prepares an included formula model locally when available. Model repair restores the included files when available. For builds that require a download, Baker downloads pinned model files from Hugging Face over HTTPS. The provider receives ordinary connection information such as the requesting IP address. No captures, recognised text or account tokens are included in these requests. Baker verifies the file sizes and SHA-256 hashes before installation. Models are stored under `~/Library/Application Support/Baker/Models`; Remove Model deletes the prepared formula model without deleting captures.
 
+Development builds can download an optional PDF engine from Baker’s GitHub Releases over HTTPS. GitHub receives ordinary connection information, including the requesting IP address; the request does not contain documents or recognised content. Baker checks the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → PDF Conversion removes the downloaded engine without deleting user files. The separate asset is not yet published.
+
 ## Save folders and synchronisation
 
 The user chooses one save folder for capture images and formula records. Baker stores its capture and formula indexes beside those images and saves exported settings presets in the `Presets` subfolder. Presets contain selected preferences, not captures, credentials, model files or the save path. Models stay in the app or its Application Support folder.

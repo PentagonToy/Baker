@@ -9,6 +9,7 @@ Settings uses a sidebar. Choose a category, then adjust its controls.
 | Shortcuts | Capture and recording key combinations |
 | Menu | Section order, command order and visible commands in the menu-bar menu |
 | Formula | Model preparation/repair, maths font and history controls |
+| PDF Conversion | Optional PDF engine installation, download progress and removal (development builds) |
 | Advanced | Text OCR languages and optional developer overrides |
 
 Formula output format is chosen in the Formula Workspace. It always copies after recognition.
@@ -32,3 +33,7 @@ Settings, Quit and active Stop/Cancel controls remain available. Hiding a comman
 ## Standard keyboard commands
 
 When a Baker window has focus, **⌘Q** quits through Baker’s normal shutdown, **⌘W** closes the window, and **⌘,** opens Settings. Text fields support ordinary cut, copy, paste, select-all and undo commands through the macOS responder chain. Closing Settings leaves Baker running in the menu bar.
+
+## Optional PDF engine
+
+Development builds keep the PDF engine under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`. Settings → PDF Conversion shows the download and installed sizes, progress, cancellation and removal. Removing the engine keeps captures, formula history and exported files. The published 0.0.1 app still includes the engine; the separate asset has not been published yet.

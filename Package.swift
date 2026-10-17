@@ -15,7 +15,7 @@ let package = Package(
                .executable(name: "BakerLanguageRegression", targets: ["BakerLanguageRegression"])],
     targets: [
         .target(name: "BakerCore", resources: [.copy("Resources/Fonts"), .copy("Resources/Tessdata")]),
-        .executableTarget(name: "Baker", dependencies: ["BakerCore"], resources: [.copy("Resources/formula_worker.py"), .copy("Resources/document_worker.py"), .copy("Resources/document_reconstruction.py"), .copy("Resources/formula-model.json")]),
+        .executableTarget(name: "Baker", dependencies: ["BakerCore"], resources: [.copy("Resources/formula_worker.py"), .copy("Resources/document_worker.py"), .copy("Resources/document_reconstruction.py"), .copy("Resources/formula-model.json"), .copy("Resources/pdf-engine.json"), .copy("Resources/pdf_engine_install.py")]),
         .executableTarget(name: "BakerRegression", dependencies: ["BakerCore"], path: "Tests/BakerRegression"),
         .executableTarget(name: "BakerPDFRegression", dependencies: ["BakerCore"], path: "Tests/BakerPDFRegression"),
         .executableTarget(name: "BakerRecordingRegression", dependencies: ["BakerCore"], path: "Tests/BakerRecordingRegression"),

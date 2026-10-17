@@ -3,9 +3,9 @@ import BakerCore
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable {
-    case general = "General", capture = "Capture", shortcuts = "Shortcuts", menu = "Menu", formula = "Formula", advanced = "Advanced"
+    case general = "General", capture = "Capture", shortcuts = "Shortcuts", menu = "Menu", formula = "Formula", pdf = "PDF Conversion", advanced = "Advanced"
     var symbol: String {
-        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "function"; case .advanced: return "slider.horizontal.3" }
+        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "function"; case .pdf: return "doc.richtext"; case .advanced: return "slider.horizontal.3" }
     }
 }
 @MainActor private final class SettingsState: ObservableObject {
@@ -137,6 +137,8 @@ struct BakerSettings: View {
                         } message: { Text("Removes formula text and diagnostics from this Mac. Capture images remain.") }
                 }.disabled(model.busy)
             }
+        case .pdf:
+            PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
         case .advanced:
             card("Text recognition languages") {
                 HStack { Text("Active languages"); Spacer(); Text("\(model.selectedOCRLanguages.count) / 3").foregroundStyle(.secondary) }

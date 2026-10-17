@@ -23,7 +23,7 @@ Baker is a macOS menu-bar app for local screen capture, text and formula recogni
 | PDF conversion | Structured Markdown or LaTeX with equations, tables and figure files |
 | Video or GIF | Short silent recordings |
 
-The complete app includes its local recognition engines and PDF models. Formula setup automatically prepares the included model; builds without it offer a one-time verified download. Normal use needs no Python path or model configuration.
+The published 0.0.1 app includes its local recognition engines and PDF models. Development builds now separate the PDF engine from the capture app: formula recognition stays included, and PDF conversion uses a separately installed package. The download asset is not published yet. Normal use needs no Python path or model configuration.
 
 ## Recognition engines
 

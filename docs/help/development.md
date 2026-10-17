@@ -6,7 +6,7 @@ User setup and development configuration are separate. Normal use needs no Pytho
 
 On a prepared Workspace Mac, double-click `others/builder/Build.command`. It checks the configured runtime and models, builds the app, validates PDF output, backs up the installed app and replaces it safely. It does not install packages or download models. See the [builder guide](https://github.com/PentagonToy/Baker/blob/main/others/builder/README.md) for preparation and build-only checks.
 
-The complete app contains separate formula and structured-PDF runtimes. The PDF pipeline combines layout, formula and table recognition with native PDF characters. Recognition and reconstruction are separate so geometry or text corrections can be checked against cached page results without rerunning every model.
+The published 0.0.1 app contains both runtimes. New development builds keep the formula runtime and its MFR model in the app and package the structured-PDF engine separately. The PDF pipeline combines layout, formula and table recognition with native PDF characters. Recognition and reconstruction are separate so geometry or text corrections can be checked against cached page results without rerunning every model.
 
 The validated bundled MFR `mlp-int8-v1` variant is prepared with `tools/optimize_document_models.py`: feed-forward encoder matrices use INT8; attention and decoder weights remain FP32. The tool verifies the pinned upstream files and records the recipe, source revision and output hashes. Models are generated outside the checkout. Formula setup uses a separate variant cache and repairs from the included model; it does not request the upstream FP32 file under an INT8 checksum.
 
@@ -20,7 +20,7 @@ Use a standalone arm64 CPython 3.12 build environment with the pinned `tools/for
 
 ```sh
 python tools/bundle_runtime.py --destination /external/build/runtime --tesseract /absolute/path/to/tesseract
-BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_BUILD_DIRECTORY=/external/build/app ./tools/prepare_app.sh
+BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_FORMULA_MODELS_DIRECTORY=/external/build/prepared-engine BAKER_BUILD_DIRECTORY=/external/build/app ./tools/prepare_app.sh
 ```
 
 The runtime tool copies the standalone interpreter and the required package distributions, preserves their notices, relocates non-system Tesseract libraries and tests imports. It does not copy a virtual environment or change the user's Python installation. The app build signs nested native binaries and sets its minimum macOS version from the runtime manifest. Use an appropriate `BAKER_SIGN_IDENTITY` for distribution; ad-hoc signing supports local development and does not provide notarisation.
@@ -48,3 +48,7 @@ On an M1 Pro with two worker threads, 31 formula images were processed in fresh 
 | Median end-to-end worker time | 1.32 s | 1.19 s |
 
 These are single-batch worker measurements, not whole-app or PDF memory guarantees. LaTeX matched exactly in 28 of 31 cases; three formatting differences were reviewed. A separate 15-crop comparison had one spacing difference. No new symbol or numeric change was found in these comparisons; this is not a general accuracy score. PDF measurements and limitations are recorded in [models and references](recognition.md).
+
+## Optional PDF distribution
+
+The builder creates a separate PDF engine archive and pinned descriptor, tests extraction through the base app’s Python runtime, and compares the installed engine’s PDF output. No download service or Python package installation is required on the user’s Mac. See the [PDF distribution procedure](https://github.com/PentagonToy/Baker/blob/main/others/builder/PDF-DISTRIBUTION.md) in the source repository for local packaging, acceptance and later upload steps. The public download remains disabled until the tested asset is published. The current base runtime requires macOS 26.0; the optional MLX PDF engine requires 26.2. This is a binary-library requirement, not a change to the source deployment target.

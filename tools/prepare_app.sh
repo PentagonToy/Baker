@@ -29,6 +29,8 @@ cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/pdf_engine_install.py" "$app/Contents/Resources/"
+cp "${BAKER_PDF_ENGINE_MANIFEST:-$source_dir/Sources/Baker/Resources/pdf-engine.json}" "$app/Contents/Resources/pdf-engine.json"
 # A release contains a relocatable interpreter, OCR libraries and Tesseract.
 # Build this separately with tools/bundle_runtime.py; never copy a virtualenv.
 if [[ -n "${BAKER_RUNTIME_DIRECTORY:-}" ]]; then
@@ -43,6 +45,14 @@ if [[ -n "${BAKER_DOCUMENT_ENGINE_DIRECTORY:-}" ]]; then
     if [[ -d "$app/Contents/Resources/DocumentEngine" ]]; then rm -rf -- "$app/Contents/Resources/DocumentEngine"; fi
     cp -R "$BAKER_DOCUMENT_ENGINE_DIRECTORY" "$app/Contents/Resources/DocumentEngine"
     find "$app/Contents/Resources/DocumentEngine" -type d -name __pycache__ -prune -exec rm -rf {} +
+elif [[ -d "$app/Contents/Resources/DocumentEngine" ]]; then
+    # Reusing a build folder must not retain a previous full PDF engine.
+    rm -rf -- "$app/Contents/Resources/DocumentEngine"
+fi
+if [[ -n "${BAKER_FORMULA_MODELS_DIRECTORY:-}" ]]; then
+    [[ -d "$app/Contents/Resources/Runtime/mfr" ]] && rm -rf -- "$app/Contents/Resources/Runtime/mfr"
+    cp -R "$BAKER_FORMULA_MODELS_DIRECTORY/mfr" "$app/Contents/Resources/Runtime/mfr"
+    cp "$BAKER_FORMULA_MODELS_DIRECTORY/formula-model.json" "$app/Contents/Resources/formula-model.json"
 fi
 mkdir -p "$app/Contents/Resources/BakerIcons" "$app/Contents/Resources/BakerSymbols"
 for asset in "$source_dir"/others/assests/icons/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerIcons/"; done

@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "engine_id": "pdf-engine-v1.0.0",
+  "architecture": "arm64",
+  "minimum_macos": "26.2",
+  "available": false,
+  "url": "https://github.com/PentagonToy/Baker/releases/download/pdf-engine-v1.0.0/Baker-PDF-Engine-1.0.0-arm64.tar.gz",
+  "archive_bytes": 1064826495,
+  "archive_sha256": "388f13c1990556d2bfc6cff5a786ae01f6e365386f3b55900ff88233cb59dd1a",
+  "unpacked_bytes": 1550632879,
+  "manifest_sha256": "f609b7b1100f37377f097e432f74a8e3af218d38e7787d32e17e5f2b68d04378"
+}

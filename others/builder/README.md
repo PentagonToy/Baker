@@ -2,7 +2,9 @@
 
 Double-click **[Build.command](Build.command)** in Finder to build, check, back up and replace the local Baker app. The builder opens Baker when installation succeeds. The app is installed in `/Applications/Baker.app`. The repository’s `Baker.app` link opens that app.
 
-The build includes the formula runtime, the high-quality PDF runtime and its local models. PDF recognition starts only when needed; the document process exits after conversion. This preview is substantially larger than the capture-only app.
+Small-engine builds now keep the formula runtime and capture model in the app, and prepare the high-quality PDF runtime/models as a separate archive. Set `include_pdf_engine` to `true` to retain a complete offline build. The published 0.0.1 remains the complete offline app. The optional PDF asset has not been uploaded; its download button stays disabled until publication.
+
+Until that asset is published, use `--build-only` for the lighter build or select the complete offline build for installation. The builder refuses to replace the installed app with a lighter build whose download is unavailable.
 
 ## Before the first build
 
@@ -15,9 +17,9 @@ On another prepared Mac, copy `builder.example.json` to `builder.local.json` and
 ## What happens
 
 1. Check the tools, runtime, models, disk space and installation target.
-2. Verify the selected payload and package the small PDF engine together with the fast MFR capture model. Legacy configurations prepare the validated MFR INT8 variant and Pix2Text runtime.
+2. Verify the selected payload, retain the fast MFR capture model in the base app and create the separate PDF archive/descriptor. Legacy configurations prepare the validated MFR INT8 variant and Pix2Text runtime.
 3. Build the release app using `VERSION` and sign its native components.
-4. Verify the app signature and convert the example PDF with the bundled engine.
+4. Verify the app signature, unpack/verify the PDF archive using the base runtime and convert the example PDF with the extracted engine.
 5. Compare Markdown with the accepted example and check configured table cells and captions.
 6. Back up the existing app, ask it to quit normally, replace it and open Baker.
 
@@ -38,3 +40,5 @@ python others/builder/test_builder.py
 `--check` checks preparation without building. `--build-only` builds and tests without replacing or opening the installed app. The local build uses ad-hoc signing unless `signing_identity` is configured. macOS may request screen-recording permission again after replacement.
 
 The bundled document dependencies include components with their own licences. Their installed licence files and version manifest are retained. Review [third-party notices](../../docs/legal/third-party.md) before distributing a build.
+
+See [PDF distribution](PDF-DISTRIBUTION.md) for separate-asset packaging and the checks required before upload. Local build/install does not publish the asset or automatically install it in the user’s Application Support folder.
