@@ -102,10 +102,22 @@ def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
     raise ValueError("Formula exceeds the decode token limit; capture a smaller equation.")
 
 
+
+def model_identity(directory):
+    artifact = directory / "baker-model.json"
+    if not artifact.is_file():
+        return "pix2text-mfr-1.5-pinned"
+    metadata = read_json(artifact)
+    if metadata.get("variant") != "mlp-int8-v1":
+        raise ValueError("Unsupported optimized formula model variant.")
+    return "pix2text-mfr-1.5-mlp-int8-v1"
+
+
 def recognise(image_path, settings):
     directory = settings["model_dir"]
     deadline = time.monotonic() + settings["timeout_seconds"]
     processor, model = read_json(directory / "preprocessor_config.json"), read_json(directory / "config.json")
+    identity = model_identity(directory)
     # Check dimensions before loading either model session.
     pixels = prepare_image(image_path, settings["max_image_pixels"], processor)
     import onnxruntime as ort
@@ -119,16 +131,22 @@ def recognise(image_path, settings):
     options.enable_cpu_mem_arena = False
     options.log_severity_level = 3
     encoder = ort.InferenceSession(str(directory / "encoder_model.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
-    decoder = ort.InferenceSession(str(directory / "decoder_model.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
     if [(item.name, item.type) for item in encoder.get_inputs()] != [("pixel_values", "tensor(float)")]:
         raise ValueError("Unsupported formula encoder interface.")
-    if [(item.name, item.type) for item in decoder.get_inputs()] != [("input_ids", "tensor(int64)"), ("encoder_hidden_states", "tensor(float)")]:
-        raise ValueError("Unsupported formula decoder interface.")
     tokenizer = Tokenizer.from_file(str(directory / "tokenizer.json"))
     hidden = encoder.run(["last_hidden_state"], {"pixel_values": pixels})[0]
     if hidden.shape != (1, 578, 384):
         raise ValueError("Unsupported formula encoder output.")
-    return decode_tokens(decoder, hidden, tokenizer, model, settings["max_new_tokens"], deadline)
+    # Hidden states own their NumPy buffer; encoder weights are no longer needed.
+    del encoder, pixels
+    import gc
+    gc.collect()
+    decoder = ort.InferenceSession(str(directory / "decoder_model.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
+    if [(item.name, item.type) for item in decoder.get_inputs()] != [("input_ids", "tensor(int64)"), ("encoder_hidden_states", "tensor(float)")]:
+        raise ValueError("Unsupported formula decoder interface.")
+    result = decode_tokens(decoder, hidden, tokenizer, model, settings["max_new_tokens"], deadline)
+    result["model"] = identity
+    return result
 
 
 def main():

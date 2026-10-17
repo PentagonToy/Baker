@@ -131,6 +131,14 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("time limit", json.loads(result.stdout)["error"])
         self.assertEqual(len(result.stdout.splitlines()), 1)
 
+    def test_model_variant_identity_is_explicit(self):
+        self.assertEqual(worker.model_identity(self.root), "pix2text-mfr-1.5-pinned")
+        metadata = self.root / "baker-model.json"
+        metadata.write_text(json.dumps({"variant": "mlp-int8-v1"}))
+        self.assertEqual(worker.model_identity(self.root), "pix2text-mfr-1.5-mlp-int8-v1")
+        metadata.write_text(json.dumps({"variant": "unknown"}))
+        with self.assertRaises(ValueError): worker.model_identity(self.root)
+
     @unittest.skipUnless(os.environ.get("BAKER_FORMULA_CONFIG") and os.environ.get("BAKER_FORMULA_FIXTURE"), "Set BAKER_FORMULA_CONFIG and BAKER_FORMULA_FIXTURE to test prepared local weights.")
     def test_real_stix_formula(self):
         fixture = os.environ["BAKER_FORMULA_FIXTURE"]

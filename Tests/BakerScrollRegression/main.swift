@@ -2,6 +2,8 @@ import AppKit
 import BakerCore
 import CoreText
 import ImageIO
+import CoreVideo
+import VideoToolbox
 
 var checks = 0
 func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {
@@ -118,5 +120,28 @@ do {
     try write(stitched, directory.appendingPathComponent("stitched-text-page.png"))
     try write(finished!, directory.appendingPathComponent("settled-moving-page.png"))
     try write(longResult, directory.appendingPathComponent("hundred-frame-page.png"))
+    // ScreenCaptureKit reuses pixel buffers. Accepted strips must own their pixels
+    // even when the sampler borrows the current VideoToolbox image without copying.
+    var surface: CVPixelBuffer?
+    try check(CVPixelBufferCreate(kCFAllocatorDefault, 640, 480, kCVPixelFormatType_32BGRA,
+        [kCVPixelBufferCGImageCompatibilityKey: true, kCVPixelBufferCGBitmapContextCompatibilityKey: true] as CFDictionary, &surface) == kCVReturnSuccess,
+        "shared capture surface allocates")
+    let shared = surface!
+    CVPixelBufferLockBaseAddress(shared, [])
+    let base = CVPixelBufferGetBaseAddress(shared)!
+    let stride = CVPixelBufferGetBytesPerRow(shared)
+    let raster = CGContext(data: base, width: 640, height: 480, bitsPerComponent: 8, bytesPerRow: stride,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+    raster.draw(crop(source, 0), in: CGRect(x: 0, y: 0, width: 640, height: 480))
+    CVPixelBufferUnlockBaseAddress(shared, [])
+    var borrowed: CGImage?
+    try check(VTCreateCGImageFromCVPixelBuffer(shared, options: nil, imageOut: &borrowed) == noErr, "shared surface produces a borrowed frame")
+    var ownership = ScrollCaptureBuffer()
+    _ = try ownership.observe(borrowed!, allowMoving: true)
+    CVPixelBufferLockBaseAddress(shared, [])
+    memset(base, 0, stride * 480)
+    CVPixelBufferUnlockBaseAddress(shared, [])
+    let owned = try ownership.finish()!
+    try check(samePixels(owned, crop(source, 0)), "accepted frame survives capture-surface reuse without a sampler copy")
     print("\(checks) scrolling checks passed")
 } catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }

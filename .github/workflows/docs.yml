@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'CHANGELOG.md'
       - 'others/**/*.svg'
       - 'tools/docs/**'
       - 'mkdocs.yml'

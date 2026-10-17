@@ -35,8 +35,9 @@ private final class ScrollStreamFrames: NSObject, SCStreamOutput, SCStreamDelega
         guard VTCreateCGImageFromCVPixelBuffer(buffer, options: nil, imageOut: &image) == noErr, let image else {
             throw BakerError(message: "Could not read the scrolling capture frame.")
         }
-        // A VideoToolbox CGImage may retain its CVPixelBuffer. Detach it before keeping any strip.
-        return (try ScrollStitcher.ownedCopy(image), snapshot.1)
+        // Borrow the surface for this sample. The stitcher copies only accepted rows;
+        // signatures and the small preview do not retain the capture buffer.
+        return (image, snapshot.1)
     }
     func close() { lock.withLock { closed = true; latest = nil } }
 }
@@ -44,8 +45,12 @@ private final class ScrollStreamFrames: NSObject, SCStreamOutput, SCStreamDelega
 private actor ScrollAssembler {
     private var buffer = ScrollCaptureBuffer()
     private var sampledRevision = 0
+    private var previewCanvas: CGImage?
 
-    func sample(_ frames: ScrollStreamFrames) throws -> (StitchOutcome, Int, Int, CGImage)? {
+    func sample(_ frames: ScrollStreamFrames) throws -> (StitchOutcome, Int, Int, CGImage?)? {
+        try autoreleasepool { try sampleFrame(frames) }
+    }
+    private func sampleFrame(_ frames: ScrollStreamFrames) throws -> (StitchOutcome, Int, Int, CGImage?)? {
         guard let (image, revision) = try frames.image(after: sampledRevision) else { return nil }
         sampledRevision = revision
         // Match sharp captured frames continuously; overlap validation rejects unsafe samples.
@@ -53,20 +58,28 @@ private actor ScrollAssembler {
         let previewSource: CGImage
         if case .appended(let pixels) = outcome {
             previewSource = image.cropping(to: CGRect(x: 0, y: image.height - pixels, width: image.width, height: pixels)) ?? image
-        } else { previewSource = image }
-        let scale = min(1, 200.0 / Double(previewSource.width), 100.0 / Double(previewSource.height))
-        let width = max(1, Int(Double(previewSource.width) * scale)), height = max(1, Int(Double(previewSource.height) * scale))
+        } else if outcome == .started { previewSource = image }
+        else { return (outcome, buffer.acceptedFrames, buffer.height, nil) }
+        let scale = min(1, 200.0 / Double(previewSource.width))
+        let width = max(1, Int(Double(previewSource.width) * scale))
+        let stripHeight = max(1, Int(ceil(Double(previewSource.height) * scale)))
+        let previousHeight = previewCanvas?.height ?? 0
+        let height = min(600, previousHeight + stripHeight)
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
             throw BakerError(message: "Could not prepare the scrolling preview.")
         }
-        context.interpolationQuality = .low
-        context.draw(previewSource, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.interpolationQuality = .high
+        if let previous = previewCanvas {
+            context.draw(previous, in: CGRect(x: 0, y: stripHeight, width: width, height: previousHeight))
+        }
+        context.draw(previewSource, in: CGRect(x: 0, y: 0, width: width, height: stripHeight))
         guard let preview = context.makeImage() else { throw BakerError(message: "Could not prepare the scrolling preview.") }
+        previewCanvas = preview
         return (outcome, buffer.acceptedFrames, buffer.height, preview)
     }
     func finish() throws -> CGImage? { return try buffer.finish() }
-    func cancel() { buffer.cancel() }
+    func cancel() { buffer.cancel(); previewCanvas = nil }
 }
 
 @MainActor
@@ -106,7 +119,7 @@ final class ScrollCaptureSession: ObservableObject {
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
                 configuration.captureResolution = .best
                 configuration.showsCursor = false; configuration.capturesAudio = false
-                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 12)
+                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
                 configuration.queueDepth = 3
                 let value = SCStream(filter: capture.filter, configuration: configuration, delegate: frames)
                 stream = value
@@ -126,19 +139,18 @@ final class ScrollCaptureSession: ObservableObject {
                         self.count = count; self.height = height
                         switch outcome {
                         case .started:
-                            preview = NSImage(cgImage: thumbnail, size: .zero)
+                            if let thumbnail { preview = NSImage(cgImage: thumbnail, size: .zero) }
                             message = "First frame ready. Scroll down inside the selected area."
                         case .appended(let pixels):
-                            preview = NSImage(cgImage: thumbnail, size: .zero)
+                            if let thumbnail { preview = NSImage(cgImage: thumbnail, size: .zero) }
                             message = "+\(pixels) px added. Keep scrolling down, or finish."
-                        case .unchanged: message = "No new content. Keep scrolling down, or finish."
+                        case .unchanged: break
                         case .rejected(let reason): message = reason
                         }
-                        if finishRequestedAt != nil { break }
                     }
                     if let requested = finishRequestedAt, frames.settled || now - requested >= 0.8 { break }
                     if count == 0 && now - started > 5 { throw BakerError(message: "No screen frame arrived. Check Screen Recording permission and try again.") }
-                    try await Task.sleep(nanoseconds: 60_000_000)
+                    try await Task.sleep(nanoseconds: 16_000_000)
                 }
                 state = .finishing
                 try await value.stopCapture(); stream = nil
@@ -229,7 +241,7 @@ private struct ScrollControls: View {
                     Text("\(session.count) sections · \(session.height) px · \(session.elapsed)s").font(.system(size: 10)).foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                     Button("Cancel", action: session.cancel).buttonStyle(.plain)
-                    Button("Finish", action: session.finish).buttonStyle(.borderedProminent).tint(.orange)
+                    Button("Finish", action: session.finish).buttonStyle(.borderedProminent).tint(.accentColor)
                         .disabled(session.count == 0 || session.state != .capturing)
                 }
             }

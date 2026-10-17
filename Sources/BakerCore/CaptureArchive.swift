@@ -159,6 +159,15 @@ public final class CaptureArchive {
         guard (1...600).contains(maximumPixelSize), Self.valid(record) else {
             throw BakerError(message: "Capture thumbnails require a valid record and a size from 1 to 600 pixels.")
         }
+        return try decodedImage(for: record, maximumPixelSize: maximumPixelSize)
+    }
+
+    public func original(for record: CaptureRecord) throws -> CGImage {
+        guard Self.valid(record) else { throw BakerError(message: "The saved capture record is invalid.") }
+        return try decodedImage(for: record, maximumPixelSize: max(record.pixelWidth, record.pixelHeight))
+    }
+
+    private func decodedImage(for record: CaptureRecord, maximumPixelSize: Int) throws -> CGImage {
         let url = fileURL(for: record)
         let info = try Self.inspect(url, allowSymbolicLink: false)
         guard info.width == record.pixelWidth, info.height == record.pixelHeight else {

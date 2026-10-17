@@ -59,6 +59,14 @@ actor CaptureStore {
         archive = value
         return value
     }
+    func prepareLocation() throws {
+        _ = try opened(); _ = try formulas()
+        let presets = directory.appendingPathComponent("Presets", isDirectory: true)
+        try FileManager.default.createDirectory(at: presets, withIntermediateDirectories: true)
+        let probe = directory.appendingPathComponent(".baker-write-check-\(UUID().uuidString)")
+        try Data().write(to: probe, options: .withoutOverwriting)
+        try FileManager.default.removeItem(at: probe)
+    }
     func records() throws -> [CaptureRecord] { try opened().records }
     func add(file: URL) throws -> StoredCapture {
         try Task.checkCancellation()
@@ -84,6 +92,10 @@ actor CaptureStore {
         } catch {
             throw BakerError(message: "\(error.localizedDescription) Original retained at \(temporary.path)")
         }
+    }
+    func original(_ record: CaptureRecord) throws -> CGImage {
+        try Task.checkCancellation()
+        return try opened().original(for: record)
     }
     func thumbnail(_ record: CaptureRecord) throws -> CGImage { try opened().thumbnail(for: record) }
 }

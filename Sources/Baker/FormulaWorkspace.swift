@@ -1,6 +1,7 @@
 import AppKit
 import BakerCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum FormulaPreviewMode: String, CaseIterable { case original = "Original", rendered = "Rendered", both = "Both" }
 @MainActor
@@ -8,53 +9,86 @@ private final class FormulaWorkspaceState: ObservableObject {
     @Published var previewMode: FormulaPreviewMode = .both
     @Published var original: NSImage?
     @Published var originalID: UUID?
+    @Published var originalError: String?
     @Published var showUnicodeWarning = false
+    @Published var dropTargeted = false
 }
 
 struct FormulaWorkspace: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     @ObservedObject var model: Workbench
     let showHistory: () -> Void
-    @ObservedObject private var state = FormulaWorkspaceState()
+    @StateObject private var state = FormulaWorkspaceState()
     private var record: CaptureRecord? { model.captures.first { $0.id == model.focusedFormulaID } }
-    private var result: FormulaResult? { model.focusedFormulaID.flatMap { model.formulaResults[$0] } }
-    private var sessionRecords: [CaptureRecord] { model.captures.filter { model.formulaResults[$0.id] != nil } }
+    private var result: FormulaResult? { model.formulaInputPending ? nil : model.focusedFormulaID.flatMap { model.formulaResults[$0] } }
+    private var formulaRecords: [CaptureRecord] { model.captures.filter { model.savedFormulas[$0.id] != nil || model.formulaResults[$0.id] != nil } }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
                 Button { model.capture(scrolling: false, action: .formula) } label: { Label("Capture", systemImage: "viewfinder") }.help("Capture another formula")
                 Button { model.openImage(asFormula: true) } label: { Label("Image…", systemImage: "photo.badge.plus") }
+                Button { model.formulaInputPending = true; state.previewMode = .both } label: { Label("New", systemImage: "plus") }.help("Drop or open another formula image")
+                if !formulaRecords.isEmpty {
                 Divider().frame(height: 20)
                 Button { navigate(1) } label: { Image(systemName: "chevron.left") }.disabled(!canNavigate(1))
                 Text(position).monospacedDigit().font(.caption).foregroundStyle(.secondary)
                 Button { navigate(-1) } label: { Image(systemName: "chevron.right") }.disabled(!canNavigate(-1))
+                }
                 Spacer()
-                Button(action: showHistory) { Label("History", systemImage: "clock.arrow.circlepath") }
-                if let id = model.focusedFormulaID { Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }.disabled(result?.phase != .ready) }
-            }.buttonStyle(.borderless).disabled(model.busy).padding(14).background(.bar)
+                Menu {
+                    ForEach(formulaRecords) { entry in
+                        Button {
+                            select(entry)
+                        } label: {
+                            Text(historyTitle(entry))
+                        }
+                    }
+                    if !formulaRecords.isEmpty { Divider() }
+                    Button("Capture History…", action: showHistory)
+                } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                .menuStyle(.borderlessButton).fixedSize()
+                if !model.formulaInputPending, let id = model.focusedFormulaID { Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }.disabled(result?.phase != .ready) }
+            }.buttonStyle(.borderless).disabled(model.busy).padding(14).background(BakerTheme.sidebar)
             Divider()
+            if result != nil {
             HStack {
                 Text("Formula").font(.headline)
                 Spacer()
                 Picker("Preview", selection: $state.previewMode) {
                     ForEach(FormulaPreviewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).frame(width: 260)
+                }.pickerStyle(.segmented).labelsHidden().accessibilityLabel("Preview")
+                    .controlSize(.small).frame(width: 240)
             }.padding(.horizontal, 18).padding(.vertical, 12)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if let result, let record {
-                        if state.previewMode != .rendered {
+                        if model.formulaInputPending {
+                            inputSlot
+                        } else if state.previewMode != .rendered {
                             preview("Original") {
-                                if let image = (state.originalID == record.id ? state.original : nil) ?? model.cachedThumbnail(record.id) { Image(nsImage: image).resizable().scaledToFit().padding(8) }
+                                if state.originalID == record.id, let image = state.original {
+                                    GeometryReader { geometry in
+                                        Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
+                                            .frame(width: min(geometry.size.width, CGFloat(record.pixelWidth) / displayScale),
+                                                   height: min(geometry.size.height, CGFloat(record.pixelHeight) / displayScale))
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    }.padding(8)
+                                }
+                                else if let error = state.originalError { Text(error).font(.caption).foregroundStyle(.black).padding(12) }
                                 else { ProgressView().controlSize(.small) }
                             }
+                            Text("\(record.pixelWidth) × \(record.pixelHeight) px · Original capture")
+                                .font(.caption2).foregroundStyle(.secondary)
                         }
-                        if state.previewMode != .original {
-                            preview("Rendered") {
+                        if model.formulaInputPending || state.previewMode != .original {
+                            preview(model.formulaInputPending ? "Previous result" : "Rendered") {
                                 if result.phase == .recognising {
                                     VStack(spacing: 10) { ProgressView(); Text("Recognising locally…").font(.callout).foregroundStyle(.black) }
                                 } else if let image = result.preview {
-                                    Image(nsImage: image).resizable().scaledToFit().padding(12)
+                                    Image(nsImage: image).resizable().scaledToFit().blendMode(colorScheme == .dark ? .normal : .multiply).padding(12)
                                 } else if result.phase == .failed {
                                     VStack(spacing: 10) {
                                         Text(result.error).font(.callout).foregroundStyle(.black).textSelection(.enabled)
@@ -73,9 +107,9 @@ struct FormulaWorkspace: View {
                                     GeometryReader { geometry in
                                         ZStack(alignment: .leading) {
                                             Capsule().fill(Color.secondary.opacity(0.2))
-                                            Capsule().fill(confidenceColor(confidence)).frame(width: geometry.size.width * confidence)
+                                            Capsule().fill(confidenceColor(confidence)).frame(width: geometry.size.width * min(1, max(0, confidence)))
                                         }
-                                    }.frame(width: 160, height: 7).accessibilityLabel("OCR confidence").accessibilityValue(Text(confidence, format: .percent))
+                                    }.frame(maxWidth: .infinity).frame(height: 7).accessibilityLabel("OCR confidence").accessibilityValue(Text(confidence, format: .percent))
                                     Text(confidence, format: .percent.precision(.fractionLength(0))).font(.caption.monospacedDigit())
                                 }.help("Model token confidence, not a verified probability that the entire equation is correct. Compare the original before using it.")
                             } else {
@@ -117,7 +151,8 @@ struct FormulaWorkspace: View {
                             }
                         }
                     } else {
-                        ContentUnavailableView("Capture a formula", systemImage: "function", description: Text("Capture or open an image to recognise, preview and copy an equation."))
+                        inputSlot
+                        preview("Rendered") { Color.clear }
                     }
                 }.padding(18)
             }.scrollContentBackground(.hidden)
@@ -125,23 +160,38 @@ struct FormulaWorkspace: View {
             HStack {
                 Text(model.busy ? model.status : result?.copyStatus ?? "Ready").lineLimit(1)
                 Spacer()
-                Text("Local · \(sessionRecords.count) session \(sessionRecords.count == 1 ? "result" : "results")").foregroundStyle(.secondary)
+                Text("Local · \(formulaRecords.count) \(formulaRecords.count == 1 ? "result" : "results")").foregroundStyle(.secondary)
             }.font(.caption).padding(.horizontal, 18).padding(.vertical, 10)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 660, minHeight: 520)
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $state.dropTargeted) { providers in
+            guard !model.busy, let provider = providers.first else { return false }
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { value, _ in
+                guard let url = (value as? URL) ?? (value as? Data).flatMap({ URL(dataRepresentation: $0, relativeTo: nil) }) else { return }
+                Task { @MainActor in model.importFormulaImage(url) }
+            }
+            return true
+        }
+        .overlay { if state.dropTargeted { RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.accent, lineWidth: 3).allowsHitTesting(false) } }
+        .tint(BakerTheme.accent)
+        .background(BakerTheme.background)
+        .frame(minWidth: 660, minHeight: result == nil ? 340 : 520)
         .task(id: model.focusedFormulaID) {
-            state.original = nil; state.originalID = nil
+            state.original = nil; state.originalID = nil; state.originalError = nil
             guard let record else { return }
-            let image = try? await model.thumbnail(record)
-            guard !Task.isCancelled, model.focusedFormulaID == record.id else { return }
-            state.original = image; state.originalID = record.id
+            do {
+                let image = try await model.originalImage(record)
+                guard !Task.isCancelled, model.focusedFormulaID == record.id else { return }
+                state.original = image; state.originalID = record.id
+            } catch {
+                guard !Task.isCancelled, model.focusedFormulaID == record.id else { return }
+                state.originalError = "The original capture could not be opened."
+            }
         }
     }
     private func preview<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            ZStack { RoundedRectangle(cornerRadius: 10).fill(.white); content() }
+            ZStack { RoundedRectangle(cornerRadius: 10).fill(BakerTheme.paper); content() }
                 .frame(maxWidth: .infinity).frame(height: state.previewMode == .both ? 150 : 240)
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.gray.opacity(0.18)))
         }
@@ -159,7 +209,7 @@ struct FormulaWorkspace: View {
             if result.format == format { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
             Button { model.chooseFormulaFormat(id, format) } label: { Image(systemName: "doc.on.doc").frame(width: 26, height: 22) }
                 .buttonStyle(.borderless).help("Select and copy \(format.rawValue)")
-        }.padding(10).background(result.format == format ? Color.accentColor.opacity(0.13) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }.padding(10).background(result.format == format ? BakerTheme.accent.opacity(0.13) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle()).onTapGesture { model.chooseFormulaFormat(id, format) }
     }
     private func confidenceColor(_ value: Double) -> Color {
@@ -169,16 +219,40 @@ struct FormulaWorkspace: View {
         let t = (score - 0.8) / 0.2
         return Color(red: 0.95 - 0.7 * t, green: 0.6 + 0.15 * t, blue: 0.12 + 0.23 * t)
     }
+    private var inputSlot: some View {
+        preview("New formula") {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.badge.plus").font(.system(size: 23))
+                Text("Drop a formula image").font(.headline)
+                Text("Drop a capture here, or choose Image… above.").font(.caption)
+            }.foregroundStyle(.black.opacity(0.75)).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+    private func historyTitle(_ entry: CaptureRecord) -> String {
+        let latex = model.savedFormulas[entry.id]?.latex ?? model.formulaResults[entry.id]?.latex ?? "Recognising…"
+        return entry.createdAt.formatted(date: .abbreviated, time: .shortened) + " · " + String(latex.replacingOccurrences(of: "\n", with: " ").prefix(60))
+    }
+    private func select(_ entry: CaptureRecord) {
+        model.formulaInputPending = false
+        if model.savedFormulas[entry.id] != nil { model.openSavedFormula(entry.id) }
+        else { model.focusedFormulaID = entry.id }
+    }
     private var position: String {
-        guard let index = sessionRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return "0 / \(sessionRecords.count)" }
-        return "\(sessionRecords.count - index) / \(sessionRecords.count)"
+        if model.formulaInputPending { return "New · \(formulaRecords.count) saved" }
+        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return "0 / \(formulaRecords.count)" }
+        return "\(formulaRecords.count - index) / \(formulaRecords.count)"
     }
     private func canNavigate(_ offset: Int) -> Bool {
-        guard let index = sessionRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return false }
-        return sessionRecords.indices.contains(index + offset)
+        if model.formulaInputPending { return offset == 1 && !formulaRecords.isEmpty }
+        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return false }
+        return formulaRecords.indices.contains(index + offset)
     }
     private func navigate(_ offset: Int) {
-        guard let index = sessionRecords.firstIndex(where: { $0.id == model.focusedFormulaID }), sessionRecords.indices.contains(index + offset) else { return }
-        model.focusedFormulaID = sessionRecords[index + offset].id
+        if model.formulaInputPending {
+            if offset == 1, let entry = formulaRecords.first(where: { $0.id == model.focusedFormulaID }) ?? formulaRecords.first { select(entry) }
+            return
+        }
+        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }), canNavigate(offset) else { return }
+        select(formulaRecords[index + offset])
     }
 }

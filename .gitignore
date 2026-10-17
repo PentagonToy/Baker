@@ -8,3 +8,6 @@ __pycache__/
 # Local agent instructions, investigations and hand-off notes
 /agent/
 /agents/
+
+# Machine-specific builder paths
+/others/builder/builder.local.json

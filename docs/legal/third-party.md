@@ -1,6 +1,6 @@
 # Third-party notices
 
-Baker includes unchanged resources with their upstream notices. These licences apply to those resources; they do not assign a project-wide licence to Baker's own source code.
+Baker includes unchanged resources with their upstream notices. Baker’s own source is licensed under [GNU AGPL version 3](https://github.com/PentagonToy/Baker/blob/main/LICENSE), identified as `AGPL-3.0-only`. Dependencies retain their separate terms.
 
 | Resource | Licence | Included notices |
 | --- | --- | --- |
@@ -11,4 +11,19 @@ Baker includes unchanged resources with their upstream notices. These licences a
 
 Notices ship with the app under `Contents/Resources/Fonts` and `Contents/Resources/Tessdata`. Repository copies are under `Sources/BakerCore/Resources`. The [GUST e-foundry](https://www.gust.org.pl/projects/e-foundry) publishes the fonts; [Tesseract](https://github.com/tesseract-ocr/tessdata_fast) publishes the language models.
 
-The complete app also includes standalone CPython, NumPy, Pillow, ONNX Runtime, tokenizers and their required dependencies, plus Tesseract and its shared libraries. Runtime versions are recorded in `Contents/Resources/Runtime/manifest.json`. Python and package notices remain in the runtime and distribution metadata; native library notices are under `Runtime/licences`. The MFR 1.5 model is downloaded separately at a pinned revision; its upstream README, including its MIT declaration, is included in that download. Their respective distribution and model terms apply. Reference applications and source collections informed implementation choices; Baker does not redistribute CleanShot or Mathpix code or artwork.
+The complete app also includes standalone CPython, NumPy, Pillow, ONNX Runtime, tokenizers and their required dependencies, plus Tesseract and its shared libraries. Runtime versions are recorded in `Contents/Resources/Runtime/manifest.json`. Python and package notices remain in the runtime and distribution metadata; native library notices are under `Runtime/licences`. The MFR 1.5 model is included in complete builds or downloaded at a pinned revision; its upstream README, including its MIT declaration, is retained beside the model. Their respective distribution and model terms apply. Reference applications and source collections informed implementation choices; Baker does not redistribute CleanShot or Mathpix code or artwork.
+
+Document-enabled builds include MLX, a quantised GLM-OCR checkpoint with a Baker adapter, extracted inference definitions from MLX-VLM, DocLayout-YOLO ONNX, OpenCV and PyMuPDF. The inference runtime excludes PyTorch, Transformers and the general MLX-VLM launcher. Upstream notices, model provenance, package versions and payload hashes remain under `Contents/Resources/DocumentEngine`. PyMuPDF retains its AGPL terms. The selected DocStructBench weights declare Apache-2.0; the DocLayout-YOLO repository and its tools have separate terms. Model and code licences must be read separately. Earlier Pix2Text-based document builds remain supported by the builder but are not the selected local configuration.
+
+## Model and inference-code sources
+
+| Component | Upstream source | Declared terms |
+| --- | --- | --- |
+| GLM-OCR model weights and BF16 conversion | [Z.ai model card](https://huggingface.co/zai-org/GLM-OCR), [MLX conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) | MIT model licence; the SDK repository has separate Apache-2.0 terms |
+| Extracted MLX-VLM inference definitions | [MLX-VLM](https://github.com/Blaizzy/mlx-vlm) | MIT; extracted-file inventory and original licence retained |
+| DocStructBench layout weights | [DocLayout-YOLO-DocStructBench](https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench) | Apache-2.0 model declaration |
+| MFR 1.5 formula weights | [Pix2Text MFR](https://huggingface.co/breezedeus/pix2text-mfr-1.5) | MIT declaration in the retained upstream README |
+
+[Models and references](../help/recognition.md) distinguishes included dependencies, Baker adaptations and comparison-only repositories. Package metadata and retained notices identify the precise bundled versions.
+
+Model cards retained in [`tools/recognition/notices`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition/notices) identify upstream declarations. New document-engine packages include these cards and corrected checkpoint provenance. Baker’s AGPL source and the corresponding build scripts must accompany the binary distribution alongside dependency notices.

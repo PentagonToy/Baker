@@ -1,5 +1,6 @@
 """Stage shared artwork and build the public documentation without editing source."""
 import argparse
+import html as html_module
 import os
 from pathlib import Path
 import re
@@ -28,6 +29,7 @@ def main():
     workspace.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ROOT / 'docs', staged)
     (staged / 'README.md').rename(staged / 'overview.md')
+    shutil.copy2(ROOT / 'CHANGELOG.md', staged / 'changelog.md')
     for artwork in (ROOT / 'others').rglob('*.svg'):
         target = staged / artwork.relative_to(ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +60,20 @@ def main():
     config.write_text(yaml.safe_dump(settings, sort_keys=False))
     subprocess.run([sys.executable, '-m', 'zensical', 'build', '--strict', '-f', str(config)], check=True, cwd=workspace)
     generated = workspace / 'site'
+    verification = settings.get('extra', {}).get('google_site_verification')
+    if verification:
+        homepage = generated / 'index.html'
+        html = homepage.read_text()
+        if '</head>' not in html:
+            raise ValueError('Generated homepage is missing its head element.')
+        tag = '<meta name="google-site-verification" content="' + html_module.escape(str(verification), quote=True) + '" />'
+        homepage.write_text(html.replace('</head>', tag + '\n</head>', 1))
+    # Search Console HTML verification files must remain byte-for-byte unchanged.
+    for verification_file in staged.glob('google*.html'):
+        shutil.copyfile(verification_file, generated / verification_file.name)
     for page in generated.rglob('*.html'):
+        if page.parent == generated and re.fullmatch(r'google[a-zA-Z0-9]+\.html', page.name):
+            continue
         html = page.read_text()
         def themed_logo(match):
             light = match.group(0)

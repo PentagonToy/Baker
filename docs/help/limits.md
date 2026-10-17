@@ -2,31 +2,33 @@
 
 ## Capture and history
 
-Scrolling runs for up to five minutes, downward only. Images fit within 8192 pixels per side and 32 megapixels. Global shortcuts and automatic scrolling are not available yet.
+Images are limited to 8192 pixels per side and 32 megapixels. Scrolling is manual, downward only and limited to five minutes. Set global shortcuts in Settings → Shortcuts.
 
-History keeps up to 10,000 image records. Formula metadata has a 16 MB total limit and 32 KiB per text field. Eight formula previews are kept in memory. Save errors preserve existing data and report the problem.
+History holds up to 10,000 image records. Formula history defaults to 50 results, with a configurable limit and optional 10-day or 30-day expiry. Formula metadata is limited to 16 MB in total and 32 KiB per text field. Up to eight formula results and six capture thumbnails are cached in memory.
 
 ## PDF conversion
 
-PDF conversion extracts a text layer or uses text OCR. Check equations, tables, figures and column order against the original. Text inside embedded images on an otherwise text-based page may be omitted.
+The complete app uses a mixed-precision GLM-OCR model with a small Baker adapter, ONNX layout detection and available PDF text. Capture formula recognition retains its smaller MFR engine. The current bundled MLX library requires macOS 26.2 or later on Apple Silicon. It exports structured Markdown or LaTeX and companion figure files. Recognition is approximate: review names, footnote markers, equations, merged table cells and reading order. Scans without a usable text layer cannot benefit from native-character correction.
 
 | Limit | Maximum |
 | --- | --- |
 | Input | 256 MB, 2000 pages |
-| Text per page | 250,000 characters |
-| Export | 64 MiB |
-| OCR raster | 8 megapixels, 4096px per side |
+| Exported document text | 64 MiB |
+| Structured job output, including assets | 512 MiB |
+| Structured job duration | Two hours |
 
-Unlock protected PDFs before conversion. LaTeX document exports require LuaLaTeX or XeLaTeX and a suitable font.
+Unlock protected PDFs before conversion. Keep exported figure folders beside their document. LaTeX exports require LuaLaTeX or XeLaTeX with the packages named in the document; these tools are needed to compile the export, not to use Baker.
+
+Development builds without the document engine use text extraction and text OCR. That fallback does not reconstruct equations, tables or figures.
 
 ## Recording
 
-Recording is silent and does not upscale the selected area. Frames may be skipped if encoding falls behind. Video dimensions use even pixel sizes; GIFs loop continuously.
+Recording is silent and does not upscale the selected area. Frames may be skipped if encoding falls behind. Video uses even pixel dimensions; GIFs loop continuously. Duration and size limits are listed in [Record](../guide/record.md).
 
-## Cloud transfers
+## Text recognition
 
-Transfers support capture images up to 128 MiB and formula metadata up to 256 KiB. The list loads 100 entries at a time, up to 1000 displayed captures. Drive and Dropbox transfers run on request. Interrupted uploads require another upload attempt; transfers do not resume across app restarts.
+Select 1–3 languages from English, German, Korean, Swedish, Danish and Finnish. Text capture uses Apple Vision unless Finnish is selected, which uses the included Tesseract engine. The structured PDF engine uses native PDF text where reliable and a separate local document model elsewhere. Its language handling is separate from these screenshot settings; multilingual scans need review.
 
-## Text recognition languages
+## Synced folders
 
-Select at most three of the six supported text languages. When Finnish is selected, Tesseract reads those selected languages using bundled `tessdata_fast` models. Otherwise, text OCR uses Apple Vision. Scanned PDF output records its OCR source and needs review for paragraph and column order. The complete app includes the Tesseract executable and its required libraries.
+Baker uses Finder-accessible folders and the provider’s sync software. Use one running Baker instance per shared folder; simultaneous edits from different Macs are not merged.

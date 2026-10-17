@@ -13,6 +13,10 @@ final class CaptureOverlayController {
     private var visible = true
     private var screen: NSScreen?
     private var retiring: [NSPanel] = []
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    private let previewWidth: CGFloat = 268
+    private var previewHeight: CGFloat { previewWidth / ((1 + sqrt(5)) / 2) }
     private var editors: [UUID: CaptureEditWindow] = [:]
 
     init(model: Workbench) {
@@ -26,16 +30,42 @@ final class CaptureOverlayController {
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in self?.layout() }.store(in: &subscriptions)
     }
+    private func updatePointerMonitoring() {
+        guard visible && !cards.isEmpty else {
+            if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+            if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+            globalMouseMonitor = nil; localMouseMonitor = nil
+            return
+        }
+        guard globalMouseMonitor == nil, localMouseMonitor == nil else { return }
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .scrollWheel]) { [weak self] _ in
+            Task { @MainActor in self?.followPointer() }
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .scrollWheel]) { [weak self] event in
+            self?.followPointer(); return event
+        }
+    }
+    deinit {
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+    }
+    var hasOpenEditors: Bool { !editors.isEmpty }
+    func resetStorage() {
+        cards.forEach { $0.panel.close() }; cards = []
+        retiring.forEach { $0.close() }; retiring = []; screen = nil
+        updatePointerMonitoring()
+    }
     func show(_ record: CaptureRecord) {
         Task { await present(record) }
     }
     private func present(_ record: CaptureRecord, replacing: UUID? = nil) async {
         do {
             let thumbnail = try await model.thumbnail(record)
+            guard model.captures.contains(where: { $0.id == record.id }) else { return }
             let slot = replacing.flatMap { id in cards.firstIndex { $0.id == id } } ?? 0
             if let replacing { dismiss(replacing) }
             if let index = cards.firstIndex(where: { $0.id == record.id }) { cards.remove(at: index).panel.close() }
-            let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 268, height: 184), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: previewWidth, height: previewHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.isReleasedWhenClosed = false; panel.isOpaque = false; panel.backgroundColor = .clear
             panel.hasShadow = true; panel.level = .floating; panel.hidesOnDeactivate = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
@@ -45,7 +75,7 @@ final class CaptureOverlayController {
             panel.alphaValue = 0
             if let frame = screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
                 let y = cards.prefix(slot).reduce(frame.minY + 20) { $0 + cardHeight($1.id) + 12 }
-                panel.setFrame(CGRect(x: frame.minX + 20, y: y - 8, width: 268, height: cardHeight(record.id)), display: false)
+                panel.setFrame(CGRect(x: frame.minX + 20, y: y - 8, width: previewWidth, height: cardHeight(record.id)), display: false)
             }
             layout()
             if visible { panel.orderFrontRegardless() }
@@ -107,15 +137,20 @@ final class CaptureOverlayController {
     }
     func setVisible(_ value: Bool) {
         visible = value
+        updatePointerMonitoring()
         if !value { retiring.forEach { $0.close() }; retiring = [] }
         cards.forEach { if value && editors[$0.id] == nil { $0.panel.orderFrontRegardless() } else { $0.panel.orderOut(nil) } }
     }
+    private func followPointer() {
+        guard visible, !cards.isEmpty, NSEvent.pressedMouseButtons == 0,
+              let target = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }), target != screen else { return }
+        screen = target; layout()
+    }
     private func cardHeight(_ id: UUID) -> CGFloat {
-        if model.formulaResults[id] != nil { return 280 }
-        guard let record = model.captures.first(where: { $0.id == id }) else { return 184 }
-        return min(220, max(90, 252 * CGFloat(record.pixelHeight) / CGFloat(record.pixelWidth) + 16))
+        model.formulaResults[id] == nil ? previewHeight : 280
     }
     private func layout() {
+        updatePointerMonitoring()
         guard let frame = (screen.flatMap { candidate in NSScreen.screens.first { $0 == candidate } } ?? NSScreen.main)?.visibleFrame else { return }
         let limit = max(1, min(5, model.visibleCaptures))
         var available = frame.height - 40, capacity = 0
@@ -132,7 +167,7 @@ final class CaptureOverlayController {
             for card in cards {
                 let formula = model.formulaResults[card.id] != nil
                 let height = cardHeight(card.id)
-                let width: CGFloat = formula ? 380 : 268
+                let width: CGFloat = formula ? 380 : previewWidth
                 card.panel.animator().setFrame(CGRect(x: frame.minX + 20, y: y, width: min(width, frame.width - 40), height: height), display: true)
                 y += height + 12
             }
@@ -244,14 +279,13 @@ struct CaptureHistoryView: View {
                         }
                         Button("Copy") { Task { _ = await model.copyCapture(record) } }
                         Button("Preview") { show(record) }
-                        if model.dropbox.connected { Button("Dropbox") { model.dropbox.upload(record) }.disabled(model.busy) }
-                        if model.googleDrive.connected { Button("Drive") { model.googleDrive.upload(record) }.disabled(model.busy) }
                     }.padding(.vertical, 4)
                 }
                 if state.limit < matchingRecords.count { Button("Show More") { state.limit += 100 } }
             }
+            .scrollContentBackground(.hidden)
             if model.captures.isEmpty { Text("Your next capture will appear here.").foregroundStyle(.secondary) }
-        }.padding(20).frame(minWidth: 560, minHeight: 340)
+        }.padding(20).frame(minWidth: 560, minHeight: 340).background(BakerTheme.background)
         .task(id: state.query) {
             let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !query.isEmpty else { state.matches = []; return }

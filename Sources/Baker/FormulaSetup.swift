@@ -7,6 +7,8 @@ struct FormulaModelManifest: Decodable, Sendable {
     let repository: String
     let revision: String
     let files: [String: File]
+    var variant: String? = nil
+    var bundledOnly: Bool? = nil
 }
 
 private final class ModelDownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
@@ -27,45 +29,88 @@ final class FormulaSetup: ObservableObject {
     let directory: URL
     var python: String { runtime.appendingPathComponent("python/bin/python3.12").path }
     var configuration: String { directory.appendingPathComponent("baker-config.json").path }
+    var usesBundledModel: Bool {
+        (try? Self.manifest())?.bundledOnly == true || FileManager.default.fileExists(atPath: (Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr/encoder_model.onnx").path ?? ""))
+    }
     var runtimeAvailable: Bool { FileManager.default.isExecutableFile(atPath: python) }
     init(runtime: URL? = nil, root: URL? = nil) {
         self.runtime = runtime ?? Bundle.main.resourceURL!.appendingPathComponent("Runtime")
         let support = root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("Baker/Models")
-        directory = support.appendingPathComponent("mfr-1.5")
+        let variant = (try? Self.manifest())?.variant
+        directory = support.appendingPathComponent(variant == "mlp-int8-v1" ? "mfr-1.5-mlp-int8-v1" : "mfr-1.5")
         refresh()
     }
-    private func manifest() throws -> FormulaModelManifest {
+    private static func manifest() throws -> FormulaModelManifest {
         let bundle = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main : Bundle.module
         guard let source = bundle.url(forResource: "formula-model", withExtension: "json") else { throw BakerError(message: "Baker's model download information is missing. Reinstall Baker.") }
-        return try JSONDecoder().decode(FormulaModelManifest.self, from: Data(contentsOf: source))
+        let value = try JSONDecoder().decode(FormulaModelManifest.self, from: Data(contentsOf: source))
+        guard value.variant == nil || (value.variant == "mlp-int8-v1" && value.bundledOnly == true) else {
+            throw BakerError(message: "The bundled formula variant is unsupported. Reinstall Baker.")
+        }
+        return value
     }
     nonisolated private static func verify(_ directory: URL, manifest: FormulaModelManifest) throws {
         for (name, file) in manifest.files {
             try ModelIntegrity.verify(directory.appendingPathComponent(name), bytes: file.bytes, sha256: file.sha256)
         }
     }
+    nonisolated static func provisionBundledModel(_ source: URL, directory: URL, manifest: FormulaModelManifest) throws {
+        try verify(source, manifest: manifest)
+        let files = FileManager.default, parent = directory.deletingLastPathComponent()
+        try files.createDirectory(at: parent, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let stage = parent.appendingPathComponent(".bundled-\(UUID().uuidString)")
+        let backup = parent.appendingPathComponent(".previous-\(UUID().uuidString)")
+        defer { try? files.removeItem(at: stage) }
+        try files.copyItem(at: source, to: stage)
+        let settings: [String: Any] = ["model_dir": directory.path, "threads": 2, "max_new_tokens": 256, "timeout_seconds": 45, "max_image_pixels": 12000000]
+        try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys]).write(to: stage.appendingPathComponent("baker-config.json"), options: .atomic)
+        let existing = files.fileExists(atPath: directory.path)
+        if existing { try files.moveItem(at: directory, to: backup) }
+        do { try files.moveItem(at: stage, to: directory) }
+        catch { if existing { try? files.moveItem(at: backup, to: directory) }; throw error }
+        if existing { try? files.removeItem(at: backup) }
+    }
     func refresh() {
         guard !working else { return }
+        working = true
         job = Task { [self] in
+            defer { working = false }
             guard runtimeAvailable else { message = "This build does not include the recognition engine. Install the complete Baker app."; return }
-            guard FileManager.default.fileExists(atPath: configuration) else { message = "Download the formula model once. Recognition then runs offline."; return }
-            working = true; defer { working = false }
             do {
-                let manifest = try manifest(), directory = directory
-                try await Task.detached { try Self.verify(directory, manifest: manifest) }.value
+                let manifest = try Self.manifest(), directory = directory
+                if !FileManager.default.fileExists(atPath: configuration) {
+                    guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr"),
+                          FileManager.default.fileExists(atPath: bundled.appendingPathComponent("encoder_model.onnx").path) else {
+                        message = manifest.bundledOnly == true ? "The included formula model is missing. Reinstall Baker." : "Download the formula model once. Recognition then runs offline."; return
+                    }
+                    message = "Preparing the included formula model…"
+                    try await Task.detached { try Self.provisionBundledModel(bundled, directory: directory, manifest: manifest) }.value
+                } else {
+                    try await Task.detached { try Self.verify(directory, manifest: manifest) }.value
+                }
                 ready = true; message = "Ready · local formula recognition"
-            } catch { ready = false; message = "The formula model needs repair. Download it again below." }
+            } catch { ready = false; message = "The formula model needs repair. Use Repair Model below." }
         }
     }
     func prepare() {
         guard !working, runtimeAvailable else { return }
-        working = true; progress = 0; message = "Preparing download…"
+        working = true; progress = 0; message = "Preparing formula recognition…"
         job = Task { [self] in
             let files = FileManager.default
             let stage = directory.deletingLastPathComponent().appendingPathComponent(".download-\(UUID().uuidString)")
             defer { try? files.removeItem(at: stage); working = false }
             do {
-                let manifest = try manifest()
+                let manifest = try Self.manifest()
+                if manifest.bundledOnly == true {
+                    guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("DocumentEngine/mfr"),
+                          files.fileExists(atPath: bundled.appendingPathComponent("encoder_model.onnx").path) else {
+                        throw BakerError(message: "The included model is missing. Reinstall Baker.")
+                    }
+                    message = "Preparing the included formula model…"
+                    try await Task.detached { try Self.provisionBundledModel(bundled, directory: self.directory, manifest: manifest) }.value
+                    ready = true; progress = 1; message = "Ready · local formula recognition"
+                    return
+                }
                 try files.createDirectory(at: stage, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 let options = URLSessionConfiguration.ephemeral
                 options.timeoutIntervalForRequest = 60; options.timeoutIntervalForResource = 300
@@ -122,7 +167,7 @@ struct FormulaSetupView: View {
                 Button("Cancel", action: setup.cancel)
             } else {
                 HStack {
-                    Button(setup.ready ? "Repair Model" : "Download Model · 120 MB", action: setup.prepare).disabled(!setup.runtimeAvailable)
+                    Button(setup.ready ? "Repair Model" : (setup.usesBundledModel ? "Prepare Included Model" : "Download Model · 120 MB"), action: setup.prepare).disabled(!setup.runtimeAvailable)
                     if setup.ready { Button("Remove Model", action: setup.remove) }
                 }
             }

@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import PDFKit
@@ -7,13 +8,17 @@ public enum PDFExportFormat: String, CaseIterable, Sendable {
     case markdown, latex
     public var fileExtension: String { self == .markdown ? "md" : "tex" }
 }
-public enum PDFTextSource: String, Sendable { case textLayer, vision, tesseract }
+public enum PDFTextSource: String, Sendable { case textLayer, vision, tesseract, structured }
 
 /// Plain text with its original page location. No mathematical or table semantics are inferred.
 public struct PDFTextBlock: Sendable {
     public let text: String
     public let bounds: CGRect
     public let source: PDFTextSource
+    public let headingLevel: Int?
+    public init(text: String, bounds: CGRect, source: PDFTextSource, headingLevel: Int? = nil) {
+        self.text = text; self.bounds = bounds; self.source = source; self.headingLevel = headingLevel
+    }
 }
 
 public struct PDFPageContent: Sendable {
@@ -25,12 +30,12 @@ public struct PDFPageContent: Sendable {
 }
 
 public struct PDFConversionProgress: Sendable {
-    public enum Phase: Sendable { case reading, recognising, writing, completed }
+    public enum Phase: Sendable { case preparing, reading, recognising, writing, completed, finalising }
     public let pageNumber: Int
     public let totalPages: Int
     public let phase: Phase
     public let message: String
-    public var completedPages: Int { phase == .completed ? pageNumber : max(0, pageNumber - 1) }
+    public var completedPages: Int { phase == .completed || phase == .finalising ? min(totalPages, pageNumber) : max(0, pageNumber - 1) }
 }
 
 public struct PDFPageSummary: Sendable {
@@ -52,6 +57,7 @@ public struct PDFConversionReport: Sendable {
 }
 
 public struct PDFConversionOptions: Sendable {
+    public var documentEngine: PDFDocumentEngine?
     public var finnishTextMode = false
     public var tesseractExecutable = ""
     public var recognitionLanguages: [String] = []
@@ -64,7 +70,7 @@ public struct PDFConversionOptions: Sendable {
 /// Synchronous, serial worker intended for Task.detached. Owns at most one page raster at a time.
 public enum PDFConverter {
     public static let limitations = [
-        "Text and reading order are approximate. Columns, tables, figures and equation structure are not reconstructed.",
+        "Reading order and headings are inferred from page geometry and typography. Complex layouts require review; tables, figures and equation structure are not yet recognised by this extractor.",
         "Mathematical symbols in a PDF text layer remain plain text; LaTeX equations are not inferred.",
         "Scanned pages use Apple Vision text OCR, which may misread mathematical notation or handwriting."
     ]
@@ -93,6 +99,10 @@ public enum PDFConverter {
         guard document.allowsCopying else { throw BakerError(message: "This PDF does not allow text extraction. Export an unrestricted copy first.") }
         guard document.pageCount > 0 else { throw BakerError(message: "The PDF has no pages.") }
         guard document.pageCount <= options.maximumPages else { throw BakerError(message: "The PDF exceeds the \(options.maximumPages)-page limit.") }
+        if let engine = options.documentEngine {
+            return try PDFDocumentWorker.convert(source: source, destination: destination, format: format, engine: engine,
+                                                 options: options, expectedPages: document.pageCount, isCancelled: isCancelled, progress: progress)
+        }
         let temporary = destination.deletingLastPathComponent().appendingPathComponent(".baker-pdf-\(UUID().uuidString).tmp")
         guard manager.createFile(atPath: temporary.path, contents: nil) else { throw BakerError(message: "The export file could not be created.") }
         defer { try? manager.removeItem(at: temporary) }
@@ -107,7 +117,7 @@ public enum PDFConverter {
             written += bytes.count
         }
         if format == .latex {
-            try write("% Compile with LuaLaTeX or XeLaTeX. Unicode glyph coverage depends on the chosen font.\n\\documentclass{article}\n\\usepackage{fontspec}\n\\usepackage[margin=25mm]{geometry}\n\\begin{document}\n")
+            try write("% Compile with LuaLaTeX or XeLaTeX. Unicode glyph coverage depends on the chosen font.\n\\documentclass{article}\n\\usepackage{fontspec}\n\\usepackage{amsmath,graphicx,longtable}\n\\usepackage[margin=25mm]{geometry}\n\\begin{document}\n")
         }
         for warning in limitations { try write(comment(warning, format: format)) }
         var summaries: [PDFPageSummary] = []
@@ -124,9 +134,10 @@ public enum PDFConverter {
                 progress(.init(pageNumber: index + 1, totalPages: document.pageCount, phase: .writing, message: "Exporting page \(index + 1)"))
                 try write(comment("Page \(content.pageNumber); source: \(content.source.rawValue)", format: format))
                 for warning in content.warnings { try write(comment(warning, format: format)) }
-                for block in content.blocks {
-                    try write((format == .markdown ? escapeMarkdown(block.text) : escapeLaTeX(block.text)) + "\n\n")
+                let regions = content.blocks.enumerated().map { index, block in
+                    PDFRegion(id: index, bounds: block.bounds, content: block.headingLevel.map { .heading(block.text, level: $0) } ?? .text(block.text))
                 }
+                try write(PDFStructure.render(regions, format: format))
                 if index + 1 < document.pageCount { try write(format == .markdown ? "---\n\n" : "\\newpage\n") }
                 return PDFPageSummary(pageNumber: index + 1, source: content.source, blockCount: content.blocks.count,
                     characterCount: content.blocks.reduce(0) { $0 + $1.text.count }, warnings: content.warnings)
@@ -154,19 +165,39 @@ public enum PDFConverter {
         let native = clean(page.string ?? "")
         guard native.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.") }
         if !native.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let lines = page.selection(for: box)?.selectionsByLine() ?? []
+            guard page.numberOfCharacters <= maximumCharacters else { throw BakerError(message: "Page exceeds the character geometry limit.") }
+            let characterBoxes = (0..<page.numberOfCharacters).map { page.characterBounds(at: $0) }.filter { !$0.isEmpty && $0.midY.isFinite && $0.minX.isFinite }.sorted { $0.midY < $1.midY }
+            let lines = (page.selection(for: box)?.selectionsByLine() ?? []).flatMap { splitColumns($0, page: page, characterBoxes: characterBoxes) }
             var blocks: [PDFTextBlock] = []
+            var fontWeights: [Int: Int] = [:]
+            for (selection, _) in lines {
+                guard let attributed = selection.attributedString, attributed.length > 0,
+                      let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont else { continue }
+                fontWeights[Int((font.pointSize * 10).rounded()), default: 0] += (selection.string ?? "").filter { $0.isLetter }.count
+            }
+            let bodySize = CGFloat(fontWeights.max { $0.value < $1.value }?.key ?? 0) / 10
             var count = 0
-            for line in lines {
+            for (line, lineBounds) in lines {
                 if isCancelled() { throw CancellationError() }
                 let text = clean(line.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
                 count += text.count
                 guard count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.") }
-                blocks.append(.init(text: text, bounds: line.bounds(for: page), source: .textLayer))
+                var heading: Int?
+                if let attributed = line.attributedString, attributed.length > 0,
+                   let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont,
+                   bodySize > 0, text.count < 180 {
+                    let numbered = text.range(of: #"^\d+(?:\.\d+)*\.?\s+\p{L}"#, options: .regularExpression) != nil
+                    let bold = font.fontDescriptor.symbolicTraits.contains(.bold)
+                    if (font.pointSize >= bodySize * 1.35 && lineBounds.minY >= box.minY + box.height * 0.8) || (bold && numbered) {
+                        let prefix = text.split(separator: " ").first ?? ""
+                        heading = numbered ? min(3, prefix.filter { $0 == "." }.count + (prefix.hasSuffix(".") ? 0 : 1)) : 1
+                    }
+                }
+                blocks.append(.init(text: text, bounds: lineBounds, source: .textLayer, headingLevel: heading))
             }
             if blocks.isEmpty { blocks = [.init(text: native, bounds: box, source: .textLayer)] }
-            return .init(pageNumber: pageNumber, pageSize: box.size, blocks: paragraphs(blocks), source: .textLayer,
+            return .init(pageNumber: pageNumber, pageSize: box.size, blocks: paragraphs(orderedLines(blocks)), source: .textLayer,
                 warnings: ["PDF text-layer order and paragraph grouping are approximate; embedded images are not separately recognised."])
         }
         beforeOCR()
@@ -193,7 +224,7 @@ public enum PDFConverter {
             let b = observation.boundingBox
             return .init(text: text, bounds: CGRect(x: box.minX + b.minX * box.width, y: box.minY + b.minY * box.height, width: b.width * box.width, height: b.height * box.height), source: .vision)
         }
-        return .init(pageNumber: pageNumber, pageSize: box.size, blocks: blocks, source: .vision,
+        return .init(pageNumber: pageNumber, pageSize: box.size, blocks: paragraphs(orderedLines(blocks)), source: .vision,
             warnings: blocks.isEmpty ? ["No text was found on this page. Figures and blank pages are not reproduced."] : ["Apple Vision OCR used a bounded page raster. Reading order and mathematical notation require review."])
     }
 
@@ -214,13 +245,52 @@ public enum PDFConverter {
         return image
     }
 
+    private static func splitColumns(_ line: PDFSelection, page: PDFPage, characterBoxes: [CGRect]) -> [(PDFSelection, CGRect)] {
+        let lineBox = line.bounds(for: page)
+        var low = 0, high = characterBoxes.count
+        while low < high {
+            let middle = (low + high) / 2
+            if characterBoxes[middle].midY < lineBox.minY { low = middle + 1 } else { high = middle }
+        }
+        var boxes: [CGRect] = []
+        var index = low
+        while index < characterBoxes.count, characterBoxes[index].midY <= lineBox.maxY {
+            let box = characterBoxes[index]
+            if box.maxX > lineBox.minX && box.minX < lineBox.maxX { boxes.append(box) }
+            index += 1
+        }
+        boxes.sort { $0.minX < $1.minX }
+        var cuts: [CGFloat] = []
+        var previous: CGRect?
+        for box in boxes {
+            if box.width > max(24, lineBox.height * 2.5) { cuts.append(box.midX) }
+            if let prior = previous, box.minX - prior.maxX > max(24, lineBox.height * 2.5) { cuts.append((box.minX + prior.maxX) / 2) }
+            previous = box
+        }
+        cuts = Array(Set(cuts.filter { $0 > lineBox.minX && $0 < lineBox.maxX })).sorted()
+        guard !cuts.isEmpty else { return [(line, lineBox)] }
+        let edges = [lineBox.minX] + cuts + [lineBox.maxX]
+        let segments: [(PDFSelection, CGRect)] = zip(edges, edges.dropFirst()).compactMap { left, right in
+            let clip = CGRect(x: left, y: lineBox.minY, width: right - left, height: lineBox.height)
+            guard let selection = page.selection(for: clip) else { return nil }
+            return (selection, selection.bounds(for: page).intersection(clip))
+        }
+        return segments.isEmpty ? [(line, lineBox)] : segments
+    }
+
+    private static func orderedLines(_ lines: [PDFTextBlock]) -> [PDFTextBlock] {
+        let regions = lines.enumerated().map { PDFRegion(id: $0.offset, bounds: $0.element.bounds, content: .text($0.element.text)) }
+        return PDFStructure.readingOrder(regions).map { lines[$0.id] }
+    }
+
     private static func paragraphs(_ lines: [PDFTextBlock]) -> [PDFTextBlock] {
         var result: [PDFTextBlock] = []
         for line in lines {
             if let last = result.last {
                 let gap = last.bounds.minY - line.bounds.maxY
                 let height = max(line.bounds.height, 1)
-                if abs(last.bounds.minX - line.bounds.minX) < height, gap >= -height * 0.25, gap < height * 0.65 {
+                if last.headingLevel == nil, line.headingLevel == nil,
+                   abs(last.bounds.minX - line.bounds.minX) < height, gap >= -height * 0.25, gap < height * 0.65 {
                     result[result.count - 1] = .init(text: last.text + " " + line.text, bounds: last.bounds.union(line.bounds), source: line.source)
                     continue
                 }

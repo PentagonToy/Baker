@@ -2,9 +2,9 @@
 
 | Category | Tasks |
 | --- | --- |
-| [Capture](capture.md) | Area, scrolling, text and formulas |
+| [Capture](capture.md) | All, Area, Scrolling, Text and Formula |
 | [Record](record.md) | Video and GIF |
-| [Clipboard & Files](clipboard-and-files.md) | Drop files, batch import and conversion |
+| [Clipboard & Files](clipboard-and-files.md) | Open Files, Formula Workspace, clipboard and PDF conversion |
 | [Recent](recent.md) | Saved captures and results |
 
 [All documentation](../README.md)

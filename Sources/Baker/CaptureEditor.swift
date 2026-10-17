@@ -91,9 +91,9 @@ struct CaptureEditorView: View {
                 Button(state.saving ? "Saving…" : "Done", action: done).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }.padding(12).disabled(state.saving)
             if state.tool == .text { TextField("Text, then click the image", text: $state.text).textFieldStyle(.roundedBorder).padding(.horizontal, 16).padding(.bottom, 8) }
-            CaptureCanvas(state: state).background(Color(nsColor: .underPageBackgroundColor))
+            CaptureCanvas(state: state).background(BakerTheme.sidebar)
             HStack { Text("\(Int(state.pixelSize.width)) × \(Int(state.pixelSize.height))"); Spacer(); Text(state.error ?? "Done overwrites this capture. Masked pixels and its old OCR result are removed.") }.font(.caption).foregroundStyle(state.error == nil ? .secondary : Color.red).padding(10)
-        }.frame(minWidth: 850, minHeight: 500).background(Color(nsColor: .windowBackgroundColor))
+        }.frame(minWidth: 850, minHeight: 500).background(BakerTheme.background)
     }
 }
 private struct CaptureCanvas: NSViewRepresentable {

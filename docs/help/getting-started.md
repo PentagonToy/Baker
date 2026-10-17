@@ -1,21 +1,25 @@
 # Getting started
 
-Open the supplied **Baker.dmg**, drag **Baker.app** to Applications and double-click it. If you received the app directly, move it to Applications first. Baker appears in the menu bar. You do not need Python, Homebrew or a model configuration file.
+Move a packaged **Baker.app** to Applications and double-click it. If supplied as a disk image, open it and drag Baker to Applications first. Baker appears in the menu bar. Normal use needs no Python, Homebrew or model configuration file.
 
-The current complete local build supports Apple Silicon and macOS 26 or later because its included Tesseract libraries target macOS 26. Baker is intended for GitHub distribution rather than the Mac App Store. An older-macOS runtime build is not yet available. Developers can build from source using the [development guide](development.md).
+The complete build supports Apple Silicon and macOS 26.2 or later. Baker is distributed outside the Mac App Store. A source archive needs a [development build](development.md) before it can run.
 
 ## Allow screen capture
 
-The first capture needs permission in **System Settings → Privacy & Security → Screen Recording**. Enable Baker and reopen it if macOS requests a restart. Image files and clipboard images can be used without starting a screen capture.
+The first capture needs permission in **System Settings → Privacy & Security → Screen Recording**. Enable Baker and reopen it if macOS requests a restart. Imported images and clipboard images do not need screen capture permission.
 
-## Prepare formula recognition
+## Capture a formula
 
-Open **Settings → Formula** and choose **Download Model · 120 MB**. Baker downloads the pinned model from Hugging Face, checks every file and prepares its configuration automatically. **Cancel** stops the download; **Repair Model** downloads a replacement if needed. **Remove Model** frees its storage without deleting capture history.
+The complete app prepares its included formula model automatically. Wait for **Settings → Formula** to report that it is ready. If your build does not include the model, choose **Download Model · 120 MB**; Baker checks the downloaded files and prepares them without a Python path.
 
-The engine is included in the app. Model files live under `~/Library/Application Support/Baker/Models/mfr-1.5`. Preparation needs an internet connection; recognition then runs locally without an account. Text OCR, including Finnish, needs no model download.
+Choose **Formula**, drag around one equation and release. Compare **Original** and **Rendered**, then select **LaTeX**, **Markdown**, **Keynote** or **Unicode**. Baker copies the selected format automatically.
 
-Choose **Formula**, drag around one clear equation and release. Compare the original and rendered result, then choose **LaTeX**, **Markdown**, **Keynote** or **Unicode** to copy. The selected output is copied automatically.
+Formula models are prepared under `~/Library/Application Support/Baker/Models`. Recognition runs locally after preparation. **Repair Model** restores the included model or downloads a replacement when required; **Remove Model** removes the prepared cache without deleting captures. The bundled copy, when present, remains in the app.
 
 ## Daily use
 
-Click Baker’s menu-bar icon to capture, record or open files. **Settings** controls fonts, clipboard behaviour and history. **Quit Baker** closes the app; double-clicking an already running Baker opens the Formula Workspace.
+Use the menu to capture, record or open files. Set global shortcuts in **Settings → Shortcuts** and your save folder in **Settings → General**. Close a workspace with its red window button; Baker continues in the menu bar. **Quit Baker** stops the app.
+
+## Appearance and storage
+
+In **Settings → General**, choose **System**, **Light** or **Dark**. Light appearance uses warm cream surfaces. Clipboard preferences appear first; the save folder and portable presets are below. The sidebar shows Baker’s version.

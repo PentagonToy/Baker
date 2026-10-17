@@ -1,0 +1,45 @@
+# Models and references
+
+Baker combines small task-specific engines with native macOS recognition. Captures and PDFs are processed locally. No OCR API or server is required.
+
+## Current engines
+
+| Task | Engine | Baker configuration |
+| --- | --- | --- |
+| Screenshot text | Apple Vision; [Tesseract](https://github.com/tesseract-ocr/tesseract) with [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) for Finnish selection | Up to three selected languages; native text OCR stays separate from the document model |
+| Screenshot or imported formula image | [Pix2Text MFR 1.5](https://huggingface.co/breezedeus/pix2text-mfr-1.5), from [Pix2Text](https://github.com/breezedeus/Pix2Text) | ONNX Runtime; INT8 encoder feed-forward matrices, FP32 attention and decoder; sequential encoder/decoder sessions |
+| PDF layout | [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO), [DocStructBench weights](https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench) | ONNX export with 1024-pixel square input |
+| PDF text, formula and table regions requiring recognition | [GLM-OCR](https://github.com/zai-org/GLM-OCR), [model weights](https://huggingface.co/zai-org/GLM-OCR) | MLX; 4-bit language weights, 8-bit vision linear layers and a small Baker LoRA adapter |
+| PDF text and export | [PyMuPDF](https://github.com/pymupdf/PyMuPDF), Baker reconstruction and exporters | Reuse reliable PDF characters; reconstruct reading order, authors, equation labels, table spans and figure references |
+
+The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Baker retains fast MFR recognition for individual formula images rather than loading the larger document model for every capture.
+
+The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its bundled MLX library requires macOS 26.2 or later.
+
+## What the Baker adaptation changes
+
+The document checkpoint is a quantised GLM-OCR derivative with a rank-4 LoRA adapter, not a newly designed model or a merge of several engines' weights. The checkpoint directory is approximately 815 MiB; the adapter is approximately 1.5 MiB. These figures exclude the interpreter, layout detector and libraries.
+
+The adapter was trained for 40 updates on 54 checked, authored examples. Validation and test examples have separate content. PaddleOCR, Apple Vision, Tesseract and GLM-OCR supplied candidate teacher outputs that were checked against authored targets. User captures and research PDFs were excluded from training. The small dataset does not establish broad accuracy gains over the base model.
+
+Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) of Z.ai GLM-OCR, then applies its own mixed precision and adapter. The pinned source revisions are `24f15402e83baa0a80eeeaecf5480e172abc6f2e` for that MLX conversion and `1cef9f0bdcd6a4c63df7de1311fb0894593340cc` for MFR. Prepared builds retain model hashes, package versions, upstream notices and provenance under `Contents/Resources/DocumentEngine` and `Contents/Resources/Runtime`. The checked inference code, evaluation and packaging tools are in [`tools/recognition`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition).
+
+## Repositories studied
+
+| Repository | What informed Baker | Use in the current app |
+| --- | --- | --- |
+| [MinerU](https://github.com/opendatalab/MinerU) | Native-text reuse, bounded document processing and equation-number recovery | Architecture reference and comparison engine; not bundled |
+| [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | Document/formula comparison and checked training targets | Research dependency; not bundled |
+| [Marker](https://github.com/datalab-to/marker) | Structured document blocks and separate output rendering | Design reference; not bundled |
+| [GOT-OCR 2.0](https://github.com/Ucas-HaoranWei/GOT-OCR2.0) | Region prompts and separate evaluation of prose, equations and tables | Source review; not bundled or used as a measured Baker baseline |
+| [unicodeit](https://github.com/svenkreiss/unicodeit) | Unicode mappings and unsupported-notation cases | Conversion reference; Baker uses its own bounded parser |
+
+CleanShot X, Mathpix and Dropzone informed capture, editing, settings and result-workspace interactions. Baker does not redistribute their code or artwork. Reviewing a project does not mean importing its engine or model.
+
+## Validation and limits
+
+On a 16 GB M1 Pro, the selected document pipeline converted an 11-page research PDF in about 122 seconds with a measured peak process-tree footprint of 2.73 GiB. Four PDF fixtures covering 15 pages passed structure and LaTeX-compilation checks. A complex table page took about 33 seconds and remained slower than the previous engine. These are development measurements, not a general speed or accuracy guarantee.
+
+Review names, correspondence markers, mathematical symbols, table spans and reading order against the source. Multilingual scans need further validation. Formula confidence is a model token score, not a verified probability of correctness; the generative PDF model has no calibrated confidence score.
+
+See [limits](limits.md), [development builds](development.md) and [third-party notices](../legal/third-party.md).

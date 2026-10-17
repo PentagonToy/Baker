@@ -67,6 +67,8 @@ func run() throws {
     try check(archive.fileURL(for: first) != source, "Archive owns a separate durable file")
     let thumbnail = try archive.thumbnail(for: first)
     try check(thumbnail.width == 600 && thumbnail.height == 400, "Default thumbnail downsamples to 600px")
+    let fullResolution = try archive.original(for: first)
+    try check(fullResolution.width == first.pixelWidth && fullResolution.height == first.pixelHeight, "Original preview keeps every source pixel instead of using the thumbnail")
     let small = try archive.thumbnail(for: first, maximumPixelSize: 120)
     try check(small.width == 120 && small.height == 80, "Thumbnail bound follows requested size")
     try rejects("Invalid thumbnail request") { _ = try archive.thumbnail(for: first, maximumPixelSize: 601) }

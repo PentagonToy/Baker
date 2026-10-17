@@ -93,9 +93,12 @@ public struct ScrollStitcher {
             return .rejected("Repeated content makes alignment ambiguous. Select a more distinctive region.")
         }
         // A strong upward match means the user returned to an earlier position.
-        let reverse = (1...maximumShift).map { signature.error(to: previous, shift: $0, ceiling: 10) }.min() ?? 255
-        guard reverse > best.1 + 0.3 else {
-            return .rejected("Upward movement or repeated content detected. Continue down from the last accepted position.")
+        // Only the existence of a competitive reverse match matters. Stop as soon
+        // as it is found, without allocating another array of every shift score.
+        for shift in 1...maximumShift {
+            if signature.error(to: previous, shift: shift, ceiling: 10) <= best.1 + 0.3 {
+                return .rejected("Upward movement or repeated content detected. Continue down from the last accepted position.")
+            }
         }
         let nextHeight = height + best.0
         guard width <= Self.pixelLimit / nextHeight else {

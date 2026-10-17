@@ -19,6 +19,7 @@ final class Workbench: ObservableObject {
     @Published var exportSummary = ""
     @Published var isRecording = false
     @Published var isConvertingPDF = false
+    @Published var documentProgress = DocumentProgress()
     let formulaSetup = FormulaSetup()
     var onFormulaSetupNeeded: (() -> Void)?
     @AppStorage("developerRuntimeOverrides") var developerRuntimeOverrides = false
@@ -37,21 +38,28 @@ final class Workbench: ObservableObject {
     func setOCRLanguage(_ code: String, enabled: Bool) {
         ocrLanguageSelection = OCRLanguages.setting(code, enabled: enabled, in: selectedOCRLanguages).joined(separator: ",")
     }
+    @AppStorage("hideDesktopIcons") var hideDesktopIcons = false
     @AppStorage("captureSounds") var captureSounds = true
     private let feedback = CaptureFeedback()
     @Published var mathFont = UserDefaults.standard.string(forKey: "mathFont") ?? MathFont.latinModern.rawValue {
-        didSet { UserDefaults.standard.set(mathFont, forKey: "mathFont") }
+        didSet { formulaPreferences.set(mathFont, forKey: "mathFont") }
     }
     @Published var captures: [CaptureRecord] = []
     @Published var visibleCaptures = UserDefaults.standard.object(forKey: "visibleCaptures") as? Int ?? 3 {
-        didSet { UserDefaults.standard.set(visibleCaptures, forKey: "visibleCaptures") }
+        didSet { formulaPreferences.set(visibleCaptures, forKey: "visibleCaptures") }
     }
-    private let captureStore: CaptureStore
+    private var captureStore: CaptureStore
+    @Published private(set) var storageDirectory: URL
+    private var switchingStorage = false
+    private var applyingPreset = false
+    var canChangeStorage: (() -> Bool)?
+    var onStorageChanged: (() -> Void)?
     private var thumbnailCache: [UUID: NSImage] = [:]
     private var importTask: Task<Void, Never>?
     private var captureTask: Task<Void, Never>?
     private var clipboardRequest = 0
     @Published var activeCaptureID: UUID?
+    @Published var formulaInputPending = false
     @Published var focusedFormulaID: UUID?
     private(set) var formulaCapturePending = false
     @Published var savedFormulas: [UUID: SavedFormula] = [:]
@@ -88,14 +96,19 @@ final class Workbench: ObservableObject {
         _copyRecognisedText = AppStorage(wrappedValue: true, "copyRecognisedText", store: formulaPreferences)
         _showResults = AppStorage(wrappedValue: false, "showResults", store: formulaPreferences)
         _captureSounds = AppStorage(wrappedValue: true, "captureSounds", store: formulaPreferences)
-        let directory = captureDirectory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Baker", isDirectory: true)
+        _hideDesktopIcons = AppStorage(wrappedValue: false, "hideDesktopIcons", store: formulaPreferences)
+        let configured = formulaPreferences.string(forKey: "storageDirectory").map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let directory = (captureDirectory ?? configured ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Baker", isDirectory: true)).standardizedFileURL.resolvingSymlinksInPath()
+        storageDirectory = directory
         var locationError: String?
-        if captureDirectory == nil {
+        if captureDirectory == nil && configured == nil {
             do { _ = try CaptureLocation.prepare(documents: directory.deletingLastPathComponent(), pictures: FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first!) }
             catch { locationError = "Could not move the previous captures to Documents: \(error.localizedDescription)" }
         }
         captureStore = CaptureStore(directory: directory)
+        mathFont = formulaPreferences.string(forKey: "mathFont") ?? MathFont.latinModern.rawValue
+        visibleCaptures = max(1, min(5, formulaPreferences.object(forKey: "visibleCaptures") as? Int ?? 3))
         formulaHistoryLimit = max(1, min(500, formulaPreferences.object(forKey: "formulaHistoryLimit") as? Int ?? 50))
         formulaHistoryDays = [0, 10, 30].contains(formulaPreferences.integer(forKey: "formulaHistoryDays")) ? formulaPreferences.integer(forKey: "formulaHistoryDays") : 0
         _tesseractExecutable = AppStorage(wrappedValue: FinnishOCR.defaultExecutable, "tesseractExecutable", store: formulaPreferences)
@@ -104,21 +117,44 @@ final class Workbench: ObservableObject {
         ocrLanguageSelection = OCRLanguages.normalized(migrated).joined(separator: ",")
         formulaPreferences.set(ocrLanguageSelection, forKey: "ocrLanguages")
         formulaPreferences.removeObject(forKey: "finnishTextMode")
+        let initialStore = captureStore
         Task {
             if let locationError { problem = locationError }
             do {
-                let records = try await captureStore.records(); if captures.isEmpty { captures = records }
-                do { savedFormulas = try await captureStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays) }
+                let records = try await initialStore.records()
+                let formulas = try await initialStore.savedFormulas()
+                guard captureStore === initialStore else { return }
+                if captures.isEmpty { captures = records }
+                savedFormulas = formulas
+                do {
+                    let values = try await initialStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays)
+                    if captureStore === initialStore { savedFormulas = values }
+                }
                 catch { problem = "Formula history could not be opened: \(error.localizedDescription)" }
             }
             catch { problem = "Capture history could not be opened: \(error.localizedDescription)" }
         }
     }
     func captureURL(_ record: CaptureRecord) -> URL { captureStore.directory.appendingPathComponent(record.fileName) }
+    func originalImage(_ record: CaptureRecord) async throws -> NSImage {
+        let store = captureStore
+        let raster = try await store.original(record)
+        guard captureStore === store, !Task.isCancelled else { throw CancellationError() }
+        return NSImage(cgImage: raster, size: .zero)
+    }
     func cachedThumbnail(_ id: UUID) -> NSImage? { thumbnailCache[id] }
     func thumbnail(_ record: CaptureRecord) async throws -> NSImage {
         if let cached = thumbnailCache[record.id] { return cached }
-        return NSImage(cgImage: try await captureStore.thumbnail(record), size: .zero)
+        let store = captureStore
+        let image = NSImage(cgImage: try await store.thumbnail(record), size: .zero)
+        guard captureStore === store else { throw CancellationError() }
+        // Another request may have filled the cache while disk work was in flight.
+        if let cached = thumbnailCache[record.id] { return cached }
+        if thumbnailCache.count >= 6, let victim = thumbnailCache.keys.first(where: { $0 != activeCaptureID && $0 != focusedFormulaID }) {
+            thumbnailCache.removeValue(forKey: victim)
+        }
+        thumbnailCache[record.id] = image
+        return image
     }
     func searchCaptures(_ query: String) async throws -> Set<UUID> { try await captureStore.search(query) }
     func revealCaptures() { NSWorkspace.shared.open(captureStore.directory) }
@@ -172,23 +208,7 @@ final class Workbench: ObservableObject {
     private var documentTask: Task<PDFConversionReport, Error>?
     private var ownedExportDirectory: URL?
     private var pendingDocumentDirectory: URL?
-    private var dropboxController: DropboxController?
-    var dropbox: DropboxController {
-        if let dropboxController { return dropboxController }
-        let controller = DropboxController(model: self); dropboxController = controller; return controller
-    }
-    private var driveController: GoogleDriveController?
-    var googleDrive: GoogleDriveController {
-        if let driveController { return driveController }
-        let controller = GoogleDriveController(model: self); driveController = controller; return controller
-    }
     func flushFormulaHistory() async { _ = await formulaSaveTask?.value }
-    func restoreCloudFormula(_ original: SavedFormula, for id: UUID) async throws {
-        let value = SavedFormula(id: id, originalLatex: original.originalLatex, latex: original.latex, unicodeOverride: original.unicodeOverride,
-            model: original.model, confidenceMethod: original.confidenceMethod, confidence: original.confidence, diagnostics: original.diagnostics,
-            format: original.format, style: original.style, unicodeText: original.unicodeText, originalConfidence: original.originalConfidence)
-        try Task.checkCancellation(); try await captureStore.saveFormula(value); adoptFormulas(try await captureStore.maintainFormulas(limit: formulaHistoryLimit, days: formulaHistoryDays)); formulaResults.removeValue(forKey: id)
-    }
     lazy var filesInbox = FilesInbox(model: self)
     var onOpenFiles: ((PDFExportFormat?) -> Void)?
     private var shuttingDown = false
@@ -209,6 +229,11 @@ final class Workbench: ObservableObject {
             formulaCapturePending = asFormula
             startImport(asFormula: asFormula) { try await self.accept(try await self.captureStore.add(file: url)) }
         }
+    }
+    func importFormulaImage(_ url: URL) {
+        guard !busy, !shuttingDown, url.isFileURL else { return }
+        formulaCapturePending = true
+        startImport(asFormula: true) { try await self.accept(try await self.captureStore.add(file: url)) }
     }
     private func startImport(asFormula: Bool = false, _ operation: @escaping @MainActor () async throws -> Void) {
         busy = true; status = "Saving capture…"
@@ -259,7 +284,7 @@ final class Workbench: ObservableObject {
         if let id = focusedFormulaID, values[id] == nil { focusedFormulaID = nil }
     }
     func applyFormulaRetention() {
-        guard !shuttingDown else { return }
+        guard !shuttingDown, !switchingStorage, !applyingPreset else { return }
         let previous = formulaSaveTask, limit = formulaHistoryLimit, days = formulaHistoryDays
         formulaSaveTask = Task {
             _ = await previous?.value
@@ -280,7 +305,7 @@ final class Workbench: ObservableObject {
             do {
                 try await captureStore.clearFormulas(); adoptFormulas([:])
                 latex = ""; unicode = ""; unicodeMessage = ""
-                status = "Formula history cleared. Capture images and cloud files remain."
+                status = "Formula history cleared. Capture images remain."
             } catch { problem = "Formula history could not be cleared: \(error.localizedDescription)" }
         }
     }
@@ -289,9 +314,9 @@ final class Workbench: ObservableObject {
         try await accept(stored)
         return stored.record
     }
-    func importImage(_ image: CGImage) async throws {
+    func importImage(_ image: CGImage, notify: Bool = true) async throws {
         let stored = try await captureStore.add(image: image)
-        try await accept(stored)
+        try await accept(stored, notify: notify)
     }
     func pasteImage(recogniseText: Bool = false) {
         guard !busy, !shuttingDown else { return }
@@ -303,7 +328,7 @@ final class Workbench: ObservableObject {
         busy = true; status = "Saving clipboard image…"
         importTask = Task {
             do {
-                try await importImage(cgImage)
+                try await importImage(cgImage, notify: !recogniseText)
                 busy = false; importTask = nil
                 if recogniseText { recognise(formula: false) }
             } catch {
@@ -314,40 +339,44 @@ final class Workbench: ObservableObject {
         }
     }
 
-    func warmCaptureSelection() { captureService.warmSelection() }
+    func warmCaptureSelection() {
+        captureService.warmSelection()
+        let languages = selectedOCRLanguages
+        Task.detached(priority: .utility) { try? prepareTextRecognition(languages: languages) }
+    }
 
-    func capture(scrolling: Bool, action: CaptureAction = .image) {
+    func capture(scrolling: Bool, action: CaptureAction = .image, fullScreen: Bool = false) {
         if (action == .formula || action == .unicode), !developerRuntimeOverrides, !formulaSetup.ready {
+            if formulaSetup.working { status = "Preparing formula recognition. Try again in a moment."; return }
             status = "Prepare formula recognition in Settings → Formula."
             onFormulaSetupNeeded?(); return
         }
         guard !busy, !shuttingDown else { return }
+        let displayRegion = fullScreen ? CaptureService.pointerDisplayRegion() : nil
+        if fullScreen && displayRegion == nil { problem = "No display is available for capture."; return }
         formulaCapturePending = action == .formula || action == .unicode
         busy = true
         onCaptureVisibility?(false)
-        status = scrolling ? "Select scrolling content only, excluding fixed headers and scrollbars." : "Drag to select a region. Press Esc to cancel."
+        status = fullScreen ? "Capturing the display…" : (scrolling ? "Select scrolling content only, excluding fixed headers and scrollbars." : "Drag to select a region. Press Esc to cancel.")
         let previousApp = NSWorkspace.shared.frontmostApplication
-        let windows = NSApp.windows.filter { $0.isVisible && $0.canBecomeMain }
-        windows.forEach { $0.orderOut(nil) }
         let restore: () -> Void = { [weak self] in
-            if self?.shuttingDown != true {
-                windows.forEach { $0.makeKeyAndOrderFront(nil) }
-                if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp?.activate() }
-            }
             self?.busy = false; self?.scrollSession = nil
             self?.onCaptureVisibility?(true)
         }
-        captureService.beginSelection()
+        if !fullScreen { captureService.beginSelection(freeze: !scrolling, hideDesktopIcons: hideDesktopIcons) }
         captureTask = Task { [self] in
-            defer { captureTask = nil }
-            guard let region = await captureService.selectRegion() else {
+            defer { captureTask = nil; captureService.cancelSelection() }
+            let selectedRegion: CaptureRegion?
+            if fullScreen { selectedRegion = displayRegion }
+            else { selectedRegion = await captureService.selectRegion() }
+            guard let region = selectedRegion else {
                 status = "Capture cancelled."; restore(); return
             }
             do {
                 try Task.checkCancellation()
-                let capture = try await captureService.prepare(region)
-                try Task.checkCancellation()
                 if scrolling {
+                    let capture = try await captureService.prepare(region, hideDesktopIcons: hideDesktopIcons)
+                    try Task.checkCancellation()
                     let session = ScrollCaptureSession()
                     scrollSession = session
                     session.start(capture: capture, region: region, targetApplication: previousApp) { [weak self] result in
@@ -358,7 +387,7 @@ final class Workbench: ObservableObject {
                                 self.busy = true; self.status = "Saving capture…"
                                 self.importTask = Task {
                                     defer { self.importTask = nil }
-                                    do { try await self.importImage(image); self.busy = false; await self.finishCapture(action: action) }
+                                    do { try await self.importImage(image, notify: action == .image); self.busy = false; await self.finishCapture(action: action) }
                                     catch { self.busy = false; if error is CancellationError { self.status = "Capture processing cancelled." } else if !self.shuttingDown { self.problem = error.localizedDescription } }
                                 }
                             }
@@ -366,10 +395,10 @@ final class Workbench: ObservableObject {
                         } catch { self?.problem = error.localizedDescription }
                     }
                 } else {
-                    let image = try await capture.image()
+                    let image = try await captureService.image(region, hideDesktopIcons: hideDesktopIcons)
                     restore()
                     busy = true; status = "Saving capture…"
-                    try await importImage(image)
+                    try await importImage(image, notify: action == .image)
                     busy = false
                     await finishCapture(action: action)
                 }
@@ -453,9 +482,14 @@ final class Workbench: ObservableObject {
                         formulaRenderTask = nil
                     } else { copyOutput() }
                 } else {
+                    // Invalidate any pending image copy before publishing the OCR result.
+                    if copyRecognisedText {
+                        clipboardRequest += 1
+                        clipboard.clearContents()
+                        guard clipboard.setString(result, forType: .string) else { throw BakerError(message: "The recognised text could not be copied. Try Copy again.") }
+                    }
                     text = result; format = .text
-                    status = "Recognition complete."
-                    if copyRecognisedText { copyOutput() }
+                    status = copyRecognisedText ? "Text copied." : "Recognition complete."
                 }
                 playCaptureFeedback(success: true)
                 onResultReady?()
@@ -478,7 +512,7 @@ final class Workbench: ObservableObject {
     }
 
     private func persistFormula(_ id: UUID) {
-        guard let result = formulaResults[id], result.phase == .ready else { return }
+        guard !switchingStorage, let result = formulaResults[id], result.phase == .ready else { return }
         let value = SavedFormula(id: id, originalLatex: result.originalLatex.isEmpty ? result.latex : result.originalLatex,
             latex: result.latex, unicodeOverride: result.unicodeOverride, model: result.model,
             confidenceMethod: result.confidenceMethod, confidence: result.confidence, diagnostics: result.diagnostics,
@@ -526,14 +560,14 @@ final class Workbench: ObservableObject {
         focusedFormulaID = id; onFormulaReady?(id)
     }
     func chooseFormulaFormat(_ id: UUID, _ selected: OutputFormat) {
-        guard selected != .text, formulaResults[id]?.phase == .ready else { return }
+        guard !switchingStorage, selected != .text, formulaResults[id]?.phase == .ready else { return }
         formulaResults[id]?.format = selected
         formulaPreferences.set(selected.rawValue, forKey: "formulaOutputFormat")
         if activeCaptureID == id { format = selected }
         copyFormula(id)
     }
     func chooseLatexStyle(_ id: UUID, _ style: LatexCopyStyle) {
-        guard formulaResults[id]?.phase == .ready else { return }
+        guard !switchingStorage, formulaResults[id]?.phase == .ready else { return }
         formulaResults[id]?.style = style
         formulaPreferences.set(style.rawValue, forKey: "formulaLatexStyle")
         copyFormula(id)
@@ -647,7 +681,7 @@ final class Workbench: ObservableObject {
         saveImageFile(imageURL)
     }
     private func saveImageFile(_ imageURL: URL) {
-        let panel = NSSavePanel()
+        let panel = NSSavePanel(); panel.directoryURL = storageDirectory
         panel.nameFieldStringValue = imageURL.lastPathComponent
         if let type = UTType(filenameExtension: imageURL.pathExtension) { panel.allowedContentTypes = [type] }
         if panel.runModal() == .OK, let destination = panel.url {
@@ -670,24 +704,19 @@ final class Workbench: ObservableObject {
         busy = true
         onCaptureVisibility?(false)
         status = "Select a region to record. Press Esc to cancel."
-        let previousApp = NSWorkspace.shared.frontmostApplication
-        let windows = NSApp.windows.filter { $0.isVisible && $0.canBecomeMain }
-        windows.forEach { $0.orderOut(nil) }
         let restore = { [weak self] in
             guard self?.shuttingDown != true else { return }
             self?.onCaptureVisibility?(true)
-            windows.forEach { $0.makeKeyAndOrderFront(nil) }
-            if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp?.activate() }
         }
-        captureService.beginSelection()
+        captureService.beginSelection(freeze: false)
         captureTask = Task { [self] in
-            defer { captureTask = nil }
+            defer { captureTask = nil; captureService.cancelSelection() }
             guard let region = await captureService.selectRegion() else {
                 busy = false; status = "Recording cancelled."; restore(); return
             }
             do {
                 try Task.checkCancellation()
-                let capture = try await captureService.prepare(region)
+                let capture = try await captureService.prepare(region, hideDesktopIcons: hideDesktopIcons)
                 try Task.checkCancellation()
                 guard !shuttingDown else { throw CancellationError() }
                 let session = RecordingSession()
@@ -719,6 +748,24 @@ final class Workbench: ObservableObject {
 
     func stopRecording() { recordingSession?.stop() }
 
+    var preparedDocumentEngine: PDFDocumentEngine? {
+        let resources = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main : Bundle.module
+        if !developerRuntimeOverrides, let root = resources.resourceURL?.appendingPathComponent("DocumentEngine"),
+           FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("python/bin/python3.12").path),
+           FileManager.default.fileExists(atPath: root.appendingPathComponent("document-engine.json").path),
+           let worker = resources.url(forResource: "document_worker", withExtension: "py") {
+            return PDFDocumentEngine(python: root.appendingPathComponent("python/bin/python3.12"), worker: worker,
+                                     configuration: root.appendingPathComponent("document-engine.json"))
+        }
+        let selectedConfig = developerRuntimeOverrides ? config : formulaSetup.configuration
+        let selectedPython = developerRuntimeOverrides ? python : formulaSetup.python
+        let configuration = URL(fileURLWithPath: selectedConfig).deletingLastPathComponent().appendingPathComponent("document-engine.json")
+        guard !selectedConfig.isEmpty, !selectedPython.isEmpty,
+              FileManager.default.fileExists(atPath: configuration.path),
+              let worker = resources.url(forResource: "document_worker", withExtension: "py") else { return nil }
+        return PDFDocumentEngine(python: URL(fileURLWithPath: selectedPython), worker: worker, configuration: configuration)
+    }
+
     func convertPDF(format: PDFExportFormat) {
         if let onOpenFiles { onOpenFiles(format); return }
         guard !busy, !shuttingDown else { return }
@@ -731,17 +778,18 @@ final class Workbench: ObservableObject {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         } catch { problem = error.localizedDescription; return }
         let destination = directory.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
-        busy = true; isConvertingPDF = true
+        busy = true; isConvertingPDF = true; documentProgress = DocumentProgress()
         pendingDocumentDirectory = directory
-        exportSummary = "Extracting readable text one page at a time. Mathematical layout may need correction."
+        exportSummary = preparedDocumentEngine == nil ? "Extracting readable text. Structured document recognition is not prepared in this build." : "Reconstructing text, equations, tables and figures locally."
         status = "Preparing PDF…"; onExportReady?()
-        var options = PDFConversionOptions(); options.recognitionLanguages = selectedOCRLanguages; options.finnishTextMode = finnishTextMode; options.tesseractExecutable = textEngineExecutable
+        var options = PDFConversionOptions(); options.recognitionLanguages = selectedOCRLanguages; options.finnishTextMode = finnishTextMode; options.tesseractExecutable = textEngineExecutable; options.documentEngine = preparedDocumentEngine
         let worker = Task.detached { [self] in
             try PDFConverter.convert(source: source, destination: destination, format: format, options: options,
                 isCancelled: { Task.isCancelled }, progress: { [self] progress in
                     Task { @MainActor [self] in
                         guard self.isConvertingPDF else { return }
                         self.status = progress.message
+                        self.documentProgress.update(progress)
                     }
                 })
         }
@@ -763,7 +811,6 @@ final class Workbench: ObservableObject {
     }
 
     func cancelJob() {
-        driveController?.cancel(); dropboxController?.cancel()
         filesInbox.cancel()
         recognitionJob?.cancel(); formulaEditJob?.cancel(); recognitionTask?.cancel(); formulaRenderTask?.cancel(); documentTask?.cancel(); recordingSession?.cancel(); scrollSession?.cancel()
         importTask?.cancel(); captureTask?.cancel(); captureService.cancelSelection()
@@ -785,20 +832,23 @@ final class Workbench: ObservableObject {
     private func saveExport(copyToClipboard: Bool) {
         guard let exportURL, !busy, !shuttingDown else { return }
         NSApp.activate(ignoringOtherApps: true)
-        let panel = NSSavePanel(); panel.nameFieldStringValue = exportURL.lastPathComponent
+        let panel = NSSavePanel(); panel.directoryURL = storageDirectory; panel.nameFieldStringValue = exportURL.lastPathComponent
         if let type = UTType(filenameExtension: exportURL.pathExtension) { panel.allowedContentTypes = [type] }
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         // Stage next to the destination for atomic replacement without loading a video into RAM.
         let staging = destination.deletingLastPathComponent().appendingPathComponent(".baker-save-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: staging) }
         do {
-            try FileManager.default.copyItem(at: exportURL, to: staging)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging)
-            } else { try FileManager.default.moveItem(at: staging, to: destination) }
+            if ["md", "tex"].contains(exportURL.pathExtension.lowercased()) {
+                try PDFExportBundle.save(source: exportURL, destination: destination)
+            } else {
+                try FileManager.default.copyItem(at: exportURL, to: staging)
+                if FileManager.default.fileExists(atPath: destination.path) { _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging) }
+                else { try FileManager.default.moveItem(at: staging, to: destination) }
+            }
             if copyToClipboard {
                 clipboard.clearContents()
-                guard clipboard.writeObjects([destination as NSURL]) else {
+                guard clipboard.writeObjects(PDFExportBundle.filesForCopy(destination).map { $0 as NSURL }) else {
                     throw BakerError(message: "The file was saved, but could not be copied to the clipboard.")
                 }
             }
@@ -809,7 +859,6 @@ final class Workbench: ObservableObject {
     func shutdown() async {
         formulaSetup.cancel()
         shuttingDown = true
-        await driveController?.shutdown(); await dropboxController?.shutdown()
         await filesInbox.close()
         let recognition = recognitionTask, document = documentTask
         let recognitionOperation = recognitionJob, editOperation = formulaEditJob
@@ -844,5 +893,101 @@ final class Workbench: ObservableObject {
         if let ownedImage { try? FileManager.default.removeItem(at: ownedImage) }
         if let ownedExportDirectory { try? FileManager.default.removeItem(at: ownedExportDirectory) }
         if let pendingDocumentDirectory { try? FileManager.default.removeItem(at: pendingDocumentDirectory) }
+    }
+}
+
+extension Workbench {
+    var presetsDirectory: URL { storageDirectory.appendingPathComponent("Presets", isDirectory: true) }
+
+    func chooseStorageFolder() {
+        guard !busy else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose Baker Save Folder"; panel.prompt = "Use Folder"
+        panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false; panel.directoryURL = storageDirectory
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { await self?.changeStorageDirectory(url) }
+        }
+        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
+        else { panel.begin(completionHandler: completion) }
+    }
+    func changeStorageDirectory(_ proposed: URL) async {
+        guard !busy, !shuttingDown else { return }
+        guard canChangeStorage?() != false else { problem = "Close the capture editor before changing the save folder."; return }
+        let directory = proposed.standardizedFileURL.resolvingSymlinksInPath()
+        guard directory != storageDirectory else { return }
+        guard directory.isFileURL else { problem = "Choose a folder on this Mac or in Finder."; return }
+        switchingStorage = true; busy = true
+        defer { switchingStorage = false; busy = false }
+        await flushFormulaHistory()
+        do {
+            let store = CaptureStore(directory: directory)
+            try await store.prepareLocation()
+            let records = try await store.records(), formulas = try await store.savedFormulas()
+            guard !shuttingDown else { return }
+            captureStore = store; storageDirectory = directory
+            formulaPreferences.set(directory.path, forKey: "storageDirectory")
+            clipboardRequest += 1
+            thumbnailCache = [:]; formulaResults = [:]; savedFormulas = formulas; captures = records
+            focusedFormulaID = nil; activeCaptureID = nil; imageURL = nil; image = nil
+            text = ""; latex = ""; unicode = ""; unicodeMessage = ""
+            onStorageChanged?()
+            status = "Save folder changed. Existing files remain in their previous folder."
+        } catch { problem = "The save folder was not changed: \(error.localizedDescription)" }
+    }
+    func settingsPreset() -> SettingsPreset {
+        SettingsPreset(copyImages: copyCapturedImages, copyText: copyRecognisedText, openTextEditor: showResults,
+            captureSounds: captureSounds, hideDesktopIcons: hideDesktopIcons, visibleCaptures: visibleCaptures,
+            formulaHistoryLimit: formulaHistoryLimit, formulaHistoryDays: formulaHistoryDays, mathFont: mathFont,
+            languages: selectedOCRLanguages, formulaFormat: preferredFormulaFormat.rawValue, latexStyle: preferredLatexStyle.rawValue)
+    }
+    func applySettingsPreset(_ preset: SettingsPreset) throws {
+        try preset.validate()
+        applyingPreset = true
+        copyCapturedImages = preset.copyImages; copyRecognisedText = preset.copyText; showResults = preset.openTextEditor
+        captureSounds = preset.captureSounds; hideDesktopIcons = preset.hideDesktopIcons; visibleCaptures = preset.visibleCaptures
+        formulaHistoryLimit = preset.formulaHistoryLimit; formulaHistoryDays = preset.formulaHistoryDays; mathFont = preset.mathFont
+        ocrLanguageSelection = preset.languages.joined(separator: ",")
+        formulaPreferences.set(preset.formulaFormat, forKey: "formulaOutputFormat")
+        formulaPreferences.set(preset.latexStyle, forKey: "formulaLatexStyle")
+        applyingPreset = false
+        applyFormulaRetention()
+        status = "Preset loaded."
+    }
+    func saveSettingsPreset() {
+        guard !busy else { return }
+        let preset = settingsPreset(), directory = presetsDirectory
+        do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
+        catch { problem = error.localizedDescription; return }
+        let panel = NSSavePanel(); panel.title = "Save Baker Preset"; panel.directoryURL = directory
+        panel.allowedContentTypes = [.json]; panel.nameFieldStringValue = "Baker.json"
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                try encoder.encode(preset).write(to: url, options: .atomic); self?.status = "Preset saved."
+            } catch { self?.problem = error.localizedDescription }
+        }
+        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
+        else { panel.begin(completionHandler: completion) }
+    }
+    func loadSettingsPreset() {
+        guard !busy else { return }
+        let panel = NSOpenPanel(); panel.title = "Load Baker Preset"; panel.directoryURL = presetsDirectory
+        panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK, let url = panel.url, let self, !self.busy else { return }
+            self.busy = true
+            Task {
+                defer { self.busy = false }
+                do {
+                    let preset = try await Task.detached { try SettingsPreset.read(url) }.value
+                    try self.applySettingsPreset(preset)
+                } catch { self.problem = "Preset not loaded: \(error.localizedDescription)" }
+            }
+        }
+        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
+        else { panel.begin(completionHandler: completion) }
     }
 }

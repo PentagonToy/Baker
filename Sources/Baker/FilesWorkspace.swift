@@ -11,6 +11,7 @@ struct InboxFile: Identifiable {
     var message = "Waiting"
     var capture: CaptureRecord?
     var export: URL?
+    var progress: DocumentProgress?
 }
 
 @MainActor
@@ -18,7 +19,7 @@ final class FilesWorkspaceWindow: NSWindow {
     init() {
         super.init(contentRect: CGRect(x: 0, y: 0, width: 740, height: 600), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         hidesOnDeactivate = false
-        level = .floating
+        level = .normal
         collectionBehavior = [.fullScreenAuxiliary]
         isReleasedWhenClosed = false
         contentMinSize = NSSize(width: 680, height: 520)
@@ -84,7 +85,8 @@ final class FilesInbox: ObservableObject {
             for index in items.indices {
                 if Task.isCancelled { break }
                 guard items[index].phase == .waiting else { continue }
-                items[index].phase = .processing; items[index].message = "Processing…"
+                items[index].phase = .processing; items[index].message = "Preparing…"
+                items[index].progress = items[index].url.pathExtension.lowercased() == "pdf" ? DocumentProgress() : nil
                 let source = items[index].url
                 let access = source.startAccessingSecurityScopedResource()
                 defer { if access { source.stopAccessingSecurityScopedResource() } }
@@ -94,9 +96,15 @@ final class FilesInbox: ObservableObject {
                         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
                         folders.append(folder)
                         let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
-                        var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable
+                        var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = model.preparedDocumentEngine
                         let worker = Task.detached {
-                            try PDFConverter.convert(source: source, destination: destination, format: format, options: options, isCancelled: { Task.isCancelled })
+                            try PDFConverter.convert(source: source, destination: destination, format: format, options: options, isCancelled: { Task.isCancelled }, progress: { progress in
+                                Task { @MainActor [weak self] in
+                                    guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
+                                    self.items[index].progress?.update(progress)
+                                    self.items[index].message = progress.message
+                                }
+                            })
                         }
                         let report = try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
                         try Task.checkCancellation()
@@ -129,14 +137,12 @@ final class FilesInbox: ObservableObject {
         task?.cancel(); _ = await task?.value; clear() }
     func save(_ file: InboxFile) {
         guard let source = file.export else { return }
-        let panel = NSSavePanel(); panel.nameFieldStringValue = source.lastPathComponent
+        let panel = NSSavePanel(); panel.directoryURL = model.storageDirectory; panel.nameFieldStringValue = source.lastPathComponent
         if panel.runModal() == .OK, let destination = panel.url {
             do {
                 let staging = destination.deletingLastPathComponent().appendingPathComponent(".baker-export-" + UUID().uuidString)
                 defer { try? FileManager.default.removeItem(at: staging) }
-                try FileManager.default.copyItem(at: source, to: staging)
-                if FileManager.default.fileExists(atPath: destination.path) { _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging) }
-                else { try FileManager.default.moveItem(at: staging, to: destination) }
+                try PDFExportBundle.save(source: source, destination: destination)
                 message = "Saved " + destination.lastPathComponent
             } catch { message = error.localizedDescription }
         }
@@ -155,13 +161,13 @@ struct FilesWorkspace: View {
                 Button("Read Clipboard Text") { model.pasteImage(recogniseText: true) }.disabled(model.busy)
             }
             VStack(spacing: 10) {
-                Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(.secondary)
+                Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
                 Text("Drop images and PDFs here").font(.headline)
                 Text("Select several files · originals stay in place").font(.caption).foregroundStyle(.secondary)
                 Button("Choose Files…", action: inbox.browse).disabled(model.busy)
             }.frame(maxWidth: .infinity).padding(24)
-                .background(inbox.targeted ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? Color.accentColor : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
+                .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? BakerTheme.accent : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
                 .onDrop(of: [UTType.fileURL.identifier], isTargeted: $inbox.targeted) { providers in
                     guard !model.busy else { return false }
                     for provider in providers.prefix(50) {
@@ -176,7 +182,7 @@ struct FilesWorkspace: View {
                 Picker("PDF output", selection: $inbox.pdfFormat) {
                     Text("Markdown").tag(PDFExportFormat.markdown); Text("LaTeX").tag(PDFExportFormat.latex)
                 }.frame(width: 220).disabled(model.busy)
-                Text("PDF text extraction").font(.caption).foregroundStyle(.secondary)
+                Text(model.preparedDocumentEngine == nil ? "PDF text extraction" : "Local document recognition").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
@@ -188,14 +194,15 @@ struct FilesWorkspace: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(file.url.lastPathComponent).lineLimit(1)
                         Text(file.message).font(.caption).foregroundStyle(file.phase == .failed ? .red : .secondary).lineLimit(2).help(file.message)
+                        if file.phase == .processing, let progress = file.progress { DocumentProgressView(progress: progress).frame(maxWidth: .infinity) }
                     }
                     Spacer()
-                    if file.phase == .processing { ProgressView().controlSize(.small) }
+                    if file.phase == .processing && file.progress == nil { ProgressView().controlSize(.small) }
                     if file.export != nil { Button("Save…") { inbox.save(file) } }
                     if let capture = file.capture { Button("Formula") { model.selectCapture(capture, action: .formula) }.disabled(model.busy) }
                 }.padding(.vertical, 4)
-            }
+            }.scrollContentBackground(.hidden).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 10))
             Text(inbox.message.isEmpty ? "Images are archived. Save PDF outputs before clearing this list or quitting." : inbox.message).font(.caption).foregroundStyle(.secondary)
-        }.padding(20).background(Color(nsColor: .windowBackgroundColor)).frame(minWidth: 680, minHeight: 520)
+        }.tint(BakerTheme.accent).padding(20).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
     }
 }

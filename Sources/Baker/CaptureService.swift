@@ -20,29 +20,74 @@ final class CaptureService {
     private var armed = false
     private var captureAccessKnown = false
     private var contentTask: Task<SCShareableContent, Error>?
+    private var frozenTask: Task<CGImage, Error>?
+    private var frozenScreen: NSScreen?
+
+    /// Resolve before any asynchronous work or window changes can move the pointer.
+    static func pointerDisplayRegion() -> CaptureRegion? {
+        let point = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { return nil }
+        return CaptureRegion(screen: screen, rect: CGRect(origin: .zero, size: screen.frame.size))
+    }
 
     func warmSelection() {
         selector.prepare()
         captureAccessKnown = CGPreflightScreenCaptureAccess()
     }
-    func cancelSelection() { selector.cancel(); contentTask?.cancel(); contentTask = nil }
+    func cancelSelection() { selector.cancel(); contentTask?.cancel(); contentTask = nil; frozenTask?.cancel(); frozenTask = nil; frozenScreen = nil }
 
     /// Arm the input shield synchronously, before launching any asynchronous work.
-    func beginSelection() {
+    func beginSelection(freeze: Bool = true, hideDesktopIcons: Bool = false) {
         guard !armed else { return }
         armed = true
         selector.begin()
+        captureAccessKnown = captureAccessKnown || CGPreflightScreenCaptureAccess()
         if captureAccessKnown {
             contentTask = Task { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
+            if freeze, let region = Self.pointerDisplayRegion() {
+                frozenScreen = region.screen
+                frozenTask = Task {
+                    let prepared = try await self.prepare(region, hideDesktopIcons: hideDesktopIcons)
+                    let image = try await prepared.image()
+                    try Task.checkCancellation()
+                    self.selector.setSnapshot(image, screen: region.screen)
+                    return image
+                }
+            }
         }
     }
     func selectRegion() async -> CaptureRegion? {
         if !armed { beginSelection() }
         defer { armed = false }
-        return await selector.result()
+        let result = await selector.result()
+        if result == nil { frozenTask?.cancel(); frozenTask = nil; frozenScreen = nil }
+        return result
     }
 
-    func prepare(_ region: CaptureRegion) async throws -> PreparedCapture {
+    func image(_ region: CaptureRegion, hideDesktopIcons: Bool = false) async throws -> CGImage {
+        try Task.checkCancellation()
+        defer { frozenTask = nil; frozenScreen = nil }
+        if region.screen == frozenScreen, let frozenTask {
+            do {
+                let image = try await frozenTask.value
+                try Task.checkCancellation()
+                if let cropped = Self.cropSnapshot(image, region: region) { return cropped }
+            } catch is CancellationError { throw CancellationError() }
+            catch { /* Retry once through the normal screenshot path. */ }
+        }
+        let prepared = try await prepare(region, hideDesktopIcons: hideDesktopIcons)
+        return try await prepared.image()
+    }
+
+    static func cropSnapshot(_ image: CGImage, region: CaptureRegion) -> CGImage? {
+        let scaleX = CGFloat(image.width) / region.screen.frame.width
+        let scaleY = CGFloat(image.height) / region.screen.frame.height
+        let box = CGRect(x: region.rect.minX * scaleX, y: region.rect.minY * scaleY,
+                         width: region.rect.width * scaleX, height: region.rect.height * scaleY).integral
+        return image.cropping(to: box)
+    }
+
+    func prepare(_ region: CaptureRegion, hideDesktopIcons: Bool = false) async throws -> PreparedCapture {
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
             throw BakerError(message: "Allow Baker in System Settings > Privacy & Security > Screen Recording, then try again.")
         }
@@ -58,8 +103,14 @@ final class CaptureService {
         guard let display = content.displays.first(where: { $0.displayID == number?.uint32Value }) else {
             throw BakerError(message: "The selected display is no longer available.")
         }
-        let ownApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
+        let iconWindows = hideDesktopIcons ? content.windows.filter {
+            $0.owningApplication?.bundleIdentifier == "com.apple.finder" && $0.windowLayer == CGWindowLevelForKey(.desktopIconWindow)
+        } : []
+        // Keep ordinary Baker workspaces visible in both the frozen selection and output.
+        // Only capture controls/previews are excluded, rather than every Baker window.
+        let normalWindowIDs = Set(NSApp.windows.filter { $0.isVisible && $0.level == .normal }.map { UInt32($0.windowNumber) })
+        let controls = content.windows.filter { $0.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier && !normalWindowIDs.contains($0.windowID) }
+        let filter = SCContentFilter(display: display, excludingWindows: iconWindows + controls)
         let configuration = SCStreamConfiguration()
         configuration.sourceRect = region.rect
         configuration.width = Int((region.rect.width * region.screen.backingScaleFactor).rounded())
@@ -101,8 +152,9 @@ private final class RegionSelector {
         windows.forEach { $0.orderOut(nil) }
         windows = []; screenSignature = signature
         for screen in screens {
-            let window = SelectionWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: true)
+            let window = SelectionWindow(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
             window.level = .screenSaver; window.sharingType = .none
+            window.hidesOnDeactivate = false
             window.isOpaque = false; window.backgroundColor = .clear
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
@@ -115,6 +167,13 @@ private final class RegionSelector {
             windows.append(window)
         }
     }
+    func setSnapshot(_ image: CGImage, screen: NSScreen) {
+        guard active else { return }
+        for window in windows where window.frame == screen.frame {
+            (window.contentView as? SelectionView)?.snapshot = NSImage(cgImage: image, size: screen.frame.size)
+            window.contentView?.needsDisplay = true
+        }
+    }
     func begin() {
         prepare()
         resolved = false; selectedRegion = nil; active = true
@@ -125,7 +184,6 @@ private final class RegionSelector {
         let window = windows.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? windows.first
         window?.makeKey(); window?.makeFirstResponder(window?.contentView)
         if !cursorPushed { NSCursor.crosshair.push(); cursorPushed = true }
-        NSApp.activate(ignoringOtherApps: true)
         window?.displayIfNeeded()
     }
     func result() async -> CaptureRegion? {
@@ -136,25 +194,26 @@ private final class RegionSelector {
     private func complete(_ region: CaptureRegion?) {
         guard active else { return }
         active = false; resolved = true; selectedRegion = region
-        windows.forEach { $0.orderOut(nil) }
+        windows.forEach { $0.orderOut(nil); ($0.contentView as? SelectionView)?.snapshot = nil }
         if cursorPushed { NSCursor.pop(); cursorPushed = false }
         let waiting = continuation; continuation = nil
         waiting?.resume(returning: region)
     }
 }
 
-private final class SelectionWindow: NSWindow {
+private final class SelectionWindow: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
 private final class SelectionView: NSView {
     var completion: ((CGRect?) -> Void)?
+    var snapshot: NSImage?
     private var start: CGPoint?
     private var selection: CGRect?
     private var invalidSelection = false
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    func resetSelection() { start = nil; selection = nil; invalidSelection = false; needsDisplay = true }
+    func resetSelection() { snapshot = nil; start = nil; selection = nil; invalidSelection = false; needsDisplay = true }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
     override func mouseDown(with event: NSEvent) { invalidSelection = false; start = convert(event.locationInWindow, from: nil); selection = nil; needsDisplay = true }
     override func mouseDragged(with event: NSEvent) {
@@ -180,6 +239,7 @@ private final class SelectionView: NSView {
         if event.keyCode == 53 { completion?(nil) } else { super.keyDown(with: event) }
     }
     override func draw(_ dirtyRect: NSRect) {
+        snapshot?.draw(in: bounds)
         let shade = NSBezierPath(rect: bounds)
         if let selection { shade.appendRect(selection) }
         shade.windingRule = .evenOdd
@@ -192,11 +252,14 @@ private final class SelectionView: NSView {
             NSColor.white.withAlphaComponent(0.95).setStroke()
             let outline = NSBezierPath(rect: selection); outline.lineWidth = 1; outline.stroke()
         }
-        if invalidSelection {
-            let message = "Drag to select · Esc to cancel"
-            let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.white, .backgroundColor: NSColor.black.withAlphaComponent(0.65)]
+        if start == nil {
+            let message = invalidSelection ? "Drag a larger area · Esc to cancel" : "Drag to capture · Esc to cancel"
+            let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 22, weight: .medium), .foregroundColor: NSColor.white]
             let size = message.size(withAttributes: attributes)
-            message.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: 32), withAttributes: attributes)
+            let box = CGRect(x: (bounds.width - size.width) / 2 - 24, y: (bounds.height - size.height) / 2 - 16, width: size.width + 48, height: size.height + 32)
+            NSColor(calibratedRed: 0.12, green: 0.15, blue: 0.18, alpha: 0.92).setFill()
+            NSBezierPath(roundedRect: box, xRadius: 14, yRadius: 14).fill()
+            message.draw(at: CGPoint(x: box.minX + 24, y: box.minY + 16), withAttributes: attributes)
         }
     }
 }

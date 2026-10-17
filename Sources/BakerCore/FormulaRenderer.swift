@@ -83,6 +83,13 @@ private struct FormulaPreviewParser {
             if right && starts(#"\right"#) { break }
             if matrixCell && (input[position] == "&" || input[position...].starts(with: ["\\", "\\"]) || starts(#"\end"#)) { break }
             guard input[position] != "}" else { throw failure("The formula has an unmatched closing brace.") }
+            // TeX declarations apply to the remainder of their enclosing group.
+            let declarations = ["bf": "mathbf", "rm": "mathrm", "it": "mathit", "sf": "mathsf", "tt": "mathtt", "cal": "mathcal"]
+            if let name = declarations.keys.first(where: { starts("\\" + $0) }) {
+                _ = command()
+                nodes.append(.style(declarations[name]!, try row(depth: depth + 1, closing: closing, right: right, matrixCell: matrixCell)))
+                return .row(nodes)
+            }
             var node = try atom(depth: depth)
             var upper: FormulaPreviewNode?, lower: FormulaPreviewNode?
             while true {

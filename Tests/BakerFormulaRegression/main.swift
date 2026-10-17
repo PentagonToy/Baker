@@ -62,6 +62,10 @@ func run() throws {
         try write(image, root.appendingPathComponent(name + ".png"))
         summary[name] = ["latex": source, "width": image.width, "height": image.height]
     }
+    let legacyBold = try FormulaRenderer.render(#"\phi_{r}(x;{\bf p}_{r})"#)
+    let modernBold = try FormulaRenderer.render(#"\phi_{r}(x;{\mathbf{p}}_{r})"#)
+    try check(legacyBold.width == modernBold.width && legacyBold.height == modernBold.height, "Legacy bold declaration matches scoped modern notation")
+    try check(try FormulaRenderer.render(#"{\bf p q}+r"#).width == FormulaRenderer.render(#"{\mathbf{p q}}+r"#).width, "Font declarations retain their enclosing group scope")
     let fraction = try FormulaRenderer.render(#"\frac{1}{2}"#)
     let rows = rowInk(fraction), ink = bands(rows)
     try check(ink.count == 3, "Fraction has separate numerator, rule and denominator ink bands")

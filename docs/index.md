@@ -1,8 +1,10 @@
 # Baker
 
+Version **0.0.1** · [Changelog](../CHANGELOG.md).
+
 **A keen eye. A fresh result.**
 
-Spot the detail like a detective. Serve the result fresh from Baker.
+Capture the detail. Serve the result fresh from Baker.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../others/assests/banner/baker_banner_dark.svg"><img src="../others/assests/banner/baker_banner_light.svg" alt="Baker — Capture. Recognise. Create."></picture>
 
@@ -14,14 +16,17 @@ Capture a screen region, recognise text or equations, and paste the result into 
 - Copy text, or recognise a formula and choose LaTeX, Markdown, Keynote or editable Unicode.
 - Double-click a thumbnail to crop or annotate. Done overwrites that capture and returns it to the stack.
 - Open images and PDFs through a file workspace, with drag-and-drop and multiple files.
+- Convert PDFs to structured Markdown or LaTeX with local layout, equation and table recognition.
 
-Choose up to three text languages from English, German, Korean, Swedish, Danish and Finnish. Finnish selection uses local Tesseract; other selections use Apple Vision. Formula recognition needs a one-time model download from Settings → Formula. Baker is a source preview: review OCR and complex PDF output before relying on it.
+Choose up to three text languages from English, German, Korean, Swedish, Danish and Finnish. Finnish selection uses local Tesseract; other selections use Apple Vision. The complete app prepares its included formula model automatically. Baker is a source preview: review OCR and complex PDF output before relying on it.
 
-## Your files, your account
+Read [models and references](help/recognition.md) for the engines Baker includes, its small-model adaptation and the repositories that informed the design.
 
-Capture and recognition run locally. Google Drive and Dropbox are optional: connect your own account, then explicitly upload or import captures and their saved formula results. Baker sends those transfers directly between your Mac and the selected provider. There is no Baker-operated upload server or automatic cloud synchronisation in this version.
+## Your files, your folder
 
-Read the [privacy policy](legal/privacy.md) for the data handled by the app, local storage, cloud permissions and deletion controls.
+Capture and recognition run locally. Choose one save folder for images and formula history. For synchronisation, select a folder already connected through iCloud Drive, Dropbox or Google Drive in Finder; Baker needs no account login.
+
+Read the [privacy policy](legal/privacy.md) for the data handled by the app, local storage, synced folders and deletion controls.
 
 [Get started](help/getting-started.md) · [User guide](README.md) · [Source code](https://github.com/PentagonToy/Baker) · [Privacy](legal/privacy.md)
 

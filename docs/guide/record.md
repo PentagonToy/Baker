@@ -1,6 +1,6 @@
 # Record
 
-Choose **Video…** or **GIF…**, select an area, then record. Use **Stop** to finish or **Cancel** to discard.
+Choose **Video** or **GIF**, select an area, then record. Use **Stop** to finish or **Cancel** to discard.
 
 | Format | Duration | Frame rate | Longest side |
 | --- | ---: | ---: | ---: |

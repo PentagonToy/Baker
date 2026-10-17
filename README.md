@@ -5,44 +5,46 @@
 
 # Baker
 
+Version **0.0.1** · [Changelog](CHANGELOG.md)
+
 **A keen eye. A fresh result.**
 
-Spot the detail like a detective. Serve the result fresh from Baker.
+Capture the detail. Serve the result fresh from Baker.
 
-**Website: [pentagontoy.github.io/Baker](https://pentagontoy.github.io/Baker/)**
+**[Website and user guide](https://pentagontoy.github.io/Baker/)** · [Getting started](docs/help/getting-started.md) · [Settings](docs/help/settings.md)
 
-Capture a screen region, recognise text or maths, and put the result where you work. Baker lives in the macOS menu bar, with local processing and small panels that open when needed.
+Baker is a macOS menu-bar app for local screen capture, text and formula recognition, and PDF conversion. Copy results straight into your work without an OCR account.
 
-[Getting started](docs/help/getting-started.md) · [User guide](docs/README.md) · [Settings](docs/help/settings.md)
-
-## Features
-
-| Task | Output |
+| Task | Result |
 | --- | --- |
-| Area or scrolling capture | Image to copy, save, drag or pin |
-| Text recognition | Editable text and clipboard output |
-| Formula recognition | LaTeX, Markdown maths, Keynote or Unicode |
-| PDF text conversion | Markdown or LaTeX document |
-| Short screen recording | Silent MP4 or animated GIF |
-| Google Drive / Dropbox | Manual capture and formula upload/import |
+| All, Area or Scrolling | Images to copy, save, drag, pin or edit |
+| Text | Editable text in six supported languages |
+| Formula | Rendered preview, LaTeX, Markdown maths, Keynote or Unicode |
+| PDF conversion | Structured Markdown or LaTeX with equations, tables and figure files |
+| Video or GIF | Short silent recordings |
 
-Unicode maths stays editable in ordinary text fields. Choose Latin Modern Math, TeX Gyre Termes Math, TeX Gyre Pagella Math or STIX in Settings; copying includes plain Unicode and formatted text with the selected font.
+The complete app includes its local recognition engines and PDF models. Formula setup automatically prepares the included model; builds without it offer a one-time verified download. Normal use needs no Python path or model configuration.
 
-[Website](https://pentagontoy.github.io/Baker/) · [Privacy policy](https://pentagontoy.github.io/Baker/legal/privacy.html)
+## Recognition engines
 
-## Get started
+Formula images use Pix2Text MFR 1.5 with ONNX Runtime. PDFs combine native text, DocLayout-YOLO and a quantised GLM-OCR model with a small Baker adapter running through MLX. Screenshot text uses Apple Vision or local Tesseract. See [models and reference repositories](docs/help/recognition.md) for upstream links, adaptations, validation and limitations.
 
-Open Baker and click its menu-bar icon. Choose **Text** or **Formula**, select a region, and paste the recognised result into your document. Use **Settings…** to select the maths font and clipboard behaviour.
+## Start using Baker
 
-Baker is a preview. The complete app includes its recognition engines; Settings → Formula prepares the model with one download. See [setup](docs/help/getting-started.md) before the first formula capture.
+Move a packaged **Baker.app** to Applications and open it. Allow Screen Recording when prompted. Choose **Formula** or **Text**, select a region and paste the recognised result. Set global shortcuts and your save folder in Settings.
+
+Captures and formula history use one folder, initially `~/Documents/Baker`. Choose a Finder-accessible synced folder to use iCloud Drive, Dropbox or Google Drive; Baker has no cloud login. See [storage](docs/help/storage.md).
 
 ## Requirements
 
-| Item | Support |
-| --- | --- |
-| Platform | Apple Silicon; current complete local build requires macOS 26 or later |
-| Supported language | English interface; OCR input depends on the recognition engine |
-| Screen capture | macOS Screen Recording permission |
-| Formula OCR | Included engine; one-time model download of about 120 MB |
+The complete build targets **Apple Silicon and macOS 26.2 or later**. The interface is English. Text OCR offers English, German, Korean, Swedish, Danish and Finnish, with up to three selected languages. Formula OCR uses its own model.
 
-PDF conversion currently extracts text; review complex equations, tables and page layout. Recording is silent. See the [user guide](docs/README.md) for workflow limits.
+This is a preview: compare mathematical symbols and complex PDF layouts with the source. Scrolling is manual and recording is silent. See [limits](docs/help/limits.md).
+
+[Build from source](docs/help/development.md) · [Privacy](https://pentagontoy.github.io/Baker/legal/privacy.html) · [Third-party notices](docs/legal/third-party.md)
+
+## Licence
+
+Baker’s own source is licensed under [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Copyright © 2026 Hanseul Kang. Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).
+
+[Release preparation](others/release/README.md) records the checks and remaining steps for the first preview package.

@@ -1,0 +1,22 @@
+{
+  "glm-ocr-model-card.md": {
+    "source": "https://huggingface.co/zai-org/GLM-OCR/resolve/2e85a62840ccac27daa451df36c736c4636b8628/README.md",
+    "sha256": "172334449c3df98650bc9a42781c254c64c9d466b440e2ca8ce31f99829212b2",
+    "bytes": 6795
+  },
+  "glm-ocr-mlx-model-card.md": {
+    "source": "https://huggingface.co/mlx-community/GLM-OCR-bf16/resolve/24f15402e83baa0a80eeeaecf5480e172abc6f2e/README.md",
+    "sha256": "8d5ad80b8bffd61829f7805ef937baee5e43211202e5f1b11556155ca22c138c",
+    "bytes": 621
+  },
+  "doclayout-model-card.md": {
+    "source": "https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench/resolve/main/README.md",
+    "sha256": "fdd08bd98db905274bb216d72f66154cb1bd5e586232e81228ce3269ebb58534",
+    "bytes": 68
+  },
+  "mfr-model-card.md": {
+    "source": "https://huggingface.co/breezedeus/pix2text-mfr-1.5/resolve/1cef9f0bdcd6a4c63df7de1311fb0894593340cc/README.md",
+    "sha256": "7ae7136c49c64378ff09a86b750ef9c2007ad8e91e148be391e3480bfd9dce97",
+    "bytes": 9441
+  }
+}

@@ -3,6 +3,7 @@ import BakerCore
 import SwiftUI
 
 struct FormulaResultCard: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: Workbench
     let record: CaptureRecord
     let result: FormulaResult
@@ -29,9 +30,9 @@ struct FormulaResultCard: View {
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 case .ready:
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8).fill(.white)
+                        RoundedRectangle(cornerRadius: 8).fill(BakerTheme.paper)
                         if let preview = result.preview {
-                            Image(nsImage: preview).resizable().scaledToFit().padding(8)
+                            Image(nsImage: preview).resizable().scaledToFit().blendMode(colorScheme == .dark ? .normal : .multiply).padding(8)
                         } else if result.previewError != nil {
                             ScrollView { Text(result.latex).font(.system(size: 13, design: .monospaced)).foregroundStyle(.black).textSelection(.enabled).padding(10) }
                         } else { ProgressView("Rendering…").controlSize(.small).foregroundStyle(.black) }

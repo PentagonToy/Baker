@@ -2,35 +2,27 @@
 
 | Problem | Try this |
 | --- | --- |
-| No main window | Open Baker’s menu-bar icon |
+| No main window | Click Baker’s menu-bar icon and choose a workspace |
 | Capture permission is missing | Allow the installed Baker in macOS Screen Recording settings, then reopen it |
-| Formula runtime or model is missing | Follow [setup](getting-started.md#prepare-formula-recognition) |
-| Recognition times out | Capture one smaller, clearer equation |
-| Unicode shows a warning | Read the warning; choose LaTeX or Keynote for exact layout |
-| Maths font changes after pasting | Use ordinary Paste; Paste and Match Style follows the destination |
+| Formula model is unavailable | Check Settings → Formula; see [setup](getting-started.md#capture-a-formula) |
+| Original formula looks small | It is shown without enlarging its source pixels; capture a larger on-screen equation for more detail |
+| Recognition times out | Select one clear equation with little surrounding text |
+| Unicode shows a warning | Read the warning; choose LaTeX or Keynote for two-dimensional layout |
+| Maths font changes after pasting | Use ordinary Paste and install the selected font in the destination app |
 | Scrolling rejects content | Use smaller downward steps and exclude fixed or animated areas |
-| PDF layout looks wrong | Compare it with the original; current conversion extracts text |
-| Formula history cannot be saved | Check the reported error; existing images and metadata are preserved |
+| PDF layout looks wrong | Compare names, symbols and column order with the source; correct the exported text |
+| PDF progress pauses | Model preparation and complex pages take time; ETA is approximate |
 | Export disappears | Save before clearing files, replacing an export or quitting |
+| Save folder is unavailable | Reconnect its drive or let the sync provider download it |
 
-## Permission returns after an update
+## Screen Recording permission after an update
 
-Local preview builds use ad-hoc signing, which ties permission identity to a particular build. Replacing Baker can require permission again even when its name and location stay the same. Keep one installed copy and quit the old process before reopening an update.
+Ad-hoc signed builds can require permission again after replacement. Keep one installed copy in Applications and quit the old process before reopening an update. A persistent signing identity can stabilise development builds; see [Development builds](development.md).
 
-A persistent signing certificate is the development fix. Set `BAKER_SIGN_IDENTITY` when building with an available certificate; see [Apple’s signing explanation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements). The build script does not create certificates.
+## Capture history cannot be saved
 
-## Capture history changed
-
-Baker reloads valid additions from another running instance before saving. If a history file was removed, damaged or edited externally, restart Baker to reload it. Existing images remain on disk; an error names any temporary original retained for recovery.
-
-## Google testing access denied
-
-Add the signing-in account under Google Auth Platform → Audience → Test users in the app owner’s Cloud project. See [cloud setup](cloud.md).
+Check the reported error. Baker preserves existing images and names any temporary capture retained for recovery. If an index was changed externally, reopen Baker to reload it. Close Baker before manually changing history files.
 
 ## A thumbnail remains after dragging
 
-Baker closes it after the destination reports an accepted drop. Cancelled drags and destinations that reject the file keep the thumbnail. The original image remains in the capture folder.
-
-## Finnish OCR needs Tesseract
-
-Use the complete Baker app, which includes the Finnish engine and six language models. Developers using an unbundled build can choose an executable under Developer overrides.
+The destination must accept the drop before Baker closes its thumbnail. Cancelled or rejected drops leave it available. Its image remains in the save folder.

@@ -36,10 +36,13 @@ markdown_extensions:
   - attr_list
   - toc:
       permalink: true
+extra:
+  google_site_verification: flwxN1rf0OysYtNI7Tged4sc_V5QGQqTJ2KuS55olvg
 extra_css:
   - stylesheets/brand.css
 nav:
   - Home: index.md
+  - Changelog: changelog.md
   - Guide:
       - Overview: overview.md
       - Capture: guide/capture.md
@@ -50,13 +53,14 @@ nav:
       - Overview: help/README.md
       - Get started: help/getting-started.md
       - Settings: help/settings.md
+      - Models and references: help/recognition.md
       - Development builds: help/development.md
       - Formula: help/formula.md
       - Unicode maths: help/unicode-maths.md
-      - Cloud storage: help/cloud.md
+      - Save folder and presets: help/storage.md
       - Limits: help/limits.md
       - Troubleshooting: help/troubleshooting.md
-      - Website and OAuth setup: help/website.md
+      - Website and ownership: help/website.md
   - Legal:
       - Overview: legal/README.md
       - Privacy policy: legal/privacy.md

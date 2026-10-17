@@ -1,0 +1,34 @@
+{
+  "status": "Selected Baker 0.0.1 local document engine; public distribution checks remain separate",
+  "base_model": {
+    "source": "https://huggingface.co/mlx-community/GLM-OCR-bf16",
+    "revision": "24f15402e83baa0a80eeeaecf5480e172abc6f2e",
+    "declared_model_license": "MIT",
+    "changes": "language 4-bit, vision linear layers 8-bit; QLoRA rank4 alpha8, seed17,40 updates on 54 teacher-checked authored examples",
+    "upstream": "https://huggingface.co/zai-org/GLM-OCR",
+    "conversion": "Upstream MLX conversion declares mlx-vlm 0.3.11; Baker inference definitions use 0.7.8."
+  },
+  "inference_code": {
+    "source": "https://github.com/Blaizzy/mlx-vlm",
+    "version": "0.7.8",
+    "license": "MIT; code/LICENSE retained; extracted definition inventory in code/source-inventory.json"
+  },
+  "layout_weights": {
+    "source": "https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench",
+    "declared_model_license": "Apache-2.0",
+    "changes": "ONNX export, 1024 square input",
+    "source_sha256": "9a2ee0220fe3d9ad31b47e1d9f1282f46959a54e4618fce9cffcc9715b8286e2"
+  },
+  "runtime": "Standalone CPython base plus the locked minimal inference environment. All installed distribution metadata/licences retained.",
+  "training": "No user captures or papers in training; 54/22/28 content-disjoint authored split. Previous OCR references are regression agreement only.",
+  "limits": [
+    "Small authored training corpus; no release-level accuracy estimate",
+    "Generic Korean generative OCR remains weak; screenshot text uses native OCR",
+    "Generative PDF OCR has no calibrated confidence",
+    "Clean-machine and broader scanned-document validation remain pending"
+  ],
+  "name": "Baker OCR preview 1, corrected-label adapter",
+  "training_audit_sha256": "cb0f3637e172a40296fffc37c589bd104e58b64c5b3afae3d7cb5d9b03f38448",
+  "training_run_sha256": "70478901195217543cabd9c14f11ab2b4904705dc8c392209dd225882c00a56e",
+  "rejected_trial": "The first adapter used an unsafe whitespace formatter. It and earlier prototype bundles are rejected; this adapter was retrained from the original quantised base with valid authored formula targets."
+}
