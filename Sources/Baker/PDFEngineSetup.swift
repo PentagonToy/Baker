@@ -19,7 +19,17 @@ struct PDFEngineDescriptor: Codable, Sendable {
 private final class PDFDownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     let limit: Int64
     let update: @Sendable (Int64) -> Void
+    private let lock = NSLock()
+    private var task: URLSessionTask?
     init(limit: Int64, update: @escaping @Sendable (Int64) -> Void) { self.limit = limit; self.update = update }
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) { lock.lock(); self.task = task; lock.unlock() }
+    func report() {
+        lock.lock(); let current = task; lock.unlock()
+        guard let current else { return }
+        let bytes = current.countOfBytesReceived
+        if bytes > limit || current.countOfBytesExpectedToReceive > limit { current.cancel() }
+        else { update(bytes) }
+    }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if totalBytesWritten > limit || totalBytesExpectedToWrite > limit { downloadTask.cancel() }
         else { update(totalBytesWritten) }
@@ -92,6 +102,15 @@ final class PDFEngineSetup: ObservableObject {
                         self.progress = min(1, Double(bytes) / Double(descriptor.archive_bytes))
                     }
                 }
+                // Async download tasks can omit didWriteData callbacks. Read the
+                // task's received-byte counter as well so progress stays visible.
+                let monitor = Task.detached {
+                    while !Task.isCancelled {
+                        delegate.report()
+                        do { try await Task.sleep(nanoseconds: 250_000_000) } catch { break }
+                    }
+                }
+                defer { monitor.cancel() }
                 let (temporary, response) = try await session.download(from: descriptor.url, delegate: delegate)
                 defer { try? files.removeItem(at: temporary) }
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200, response.url?.scheme == "https" else { throw BakerError(message: "The PDF engine server could not complete the download. Try again later.") }

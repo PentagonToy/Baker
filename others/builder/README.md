@@ -2,9 +2,9 @@
 
 Double-click **[Build.command](Build.command)** in Finder to build, check, back up and replace the local Baker app. The builder opens Baker when installation succeeds. The app is installed in `/Applications/Baker.app`. The repository’s `Baker.app` link opens that app.
 
-Small-engine builds now keep the formula runtime and capture model in the app, and prepare the high-quality PDF runtime/models as a separate archive. Set `include_pdf_engine` to `true` to retain a complete offline build. The published 0.0.1 remains the complete offline app. The optional PDF asset has not been uploaded; its download button stays disabled until publication.
+Small-engine builds now keep the formula runtime and capture model in the app, and prepare the high-quality PDF runtime/models as a separate archive. Set `include_pdf_engine` to `true` to retain a complete offline build. The published 0.0.1 remains the complete offline app. PDF Engine 1.0.0 is published; use its accepted package directory as `pdf_distribution` to retain the tested archive and enabled descriptor.
 
-Until that asset is published, use `--build-only` for the lighter build or select the complete offline build for installation. The builder refuses to replace the installed app with a lighter build whose download is unavailable.
+For an unpublished future engine, use `--build-only` for the lighter build or select the complete offline build for installation. The builder refuses to replace the installed app with a lighter build whose download is unavailable.
 
 ## Before the first build
 

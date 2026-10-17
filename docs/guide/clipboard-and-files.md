@@ -25,7 +25,7 @@ To remove surrounding text before recognition, double-click a capture thumbnail,
 
 ## PDF conversion
 
-The published 0.0.1 app includes the PDF engine. Development builds prompt for a one-time engine download before processing queued PDFs, then continue conversion automatically after verification. The separate asset remains unpublished; these builds show its availability rather than silently returning a lower-quality text extraction. Captures and formula recognition do not need this download.
+The published 0.0.1 app includes the PDF engine. Development builds prompt for a one-time engine download before processing queued PDFs, then continue conversion automatically after verification. The separate PDF Engine 1.0.0 asset is available; development builds verify it before use rather than silently returning a lower-quality text extraction. Captures and formula recognition do not need this download.
 
 The prepared PDF engine recognises layout, text, equations and tables locally, using available PDF characters to recover text and scripts. Figure files are saved in a companion folder; keep it beside the document when moving the export. No quality switch or online OCR account is needed.
 

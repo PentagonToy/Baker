@@ -36,4 +36,4 @@ When a Baker window has focus, **⌘Q** quits through Baker’s normal shutdown,
 
 ## Optional PDF engine
 
-Development builds keep the PDF engine under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`. Settings → PDF Conversion shows the download and installed sizes, progress, cancellation and removal. Removing the engine keeps captures, formula history and exported files. The published 0.0.1 app still includes the engine; the separate asset has not been published yet.
+Development builds keep the PDF engine under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`. Settings → PDF Conversion shows the download and installed sizes, progress, cancellation and removal. Removing the engine keeps captures, formula history and exported files. The published 0.0.1 app still includes the engine; the separate [PDF Engine 1.0.0 asset](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) is now published.

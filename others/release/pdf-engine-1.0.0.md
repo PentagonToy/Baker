@@ -26,3 +26,5 @@ Baker source uses AGPL-3.0-only; dependencies and model material retain their ow
 Local extraction/integrity checks, byte-identical research-PDF Markdown and complex-table cells/captions passed on an M1 Pro with 16 GB RAM. The small authored training corpus does not establish general accuracy gains over the base checkpoint. Review names, equations and complex table structure. Separate clean-Mac validation remains pending.
 
 [Models and references](https://pentagontoy.github.io/Baker/help/recognition.html) · [App release](https://github.com/PentagonToy/Baker/releases/tag/v0.0.1)
+
+Public round-trip verification passed: the complete engine was downloaded from this release through Baker’s setup client, checked, installed in a fresh folder and reopened. A two-page research PDF produced byte-identical accepted Markdown. This ran on the same M1 Pro, not a separate clean Mac.

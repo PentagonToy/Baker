@@ -1,6 +1,6 @@
 # Optional PDF engine
 
-The base app includes capture, text OCR, formula OCR and their runtime. Only structured PDF conversion needs the separate engine. The published 0.0.1 release remains unchanged; this procedure prepares a later distribution and does not authorise uploading it.
+The base app includes capture, text OCR, formula OCR and their runtime. Only structured PDF conversion needs the separate engine. The published 0.0.1 release remains unchanged; the [PDF Engine 1.0.0 release](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) is available separately and passed public round-trip verification.
 
 ## Package locally
 
@@ -37,6 +37,6 @@ python others/builder/test_builder.py
 
 After acceptance and explicit publication approval, create a separate engine release such as `pdf-engine-v1.0.0` and upload the exact tested archive, its checksums, provenance and corresponding source material. Keep the application release separate and mark the engine release as non-latest so it does not replace the app’s Latest download. Model-only weights are insufficient for a user who has no Python or inference libraries installed.
 
-Verify the public download size and SHA-256. Only then set `available` to `true` in the descriptor packaged with the next app build. Keep the URL and hashes pinned in the app; do not discover or execute an arbitrary “latest” engine from a mutable remote manifest. The prepared descriptor currently uses a future URL and is disabled.
+Verify the public download size and SHA-256. Only then set `available` to `true` in the descriptor packaged with the next app build. Keep the URL and hashes pinned in the app; do not discover or execute an arbitrary “latest” engine from a mutable remote manifest. The current descriptor enables the verified 1.0.0 release. New packages still default to a disabled descriptor until their own public verification succeeds.
 
 The user sees the download and installed sizes before confirming. Settings → PDF Conversion offers progress, cancellation, reinstall and removal. The first queued PDF can download the engine and continue automatically. Installed files live under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`; removing them does not delete captures, history or exports. Future engine versions should retain compatibility checks and avoid redownloading unchanged weights unnecessarily.

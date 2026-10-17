@@ -4,7 +4,7 @@
 
 - Separate the optional PDF runtime and models from the base app while keeping capture formula recognition included.
 - Add PDF engine download, progress, cancellation, verified installation and removal controls; queued PDFs continue after installation.
-- Keep the published 0.0.1 release unchanged. The separate download asset remains unpublished pending acceptance.
+- Keep the published 0.0.1 release unchanged. PDF Engine 1.0.0 is published separately and passed public download, installation and PDF-output checks.
 
 ## 0.0.1 — 2026-10-17
 
