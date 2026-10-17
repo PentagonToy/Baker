@@ -5,7 +5,7 @@
 
 # Baker
 
-Version **0.0.1** · [Changelog](CHANGELOG.md)
+Version **0.0.2** · [Changelog](CHANGELOG.md)
 
 **A keen eye. A fresh result.**
 
@@ -23,7 +23,7 @@ Baker is a macOS menu-bar app for local screen capture, text and formula recogni
 | PDF conversion | Structured Markdown or LaTeX with equations, tables and figure files |
 | Video or GIF | Short silent recordings |
 
-The published 0.0.1 app includes its local recognition engines and PDF models. Development builds now separate the PDF engine from the capture app: formula recognition stays included, and PDF conversion uses a separately installed package. The [PDF Engine 1.0.0 asset](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) is published and its download/install path has been verified; the lighter app remains a development build. Normal use needs no Python path or model configuration.
+The capture app includes local text and formula recognition, plus offline KaTeX and mhchem previews. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once; the installed engine works offline. Normal use needs no Python path or model configuration.
 
 ## Recognition engines
 
@@ -37,7 +37,7 @@ Captures and formula history use one folder, initially `~/Documents/Baker`. Choo
 
 ## Requirements
 
-The complete build targets **Apple Silicon and macOS 26.2 or later**. The interface is English. Text OCR offers English, German, Korean, Swedish, Danish and Finnish, with up to three selected languages. Formula OCR uses its own model.
+The capture app requires **Apple Silicon and macOS 26.0 or later**; PDF conversion requires **macOS 26.2 or later**. The interface is English. Text OCR offers English, German, Korean, Swedish, Danish and Finnish, with up to three selected languages. Formula OCR uses its own model.
 
 This is a preview: compare mathematical symbols and complex PDF layouts with the source. Scrolling is manual and recording is silent. See [limits](docs/help/limits.md).
 
@@ -47,4 +47,4 @@ This is a preview: compare mathematical symbols and complex PDF layouts with the
 
 Baker’s own source is licensed under [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Copyright © 2026 Hanseul Kang. Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).
 
-[Release preparation](others/release/README.md) records the checks and remaining steps for the first preview package.
+[Release preparation](others/release/README.md) records the checks and remaining steps for the current preview package.

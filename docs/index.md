@@ -1,6 +1,6 @@
 # Baker
 
-Version **0.0.1** · [Changelog](../CHANGELOG.md).
+Version **0.0.2** · [Changelog](../CHANGELOG.md).
 
 **A keen eye. A fresh result.**
 

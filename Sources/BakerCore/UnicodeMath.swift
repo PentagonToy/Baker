@@ -99,6 +99,22 @@ private struct MathParser {
             while position < characters.count && characters[position].isASCII && characters[position].isLetter { position += 1 }
         } else { position += 1 }
         let name = String(characters[commandStart..<position])
+        if ["ce", "ch", "chemfig"].contains(name) {
+            warnings.append("Chemistry notation was preserved; Unicode conversion does not interpret \\" + name + ".")
+            while position < characters.count, characters[position].isWhitespace { position += 1 }
+            if position < characters.count, characters[position] == "{" {
+                var level = 0
+                repeat {
+                    if characters[position] == "\\", position + 1 < characters.count { position += 2; continue }
+                    if characters[position] == "{" { level += 1 }
+                    if characters[position] == "}" { level -= 1 }
+                    position += 1
+                } while position < characters.count && level > 0
+                if level != 0 { warnings.append("Unclosed group; check the LaTeX source.") }
+            }
+            return String(characters[start..<position])
+        }
+        if LatexWhitespace.standardOperators.contains(name) { return LatexWhitespace.operatorText(name) }
         if let symbol = Self.symbols[name] {
             // Named operators stay upright; only Greek variable symbols are styled.
             if italicVariables, symbol.unicodeScalars.count == 1,
@@ -209,7 +225,7 @@ private struct MathParser {
             "approx": "≈", "equiv": "≡", "sim": "∼", "simeq": "≃", "propto": "∝", "ll": "≪", "gg": "≫",
             "in": "∈", "notin": "∉", "ni": "∋", "subset": "⊂", "supset": "⊃", "subseteq": "⊆", "supseteq": "⊇", "cup": "∪", "cap": "∩", "emptyset": "∅",
             "forall": "∀", "exists": "∃", "nexists": "∄", "neg": "¬", "land": "∧", "lor": "∨", "perp": "⊥", "parallel": "∥",
-            "to": "→", "rightarrow": "→", "leftarrow": "←", "leftrightarrow": "↔", "Rightarrow": "⇒", "Leftarrow": "⇐", "Leftrightarrow": "⇔", "mapsto": "↦",
+            "to": "→", "rightarrow": "→", "leftarrow": "←", "leftrightarrow": "↔", "rightleftharpoons": "⇌", "leftrightharpoons": "⇋", "Rightarrow": "⇒", "Leftarrow": "⇐", "Leftrightarrow": "⇔", "mapsto": "↦",
             "ldots": "…", "cdots": "⋯", "vdots": "⋮", "ddots": "⋱", "hbar": "ℏ", "ell": "ℓ", "Re": "ℜ", "Im": "ℑ", "degree": "°",
             "langle": "⟨", "rangle": "⟩", "lvert": "|", "rvert": "|", "Vert": "‖", "{": "{", "}": "}", "%": "%", "_": "_", "$": "$", "#": "#", "&": "&",
             ",": "\u{2009}", ";": "\u{2005}", "!": "", " ": " ", "quad": "\u{2003}", "qquad": "\u{2003}\u{2003}",

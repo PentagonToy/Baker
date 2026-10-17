@@ -24,6 +24,14 @@ def audit(app, external_engine=None):
     elif not (resources / 'Legal/LICENSE').is_file() or (resources / 'Legal/LICENSE').read_bytes() != licence.read_bytes():
         blockers.append('Repackage the app with the selected Baker source licence')
     if not (resources / 'Legal/THIRD-PARTY.md').is_file(): blockers.append('Include third-party notices in the app')
+    preview = resources / 'FormulaPreview'
+    expected = ROOT / 'Sources/Baker/Resources/FormulaPreview'
+    # Compare the offline payload, including wrapper code, fonts and licence notices.
+    for source in expected.rglob('*'):
+        if not source.is_file(): continue
+        target = preview / source.relative_to(expected)
+        if not target.is_file() or hashlib.sha256(target.read_bytes()).digest() != hashlib.sha256(source.read_bytes()).digest():
+            blockers.append('Repackage the offline formula renderer: ' + str(source.relative_to(expected)))
     engine = external_engine or resources / 'DocumentEngine'
     descriptor = None
     if not (resources / 'DocumentEngine').is_dir():

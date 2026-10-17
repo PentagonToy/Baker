@@ -10,7 +10,7 @@ public enum FormulaRenderer {
         guard fontSize.isFinite, (10...96).contains(fontSize), scale.isFinite, (0.5...3).contains(scale), !fontName.isEmpty, fontName.count <= 200 else {
             throw BakerError(message: "The formula preview font or scale is outside its supported range.")
         }
-        var source = latex.trimmingCharacters(in: .whitespacesAndNewlines)
+        var source = LatexWhitespace.compact(latex)
         for (open, close) in [("$$", "$$"), (#"\["#, #"\]"#), (#"\("#, #"\)"#), ("$", "$")] {
             if source.hasPrefix(open), source.hasSuffix(close), source.count >= open.count + close.count { source = String(source.dropFirst(open.count).dropLast(close.count)); break }
         }
@@ -55,8 +55,9 @@ private indirect enum FormulaPreviewNode {
     case scripts(FormulaPreviewNode, upper: FormulaPreviewNode?, lower: FormulaPreviewNode?)
     case root(FormulaPreviewNode, index: FormulaPreviewNode?)
     case delimiters(String, FormulaPreviewNode, String)
+    case sizedDelimiter(String, CGFloat)
     case style(String, FormulaPreviewNode)
-    case matrix([[FormulaPreviewNode]], alignment: [Character])
+    case matrix([[FormulaPreviewNode]], alignment: [Character], paired: Bool)
 }
 
 private struct FormulaPreviewParser {
@@ -151,6 +152,9 @@ private struct FormulaPreviewParser {
             return .glyph(value == "-" ? "−" : String(value), upright: !value.isLetter, large: false)
         }
         let name = command()
+        let delimiterSizes: [String: CGFloat] = ["big": 1.2, "Big": 1.6, "bigg": 2.0, "Bigg": 2.4]
+        let sizeName = ["l", "r", "m"].contains(String(name.suffix(1))) ? String(name.dropLast()) : name
+        if let factor = delimiterSizes[sizeName] { return .sizedDelimiter(try delimiter(), factor) }
         if name == "begin" { return try matrix(depth: depth + 1) }
         if ["frac", "dfrac", "tfrac"].contains(name) {
             let numerator = try argument(depth: depth + 1), denominator = try argument(depth: depth + 1)
@@ -178,9 +182,9 @@ private struct FormulaPreviewParser {
             position += 1; return .glyph(text, upright: true, large: false)
         }
         if let width = [",": CGFloat(0.16), ";": 0.28, ":": 0.22, "!": -0.12, " ": 0.33, "quad": 1, "qquad": 2][name] { return .space(width) }
-        if ["sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "log", "ln", "exp", "lim", "max", "min", "det", "gcd"].contains(name) { return .glyph(name, upright: true, large: false) }
+        if LatexWhitespace.standardOperators.contains(name) { return .glyph(LatexWhitespace.operatorText(name), upright: true, large: false) }
         if ["{", "}", "_", "%", "#", "&"].contains(name) { return .glyph(name, upright: true, large: false) }
-        let leaves = Set(["alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda", "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "varsigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Psi", "Omega", "partial", "nabla", "infty", "int", "iint", "iiint", "oint", "sum", "prod", "pm", "mp", "times", "cdot", "div", "le", "leq", "ge", "geq", "ne", "neq", "approx", "equiv", "propto", "in", "notin", "subset", "subseteq", "supset", "supseteq", "cup", "cap", "to", "rightarrow", "leftarrow", "leftrightarrow", "Rightarrow", "Leftarrow", "Leftrightarrow", "forall", "exists", "neg", "land", "lor", "ell", "hbar", "Re", "Im", "langle", "rangle", "vert", "Vert", "ldots", "cdots"])
+        let leaves = Set(["alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda", "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "varsigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Psi", "Omega", "partial", "nabla", "infty", "int", "iint", "iiint", "oint", "sum", "prod", "pm", "mp", "times", "cdot", "div", "le", "leq", "ge", "geq", "ne", "neq", "approx", "equiv", "propto", "in", "notin", "subset", "subseteq", "supset", "supseteq", "cup", "cap", "to", "rightarrow", "leftarrow", "leftrightarrow", "rightleftharpoons", "leftrightharpoons", "Rightarrow", "Leftarrow", "Leftrightarrow", "forall", "exists", "neg", "land", "lor", "ell", "hbar", "Re", "Im", "langle", "rangle", "vert", "Vert", "ldots", "cdots"])
         guard leaves.contains(name) else { throw failure("Formula preview does not support command " + name + ".") }
         let converted = UnicodeMath.convert("\\" + name)
         guard converted.warnings.isEmpty, !converted.text.contains("\\") else { throw failure("Formula preview does not support command " + name + ".") }
@@ -202,7 +206,7 @@ private struct FormulaPreviewParser {
     mutating func matrix(depth: Int) throws -> FormulaPreviewNode {
         guard depth <= 32 else { throw failure("Formula preview nesting exceeds 32 levels.") }
         let name = try literalGroup()
-        guard ["array", "matrix", "bmatrix", "pmatrix", "vmatrix", "Vmatrix", "Bmatrix", "aligned", "gathered"].contains(name) else {
+        guard ["array", "matrix", "bmatrix", "pmatrix", "vmatrix", "Vmatrix", "Bmatrix", "aligned", "gathered", "cases"].contains(name) else {
             throw failure("Formula preview does not support environment " + name + ".")
         }
         var alignment: [Character] = []
@@ -227,14 +231,22 @@ private struct FormulaPreviewParser {
             guard position == input.count || (input[position] != "[" && input[position] != "*") else { throw failure("Custom matrix row spacing is not supported by formula preview.") }
         }
         guard position < input.count, command() == "end", try literalGroup() == name else { throw failure("Matrix environment boundaries do not match.") }
+        if name == "aligned" || name == "cases" {
+            let maximum = rows.map(\.count).max() ?? 0
+            let target = name == "cases" ? 2 : maximum + maximum % 2
+            guard maximum <= target, target <= 16 else { throw failure("Too many alignment columns.") }
+            rows = rows.map { $0 + Array(repeating: .row([]), count: target - $0.count) }
+        }
         let columns = rows.first?.count ?? 0
         guard !rows.isEmpty, rows.count <= 32, columns > 0, rows.count * columns <= 256, rows.allSatisfy({ $0.count == columns }) else { throw failure("Matrix rows need a consistent number of columns.") }
         if alignment.isEmpty {
-            if name == "aligned" { guard columns == 2 else { throw failure("Aligned preview supports two columns per row.") }; alignment = ["r", "l"] }
+            if name == "aligned" { alignment = (0..<columns).map { $0.isMultiple(of: 2) ? "r" : "l" } }
+            else if name == "cases" { alignment = ["l", "l"] }
             else { alignment = Array(repeating: "c", count: columns) }
         }
         guard alignment.count == columns, name != "gathered" || columns == 1 else { throw failure("The array columns do not match its cells.") }
-        let body = FormulaPreviewNode.matrix(rows, alignment: alignment)
+        let body = FormulaPreviewNode.matrix(rows, alignment: alignment, paired: name == "aligned")
+        if name == "cases" { return .delimiters("{", body, "") }
         if let pair = ["bmatrix": ["[", "]"], "pmatrix": ["(", ")"], "vmatrix": ["|", "|"], "Vmatrix": ["‖", "‖"], "Bmatrix": ["{", "}"]][name] { return .delimiters(pair[0], body, pair[1]) }
         return body
     }
@@ -282,17 +294,27 @@ private struct FormulaPreviewLayout {
             if ["+", "−", "=", "±", "∓", "×", "⋅", "÷", "≤", "≥", "≠", "≈", "∈", "→", "⇒"].contains(text) {
                 let padding = size * 0.14; value.paint = value.shifted(x: padding, y: 0); value.width += padding * 2
             }
-            if upright && ["sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "log", "ln", "exp", "lim", "max", "min", "det", "gcd"].contains(text) { value.width += size * 0.12 }
+            if upright && LatexWhitespace.standardOperators.contains(text.replacingOccurrences(of: " ", with: "")) { value.width += size * 0.12 }
+            box = value
+        case let .sizedDelimiter(text, factor):
+            var value = try glyph(text, size: size)
+            let baseline = size * 0.25 * (1 - factor)
+            value.paint = value.paint.map { operation in
+                if case let .text(line, transform) = operation { return .text(line, CGAffineTransform(a: 1, b: 0, c: 0, d: factor, tx: transform.tx, ty: baseline)) }
+                return operation
+            }
+            value.ascent = value.ascent * factor + baseline; value.descent = value.descent * factor - baseline
             box = value
         case let .space(width): box = FormulaPreviewBox(width: size * width, ascent: 0, descent: 0, paint: [])
         case let .style(name, body): box = try layout(body, size: size, style: name)
-        case let .matrix(rows, alignment):
+        case let .matrix(rows, alignment, paired):
             let cells = try rows.map { try $0.map { try layout($0, size: size * 0.95, style: style) } }
             let columns = alignment.count
             let widths = (0..<columns).map { column in cells.map { $0[column].width }.max() ?? 0 }
             let ascents = cells.map { max(size * 0.65, $0.map(\.ascent).max() ?? 0) }
             let descents = cells.map { max(size * 0.1, $0.map(\.descent).max() ?? 0) }
-            let rowGap = size * 0.38, columnGap = size * 0.65
+            let rowGap = size * 0.38
+            let gaps = (0..<max(0, columns - 1)).map { paired ? size * ($0.isMultiple(of: 2) ? 0.12 : 1.5) : size * 0.65 }
             let height = zip(ascents, descents).reduce(CGFloat(0)) { $0 + $1.0 + $1.1 } + CGFloat(rows.count - 1) * rowGap
             let top = height / 2 + size * 0.25
             var paint: [FormulaPreviewPaint] = [], y = top
@@ -300,11 +322,11 @@ private struct FormulaPreviewLayout {
                 let baseline = y - ascents[index]; var x: CGFloat = 0
                 for (column, cell) in row.enumerated() {
                     let offset = alignment[column] == "l" ? 0 : alignment[column] == "r" ? widths[column] - cell.width : (widths[column] - cell.width) / 2
-                    paint += cell.shifted(x: x + offset, y: baseline); x += widths[column] + columnGap
+                    paint += cell.shifted(x: x + offset, y: baseline); x += widths[column] + (column < gaps.count ? gaps[column] : 0)
                 }
                 y = baseline - descents[index] - rowGap
             }
-            box = FormulaPreviewBox(width: widths.reduce(0, +) + CGFloat(columns - 1) * columnGap, ascent: top, descent: max(0, height - top), paint: paint)
+            box = FormulaPreviewBox(width: widths.reduce(0, +) + gaps.reduce(0, +), ascent: top, descent: max(0, height - top), paint: paint)
         case let .row(nodes):
             var width: CGFloat = 0, minX: CGFloat = 0, maxX: CGFloat = 0, ascent: CGFloat = 0, descent: CGFloat = 0
             var paint: [FormulaPreviewPaint] = []

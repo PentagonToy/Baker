@@ -163,7 +163,8 @@ private struct KeynoteArrayConverter {
             guard input[index] == "\\" else { output.append(input[index]); index += 1; continue }
             let token = command(index, range.upperBound)
             if ["def", "gdef", "edef", "xdef", "newcommand", "renewcommand", "providecommand", "newenvironment", "renewenvironment", "DeclareMathOperator", "let", "futurelet", "verb", "catcode", "csname", "endcsname"].contains(token.name) { throw Invalid.structure }
-            if ["text", "operatorname", "mbox"].contains(token.name), skipSpace(token.end, range.upperBound) < range.upperBound, input[skipSpace(token.end, range.upperBound)] == "{" {
+            if ["ce", "ch", "chemfig"].contains(token.name) { warnings.append("Chemistry notation was preserved; check the destination app's chemistry support.") }
+            if ["text", "operatorname", "mbox", "ce", "ch", "chemfig"].contains(token.name), skipSpace(token.end, range.upperBound) < range.upperBound, input[skipSpace(token.end, range.upperBound)] == "{" {
                 let end = try group(token.end, range.upperBound).end; output += text(index..<end); index = end; continue
             }
             if token.name == "left" {

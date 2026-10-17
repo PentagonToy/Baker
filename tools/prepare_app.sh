@@ -26,6 +26,9 @@ old_resource="$app/Contents/MacOS/Baker_Baker.bundle"
 if [[ -d "$old_resource" ]]; then rm -rf -- "$old_resource"; fi
 cp -R "$source_dir/Sources/BakerCore/Resources/Tessdata" "$app/Contents/Resources/"
 cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
+# Replace the complete pinned renderer to avoid retaining stale vendor files.
+if [[ -d "$app/Contents/Resources/FormulaPreview" ]]; then rm -rf -- "$app/Contents/Resources/FormulaPreview"; fi
+cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$app/Contents/Resources/"

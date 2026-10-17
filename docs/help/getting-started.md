@@ -2,7 +2,7 @@
 
 Move a packaged **Baker.app** to Applications and double-click it. If supplied as a disk image, open it and drag Baker to Applications first. Baker appears in the menu bar. Normal use needs no Python, Homebrew or model configuration file.
 
-The complete build supports Apple Silicon and macOS 26.2 or later. Baker is distributed outside the Mac App Store. A source archive needs a [development build](development.md) before it can run.
+The capture app supports Apple Silicon and macOS 26.0 or later; the optional PDF engine requires macOS 26.2 or later. Baker is distributed outside the Mac App Store. A source archive needs a [development build](development.md) before it can run.
 
 ## Allow screen capture
 

@@ -62,6 +62,55 @@ func run() throws {
         try write(image, root.appendingPathComponent(name + ".png"))
         summary[name] = ["latex": source, "width": image.width, "height": image.height]
     }
+    for (source, expected) in [
+        (#"\operatorname{ e x p }(-x)"#, #"\exp(-x)"#),
+        (#"\operatorname{ l o g }x"#, #"\log x"#),
+        (#"\operatorname{sin} x"#, #"\sin x"#),
+        (#"\text{e x p}+\operatorname{my op}"#, #"\text{e x p}+\operatorname{my op}"#),
+        (#"\operatorname*{l i m}x"#, #"\operatorname*{l i m}x"#)
+    ] { try check(LatexWhitespace.compact(source) == expected, "Canonical known operator without changing text/custom/starred operators: " + source) }
+    let spacedExp = try FormulaRenderer.render(#"\operatorname{ e x p }(-x)"#)
+    let canonicalExp = try FormulaRenderer.render(#"\exp(-x)"#)
+    try check(spacedExp.width == canonicalExp.width && spacedExp.height == canonicalExp.height, "OCR-spaced exp renders identically to the standard operator")
+    let operatorComment = "\\operatorname% keep this\n{exp}"
+    try check(LatexWhitespace.compact(operatorComment) == operatorComment, "Comments between an operator and its argument remain literal")
+    for name in LatexWhitespace.standardOperators {
+        let source = "\\" + name + "(x)"
+        try check(try FormulaRenderer.render(source).width > 64, "Standard upright operator " + name)
+        try check(UnicodeMath.convert(source).warnings.isEmpty, "Named operator Unicode support " + name)
+    }
+    for (prefix, suffix) in [("big", "big"), ("Bigl", "Bigr"), ("biggl", "biggr"), ("Biggl", "Biggr")] {
+        let source = "\\" + prefix + "(x^2+1\\" + suffix + ")"
+        let image = try FormulaRenderer.render(source)
+        try check(image.width > 64 && image.height > 64, "Fixed-size delimiters " + prefix)
+    }
+    try check(try FormulaRenderer.render(#"\Bigg(x\Bigg)"#).height > FormulaRenderer.render(#"\big(x\big)"#).height, "Explicit delimiter sizes retain increasing height")
+    let previewCases = [
+        "user-big": #"\big(c_{r}^{2}d_{r}(\mathbf{x})^{2}+3c_{r}d_{r}(\mathbf{x})+3\big)"#,
+        "user-piecewise-aligned": #"\phi_{r}(\mathbf{x};\mathbf{x}_{r}^{*},c_r)=\left\{\begin{aligned}{}&{}&{}&\left(1-\frac{d_r(\mathbf{x})^2}{c_r^2}\right)^5,\quad d_r(\mathbf{x})\le c_r,\\{}&{}&{}&0,\quad d_r(\mathbf{x})>c_r.\end{aligned}\right."#,
+        "multiple-aligned-pairs": #"\begin{aligned}x&=1&y&=2\\z&=3\end{aligned}"#,
+        "cases": #"f(x)=\begin{cases}x^2&x\le0\\0&x>0\end{cases}"#
+    ]
+    for (name, source) in previewCases {
+        let image = try FormulaRenderer.render(source)
+        try check(rowInk(image).reduce(0,+) > 50, "Nonblank expanded preview: " + name)
+        try write(image, root.appendingPathComponent(name + ".png"))
+    }
+    for source in [#"\big x"#, #"\begin{aligned}x&=1"#, #"\begin{cases}a&b&c\end{cases}"#, #"\begin{matrix}a&b\\c\end{matrix}"#] {
+        try rejects("Invalid delimiter/alignment remains rejected: " + source) { _ = try FormulaRenderer.render(source) }
+    }
+    let chemistry = [#"\mathrm{H_2O}"#, #"\mathrm{CO_2}"#, #"\mathrm{Fe}^{3+}"#, #"\mathrm{SO_4}^{2-}"#, #"{}^{14}_{6}\mathrm{C}"#, #"\mathrm{Ca(OH)_2}"#, #"\mathrm{CuSO_4}\cdot5\mathrm{H_2O}"#, #"2\mathrm{H_2}+\mathrm{O_2}\rightarrow2\mathrm{H_2O}"#, #"\mathrm{N_2}+3\mathrm{H_2}\rightleftharpoons2\mathrm{NH_3}"#]
+    for source in chemistry { try check(rowInk(try FormulaRenderer.render(source)).reduce(0,+) > 50, "Ordinary LaTeX chemical notation renders: " + source) }
+    for source in [#"\ce{2 H2 + O2 -> 2 H2O}"#, #"\ch{Na+ + Cl- -> NaCl}"#, #"\chemfig{H-O-H}"#, #"\ce{A ->[\text{heat and light}] B}"#] {
+        try check(LatexWhitespace.compact(source) == source, "Chemical grammar spacing remains intact")
+        try check(LatexCopyStyle.displayDollar.format(source) == "$$\n" + source + "\n$$", "Chemical source survives Markdown export")
+        let unicode = UnicodeMath.convert(source, italicVariables: true)
+        try check(unicode.text == source && !unicode.warnings.isEmpty, "Unsupported chemistry remains literal in Unicode output")
+        let keynote = KeynoteLatex.convert(source)
+        try check(keynote.text == source && !keynote.warnings.isEmpty, "Chemistry source is preserved with a destination compatibility warning")
+        try rejects("Dedicated chemistry syntax has explicit preview fallback") { _ = try FormulaRenderer.render(source) }
+    }
+    try check(UnicodeMath.convert(#"\injlim A+\projlim B+\liminf x+\limsup y"#).text == "inj lim A+proj lim B+lim inf x+lim sup y", "Compound standard operators retain their internal word separation")
     let legacyBold = try FormulaRenderer.render(#"\phi_{r}(x;{\bf p}_{r})"#)
     let modernBold = try FormulaRenderer.render(#"\phi_{r}(x;{\mathbf{p}}_{r})"#)
     try check(legacyBold.width == modernBold.width && legacyBold.height == modernBold.height, "Legacy bold declaration matches scoped modern notation")
@@ -82,7 +131,7 @@ func run() throws {
     let grouped = try FormulaRenderer.render(actualBurgers)
     try check(grouped.height == large.height && grouped.width > large.width, "Actual MFR groups preserve stacked fractions and explicit spacing")
     try check(try FormulaRenderer.render(burgers, fontName: "STIXGeneral-Regular").width > 64, "Installed STIX alternative renders the equation")
-    for source in ["", "   ", #"\unknown{x}"#, #"\begin{cases}a&b\end{cases}"#, #"\frac{1}"#, "{x", "x}", "^2", "x^2^3", #"\left(x"#, #"x\\y"#, #"\text{a\alpha}"#] {
+    for source in ["", "   ", #"\unknown{x}"#, #"\begin{unsupported}a&b\end{unsupported}"#, #"\frac{1}"#, "{x", "x}", "^2", "x^2^3", #"\left(x"#, #"x\\y"#, #"\text{a\alpha}"#] {
         try rejects("Malformed or unsupported source: " + source) { _ = try FormulaRenderer.render(source) }
     }
     try rejects("Input length bound") { _ = try FormulaRenderer.render(String(repeating: "x", count: 8001)) }

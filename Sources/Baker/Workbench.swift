@@ -74,7 +74,7 @@ final class Workbench: ObservableObject {
     @Published var formulaResults: [UUID: FormulaResult] = [:]
     var onFormulaReady: ((UUID) -> Void)?
     var onEditResult: (() -> Void)?
-    private var formulaRenderTask: Task<CGImage, Error>?
+    private var formulaRenderTask: Task<NSImage, Error>?
     private let clipboard: NSPasteboard
     private let formulaPreferences: UserDefaults
     private var preferredFormulaFormat: OutputFormat {
@@ -295,6 +295,7 @@ final class Workbench: ObservableObject {
     }
     func clearPreviewCache() {
         guard !busy else { return }
+        FormulaPreviewRenderer.shared.clearCache()
         thumbnailCache = [:]; formulaResults = [:]; focusedFormulaID = nil; image = nil
         status = "Cached previews cleared. Saved files and formula history remain."
     }
@@ -471,13 +472,12 @@ final class Workbench: ObservableObject {
                         formulaResults[captureID] = FormulaResult(phase: .ready, confidence: recognition.confidence, originalConfidence: recognition.confidence, originalLatex: result, model: recognition.model, confidenceMethod: recognition.confidenceMethod, diagnostics: recognition.diagnostics, latex: result, unicode: unicode,
                             keynote: LatexWhitespace.compact(keynote.text), keynoteWarning: keynote.warnings.joined(separator: " "), warning: unicodeMessage, format: outputFormat, style: preferredLatexStyle)
                         copyFormula(captureID)
-                        let fontName = selectedMathFont.resolvedFont.fontName
-                        let renderTask = Task.detached(priority: .userInitiated) { try FormulaRenderer.render(result, fontName: fontName) }
+                        let renderTask = Task { try await FormulaPreviewRenderer.shared.render(result) }
                         formulaRenderTask = renderTask
                         do {
                             let preview = try await renderTask.value
                             if task.isCancelled || shuttingDown { throw CancellationError() }
-                            formulaResults[captureID]?.preview = NSImage(cgImage: preview, size: NSSize(width: CGFloat(preview.width) / 2, height: CGFloat(preview.height) / 2))
+                            formulaResults[captureID]?.preview = preview
                         } catch is CancellationError { throw CancellationError() }
                         catch { formulaResults[captureID]?.previewError = error.localizedDescription }
                         formulaRenderTask = nil
@@ -544,17 +544,16 @@ final class Workbench: ObservableObject {
                 unicode: value.unicodeOverride ?? converted.text, keynote: LatexWhitespace.compact(keynote.text),
                 keynoteWarning: keynote.warnings.joined(separator: " "), warning: converted.warnings.joined(separator: " "),
                 format: OutputFormat(rawValue: value.format) ?? .latex, style: LatexCopyStyle(rawValue: value.style) ?? .bare)
-            let fontName = selectedMathFont.resolvedFont.fontName
             busy = true
             formulaEditJob = Task {
                 defer { busy = false; formulaEditJob = nil; formulaRenderTask = nil }
                 guard !shuttingDown, !Task.isCancelled else { return }
                 do {
-                    let render = Task.detached { try FormulaRenderer.render(value.latex, fontName: fontName) }
+                    let render = Task { try await FormulaPreviewRenderer.shared.render(value.latex) }
                     formulaRenderTask = render
                     let rendered = try await render.value
                     guard !shuttingDown, !Task.isCancelled, !render.isCancelled, formulaResults[id]?.latex == value.latex else { return }
-                    formulaResults[id]?.preview = NSImage(cgImage: rendered, size: NSSize(width: CGFloat(rendered.width) / 2, height: CGFloat(rendered.height) / 2))
+                    formulaResults[id]?.preview = rendered
                 } catch { formulaResults[id]?.previewError = error.localizedDescription }
             }
         }
@@ -602,17 +601,17 @@ final class Workbench: ObservableObject {
         formulaResults[id]?.format = format
         formulaResults[id]?.preview = nil; formulaResults[id]?.previewError = nil
         copyFormula(id)
-        let source = latex, fontName = selectedMathFont.resolvedFont.fontName
+        let source = latex
         busy = true
         formulaEditJob = Task {
             defer { busy = false; formulaRenderTask = nil; formulaEditJob = nil }
             guard !shuttingDown, !Task.isCancelled else { return }
-            let task = Task.detached(priority: .userInitiated) { try FormulaRenderer.render(source, fontName: fontName) }
+            let task = Task { try await FormulaPreviewRenderer.shared.render(source) }
             formulaRenderTask = task
             do {
                 let preview = try await task.value
                 guard !task.isCancelled, !shuttingDown else { throw CancellationError() }
-                formulaResults[id]?.preview = NSImage(cgImage: preview, size: NSSize(width: CGFloat(preview.width) / 2, height: CGFloat(preview.height) / 2))
+                formulaResults[id]?.preview = preview
             } catch { if !shuttingDown { formulaResults[id]?.previewError = error.localizedDescription } }
         }
     }

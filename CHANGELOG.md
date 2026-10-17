@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.0.2 — 2026-10-17
+
+- Render formula previews offline with bundled KaTeX and mhchem, covering accents, limits, aligned equations and chemical notation; retain source for unsupported input.
+- Reuse one preview renderer, bound its image cache and isolate equation macros; block external resources and preserve copied LaTeX.
+
+- Complete the 34 basic AMS operator names, add equilibrium arrows and preserve unsupported chemistry syntax and whitespace across output formats.
+
+- Normalise OCR-spaced standard operators and preview fixed-size delimiters, multiple aligned pairs and piecewise cases.
 
 - Separate the optional PDF runtime and models from the base app while keeping capture formula recognition included.
 - Add PDF engine download, progress, cancellation, verified installation and removal controls; queued PDFs continue after installation.
-- Keep the published 0.0.1 release unchanged. PDF Engine 1.0.0 is published separately and passed public download, installation and PDF-output checks.
+- Use the separately published PDF Engine 1.0.0, verified through public download, installation and PDF-output checks.
 
 ## 0.0.1 — 2026-10-17
 
