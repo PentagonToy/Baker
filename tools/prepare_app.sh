@@ -94,6 +94,11 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSUIElement</key><true/>
+<key>BakerFormulaHandoffVersion</key><integer>1</integer>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>local.baker.formula</string>
+<key>CFBundleURLSchemes</key><array><string>baker</string></array>
+</dict></array>
 </dict></plist>
 PLIST
 if [[ -f "$app/Contents/Resources/Runtime/manifest.json" ]]; then

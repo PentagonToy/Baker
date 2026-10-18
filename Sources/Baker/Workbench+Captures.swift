@@ -74,14 +74,14 @@ extension Workbench {
         formulaCapturePending = true
         startImport(asFormula: true) { try await self.accept(try await self.captureStore.add(file: url)) }
     }
-    func startImport(asFormula: Bool = false, _ operation: @escaping @MainActor () async throws -> Void) {
+    func startImport(asFormula: Bool = false, outputFormat: OutputFormat? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
         busy = true; status = "Saving capture…"
         importTask = Task {
             defer { importTask = nil; formulaCapturePending = false }
             do {
                 try await operation()
                 busy = false
-                if asFormula { recognise(formula: true, outputFormat: preferredFormulaFormat) }
+                if asFormula { recognise(formula: true, outputFormat: outputFormat ?? preferredFormulaFormat) }
             } catch {
                 busy = false
                 if error is CancellationError { status = "Capture processing cancelled." }

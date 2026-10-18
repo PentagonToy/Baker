@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Accept selected formula images from Deerstalker through an optional local handoff, using the existing formula workspace, recognition engine and LaTeX clipboard output.
 - Strengthen thin preview rules so fraction bars remain clearer when long equations are reduced; label token confidence as Model score.
 
 ## 0.0.3 — 2026-10-18

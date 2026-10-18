@@ -14,6 +14,16 @@ Baker combines small task-specific engines with native macOS recognition. Captur
 
 The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the smaller MFR model.
 
+## Deerstalker formula selection
+
+The next Baker build supports an optional local handoff from Deerstalker. Enable the integration in Deerstalker Settings, then select PDF text and choose **Copy as LaTeX with Baker**, or drag an equation with its formula-region tool. Baker saves the selected crop in its ordinary capture history, runs the existing MFR recogniser and copies LaTeX using the current LaTeX delimiter style. It opens the usual Formula workspace for review and correction. This does not run whole-document PDF conversion or add another resident model.
+
+The handoff uses a single-use named macOS pasteboard containing a PNG and a `baker://formula` URL sent explicitly to Baker's application bundle. It never names an arbitrary input file or reads the general clipboard. The image is limited to 12 million pixels and 16 MiB of encoded data; stale requests expire after 60 seconds. Unprepared models, unavailable payloads and a busy Baker produce a visible message so the user can retry. Cold launches wait briefly for the normal local model check. Standard Deerstalker Copy retains its ordinary text behaviour, and the integration is off until enabled.
+
+Released Baker 0.0.3 does not advertise this capability. The new app packaging adds `BakerFormulaHandoffVersion = 1` and registers its URL scheme; a newer source checkout alone does not update an installed app. The protocol and crop validation have been checked without installing a new app; actual launch delivery and recognition from a packaged Deerstalker remain release-validation steps.
+
+## Document runtime
+
 The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
 
 ## What the Baker adaptation changes
