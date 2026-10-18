@@ -47,14 +47,14 @@ public enum PDFExportBundle {
             }
         }
         if let assets {
-            guard try assets.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw BakerError(message: "Figure assets must not be symbolic links.") }
-            guard let entries = files.enumerator(at: assets, includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey]) else { throw BakerError(message: "Figure assets are unavailable.") }
+            guard try assets.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw BakerError(message: "Figure assets must not be symbolic links.", code: .exportFailed) }
+            guard let entries = files.enumerator(at: assets, includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey]) else { throw BakerError(message: "Figure assets are unavailable.", code: .exportFailed) }
             var total = 0
             for case let file as URL in entries {
                 let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey])
-                guard values.isSymbolicLink != true else { throw BakerError(message: "Figure assets contain a symbolic link.") }
+                guard values.isSymbolicLink != true else { throw BakerError(message: "Figure assets contain a symbolic link.", code: .exportFailed) }
                 total += values.fileSize ?? 0
-                guard total <= 512 * 1_024 * 1_024 else { throw BakerError(message: "Figure assets exceed the export size limit.") }
+                guard total <= 512 * 1_024 * 1_024 else { throw BakerError(message: "Figure assets exceed the export size limit.", code: .exportFailed) }
             }
             let stagedAssets = stage.appendingPathComponent(assetName)
             try files.copyItem(at: assets, to: stagedAssets)
@@ -63,7 +63,7 @@ public enum PDFExportBundle {
                 .replacingOccurrences(of: "{" + previousName + "/", with: "{" + assetName + "/").utf8)
             if files.fileExists(atPath: targetAssets.path) {
                 guard let existing = try? Data(contentsOf: targetManifest), (try? JSONDecoder().decode(String.self, from: existing)) == assetName else {
-                    throw BakerError(message: "The figure folder is already in use by another document.")
+                    throw BakerError(message: "The figure folder is already in use by another document.", code: .storageConflict)
                 }
                 try files.moveItem(at: targetAssets, to: backup); replacedAssets = true
             }

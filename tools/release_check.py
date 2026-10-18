@@ -24,6 +24,18 @@ def audit(app, external_engine=None):
     elif not (resources / 'Legal/LICENSE').is_file() or (resources / 'Legal/LICENSE').read_bytes() != licence.read_bytes():
         blockers.append('Repackage the app with the selected Baker source licence')
     if not (resources / 'Legal/THIRD-PARTY.md').is_file(): blockers.append('Include third-party notices in the app')
+    image_tools = resources / 'ImageTools'
+    for relative in ['bin/potrace', 'lib/libpotrace.0.dylib', 'python/vtracer/vtracer.cpython-312-darwin.so',
+                     'licences/VTRACER-LICENSE', 'licences/POTRACE-COPYING', 'licences/potrace-homebrew.rb', 'provenance.json']:
+        if not (image_tools / relative).is_file(): blockers.append('Missing local image-tool payload: ' + relative)
+    for entry in json.loads((ROOT / 'others/image-tools/manifest.json').read_text())['files']:
+        if not entry['path'].startswith('sources/'): continue
+        source = image_tools / entry['path']
+        if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != entry['sha256']:
+            blockers.append('Missing or changed image-tool corresponding source: ' + entry['path'])
+    worker = resources / 'image_tools_worker.py'
+    if not worker.is_file() or worker.read_bytes() != (ROOT / 'Sources/Baker/Resources/image_tools_worker.py').read_bytes():
+        blockers.append('Repackage the current local image-tool worker')
     preview = resources / 'FormulaPreview'
     expected = ROOT / 'Sources/Baker/Resources/FormulaPreview'
     # Compare the offline payload, including wrapper code, fonts and licence notices.

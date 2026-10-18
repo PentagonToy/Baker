@@ -93,6 +93,43 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             worker.decode_tokens(Decoder([]), None, tokenizer, MODEL, 1, time.monotonic() - 1)
 
+    def test_continuation_keeps_prefix_scores_and_decoder(self):
+        class Decoder:
+            def __init__(self, finish_at=4): self.lengths = []; self.finish_at = finish_at
+            def run(self, outputs, inputs):
+                n = inputs["input_ids"].shape[1]
+                self.lengths.append(n)
+                logits = np.zeros((1, n, 1868), np.float32)
+                logits[0, -1, 2 if n == self.finish_at else 10] = 1
+                return [logits]
+        class Tokenizer:
+            def decode(self, tokens, **kwargs):
+                self.tokens = tokens
+                return "x" * len(tokens)
+        decoder, tokenizer = Decoder(), Tokenizer()
+        result = worker.decode_tokens(decoder, None, tokenizer, MODEL, 2, time.monotonic() + 10, fallback_max_tokens=4)
+        self.assertEqual(decoder.lengths, [1, 2, 3, 4])
+        self.assertEqual(tokenizer.tokens, [10, 10, 10])
+        self.assertEqual(result["diagnostics"]["tokenCount"], 3)
+        self.assertEqual(result["diagnostics"]["ambiguousTokenCount"], 3)
+        self.assertAlmostEqual(result["confidence"], float(np.e / (1867 + np.e)))
+        decoder = Decoder()
+        with self.assertRaises(worker.FormulaTokenLimitError):
+            worker.decode_tokens(decoder, None, tokenizer, MODEL, 2, time.monotonic() + 10, fallback_max_tokens=3)
+        self.assertEqual(decoder.lengths, [1, 2, 3])
+        for first, last in [(2, 1), (256, 513), (0, 512)]:
+            with self.assertRaises(ValueError):
+                worker.decode_tokens(decoder, None, tokenizer, MODEL, first, time.monotonic() + 10, fallback_max_tokens=last)
+        short = Decoder(finish_at=2)
+        worker.decode_tokens(short, None, tokenizer, MODEL, 2, time.monotonic() + 10, fallback_max_tokens=4)
+        self.assertEqual(short.lengths, [1, 2])
+        interrupted = Decoder()
+        with patch.object(worker.time, "monotonic", side_effect=[0, 0, 11]), self.assertRaises(TimeoutError):
+            worker.decode_tokens(interrupted, None, tokenizer, MODEL, 2, 10, fallback_max_tokens=4)
+        self.assertEqual(interrupted.lengths, [1, 2])
+        self.assertEqual(worker.error_payload(worker.FormulaTokenLimitError("limit"))["error_code"], "formula_token_limit")
+        self.assertEqual(worker.error_payload(TimeoutError("timeout"))["error_code"], "recognition_timeout")
+
     def test_confidence_is_stable_and_excludes_eos(self):
         class Decoder:
             def __init__(self): self.step = 0
@@ -129,6 +166,7 @@ class WorkerTests(unittest.TestCase):
         result = subprocess.run([sys.executable, "-c", code, str(WORKER), str(self.image), str(self.config)], capture_output=True, text=True, timeout=4)
         self.assertEqual(result.returncode, 1)
         self.assertIn("time limit", json.loads(result.stdout)["error"])
+        self.assertEqual(json.loads(result.stdout)["error_code"], "recognition_timeout")
         self.assertEqual(len(result.stdout.splitlines()), 1)
 
     def test_model_variant_identity_is_explicit(self):

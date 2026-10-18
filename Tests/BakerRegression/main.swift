@@ -61,7 +61,7 @@ func run() throws {
         (#"\mathbf{Az09}"#, "𝐀𝐳𝟎𝟗"), (#"\mathcal{H}"#, "ℋ"), (#"\mathit{h}"#, "ℎ"),
         (#"\alphabet"#, #"\alphabet"#), ("x_{qz}", "x_{qz}"),
         (#"\bar{xy}"#, #"\bar{xy}"#), (#"\frac{a}{b"#, #"\frac{a}{b"#),
-        (#"\unknown{\alpha}"#, #"\unknown{α}"#),
+        (#"\unknown{\alpha}"#, #"\unknown{\alpha}"#),
         (#"{\frac{\partial u}{\partial t}}"#, "(∂u)/(∂t)"),
         (#"\{x\}"#, "{x}"), (#"$\alpha$"#, "α"),
         (#"\left(x\right)"#, "(x)"), (#"cm^{-1}"#, "cm⁻¹"),
@@ -79,7 +79,7 @@ func run() throws {
         (#"x^{12} + \alpha x + \frac{1}{2}"#, "𝑥¹² + 𝛼 𝑥 + ½"),
         (#"\mathrm{Re} + \sin x + \text{speed}"#, "Re + sin 𝑥 + speed"),
         (#"\mathbf{x} + \mathbb{R} + h_0"#, "𝐱 + ℝ + ℎ₀"),
-        (#"\Gamma + \Omega + \varsigma + \varphi"#, "𝛤 + 𝛺 + 𝜍 + 𝜙"),
+        (#"\Gamma + \Omega + \varsigma + \varphi"#, "𝛤 + 𝛺 + 𝜍 + 𝜑"),
         (#"\sqrt{x} + \vec{v}"#, "√(𝑥) + 𝑣⃗"),
         (#"x_{qz}"#, "𝑥_{qz}")
     ]

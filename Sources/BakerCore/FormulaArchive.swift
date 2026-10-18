@@ -46,15 +46,15 @@ public final class FormulaArchive {
         url = directory.appendingPathComponent(Self.fileName)
         guard let data = try read() else { return }
         let index = try JSONDecoder().decode(Index.self, from: data)
-        guard index.version == 1, index.formulas.count <= CaptureArchive.maximumRecords else { throw BakerError(message: "Unsupported formula history version or size. Images have been preserved.") }
+        guard index.version == 1, index.formulas.count <= CaptureArchive.maximumRecords else { throw BakerError(message: "Unsupported formula history version or size. Images have been preserved.", code: .storageFailed) }
         for formula in index.formulas {
-            guard Self.valid(formula), formulas[formula.id] == nil else { throw BakerError(message: "Invalid formula history. Images have been preserved.") }
+            guard Self.valid(formula), formulas[formula.id] == nil else { throw BakerError(message: "Invalid formula history. Images have been preserved.", code: .storageFailed) }
             formulas[formula.id] = formula
         }
         fingerprint = SHA256.hash(data: data)
     }
     public func save(_ formula: SavedFormula) throws {
-        guard Self.valid(formula) else { throw BakerError(message: "Formula metadata exceeds its supported limits.") }
+        guard Self.valid(formula) else { throw BakerError(message: "Formula metadata exceeds its supported limits.", code: .resourceLimit) }
         var updated = formulas; updated[formula.id] = formula
         try persist(updated)
     }
@@ -63,10 +63,10 @@ public final class FormulaArchive {
         if updated != formulas { try persist(updated) }
     }
     private func persist(_ updated: [UUID: SavedFormula]) throws {
-        guard try read().map({ SHA256.hash(data: $0) }) == fingerprint else { throw BakerError(message: "Formula history changed outside Baker. Reopen Baker before saving results.") }
-        guard updated.count <= CaptureArchive.maximumRecords else { throw BakerError(message: "Formula history is full.") }
+        guard try read().map({ SHA256.hash(data: $0) }) == fingerprint else { throw BakerError(message: "Formula history changed outside Baker. Reopen Baker before saving results.", code: .storageConflict) }
+        guard updated.count <= CaptureArchive.maximumRecords else { throw BakerError(message: "Formula history is full.", code: .storageFailed) }
         let data = try JSONEncoder().encode(Index(version: 1, formulas: updated.values.sorted { $0.id.uuidString < $1.id.uuidString }))
-        guard data.count <= Self.maximumBytes else { throw BakerError(message: "Formula history reached its 16 MB metadata limit. Existing results have been kept.") }
+        guard data.count <= Self.maximumBytes else { throw BakerError(message: "Formula history reached its 16 MB metadata limit. Existing results have been kept.", code: .resourceLimit) }
         try data.write(to: url, options: .atomic)
         formulas = updated; fingerprint = SHA256.hash(data: data)
     }
@@ -74,7 +74,7 @@ public final class FormulaArchive {
         let values: URLResourceValues
         do { values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey]) }
         catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError { return nil }
-        guard values.isSymbolicLink != true, values.isRegularFile == true, let size = values.fileSize, size <= Self.maximumBytes else { throw BakerError(message: "Formula history must be a regular file within 16 MB.") }
+        guard values.isSymbolicLink != true, values.isRegularFile == true, let size = values.fileSize, size <= Self.maximumBytes else { throw BakerError(message: "Formula history must be a regular file within 16 MB.", code: .storageFailed) }
         return try Data(contentsOf: url)
     }
     private static func valid(_ value: SavedFormula) -> Bool {

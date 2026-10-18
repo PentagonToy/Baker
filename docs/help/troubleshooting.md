@@ -15,9 +15,15 @@
 | Export disappears | Save before clearing files, replacing an export or quitting |
 | Save folder is unavailable | Reconnect its drive or let the sync provider download it |
 
+## Opening a downloaded app
+
+The current preview is not notarised. If macOS blocks the first launch, check that the DMG came from Baker’s GitHub release, then open **System Settings → Privacy & Security** and choose **Open Anyway** for Baker. Approve only a download you trust. See [Apple’s guidance](https://support.apple.com/102445).
+
 ## Screen Recording permission after an update
 
-Ad-hoc signed builds can require permission again after replacement. Keep one installed copy in Applications and quit the old process before reopening an update. A persistent signing identity can stabilise development builds; see [Development builds](development.md).
+Keep one installed copy in Applications. **Settings → Capture → Screen Recording** shows access status and opens the macOS permission pane. Returning to Baker checks access again; use **Reopen Baker** if macOS requires a restart. Finish work and close capture editors first.
+
+Ad-hoc signed development builds can require permission again after replacement because their code identity changes. A persistent signing identity can help; see [signing](development.md#signing). Removing and re-adding Baker in System Settings is a recovery step for stale permissions, not the normal update procedure.
 
 ## Capture history cannot be saved
 

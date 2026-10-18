@@ -24,6 +24,8 @@ struct FormulaResult {
     var style: LatexCopyStyle = .bare
     var preview: NSImage?
     var previewError: String?
+    var failure: BakerError?
     var error = ""
+    var copiedFormat: OutputFormat?
     var copyStatus = ""
 }

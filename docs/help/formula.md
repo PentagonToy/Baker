@@ -1,49 +1,51 @@
 # Formula help
 
-Use a clear crop around one equation. Compare the original and rendered result, especially signs, scripts and matrix entries.
-
-## Original image
-
-Original loads the saved capture at full resolution and fits it without enlargement. The pixel dimensions appear below it. A small equation on screen contains few pixels even on a Retina display; enlarge the equation in the source app before capture when possible. OCR reads the saved original, independently of the preview.
-
-## Confidence
-
-Confidence is the geometric mean of emitted LaTeX token probabilities. **Recognition details** shows the model identifier, calculation method, original score, lowest token score and count below 80%. Tokens are model fragments, not individual visible symbols; the count is not an error count.
-
-Editing removes confidence from the current result. The original source, score and diagnostics remain in Recognition details. **Recognise Again** runs OCR explicitly.
-
-## Output compatibility
-
-Keynote output converts supported bracketed arrays to matrix environments while preserving original LaTeX. Unsupported notation carries a warning. Successful preview rendering does not establish compatibility with Keynote or Unicode output.
-
-Formula previews use bundled [KaTeX 0.19.0](https://katex.org/docs/supported.html) and its mhchem extension. Common operators, accents, limits, sized delimiters, fractions, matrices, aligned equations and piecewise cases render locally. This is not a complete TeX installation; unsupported notation shows its source and an explanation. The app preserves saved and copied LaTeX independently of preview rendering.
-
-Saved results reopen without the OCR runtime. The current renderer regenerates their preview and derived formats; explicit Unicode edits are preserved. KaTeX uses its bundled maths fonts. Settings → Formula → Unicode maths controls the font attached to Unicode clipboard output, independently of the rendered preview.
-
-## Offline use
-
-Preview scripts, styles and fonts ship inside Baker; no CDN, account or TeX installation is required. Screenshot text and formula recognition also run locally once their included runtime is prepared. PDF conversion requires the separate PDF engine to be downloaded once before travelling; installed engines work offline. Previews cannot open links, retrieve external images or run user-supplied HTML.
+Crop one equation clearly. Compare the original and rendered result, especially signs, scripts and matrix entries.
 
 ## Formula Workspace
 
-Choose **Formula Workspace** below **Open Files** in the menu. The upper area accepts a formula image; the rendered preview, confidence and copy fields stay empty until an image is recognised. Drop an edited capture thumbnail or choose **Image…**.
+Choose **Formula Workspace**, drop an image or edited capture thumbnail, or choose **Image…**. The preview, confidence and copy fields remain empty until recognition.
 
-**New** returns to this empty input state without deleting history. **History** lists saved equations by date and source text, including earlier app sessions. The left arrow returns from New to the last selected result; the arrows then move between actual records. A new input does not add a history entry until recognition begins.
+**New** opens an empty input without deleting history. **History** lists saved equations across sessions; arrows move between results. From New, the left arrow returns to the last selected equation. Saved results reopen without rerunning OCR.
 
-## History and storage
+## Original image
 
-Settings → Formula keeps the latest 50 results by default. Choose a different limit or expire results after 10 or 30 days. Clear Formula History removes recognised text and diagnostics while keeping capture images. Clear Preview Cache releases in-memory previews; saved results remain available.
+Original fits the saved capture without enlargement and shows its pixel dimensions. Small on-screen equations contain few pixels even on Retina displays; enlarge the equation in the source app before capture. OCR reads the saved original independently of its preview.
 
-Copy formats remove ordinary LaTeX token spacing, such as `v _ { x }` → `v_{x}`. Text groups and explicit TeX spacing are preserved. Unicode uses the selected maths font; characters missing from that font may use a macOS fallback.
+## Confidence and correction
 
-Known standard operators inside `\operatorname`, such as `\operatorname{ e x p }`, are normalised to `\exp` when copying or preparing recognised LaTeX. The same rule covers `log`, `sin` and other supported standard names. Ordinary text, custom operator names and starred operator declarations retain their spacing and structure. Existing saved results benefit when their preview is regenerated.
+Confidence is the geometric mean of emitted LaTeX token probabilities. **Recognition details** shows the model, original score, lowest token score and count below 80%. Tokens are model fragments; this count is not an error count.
 
-## Chemistry and preview limits
+Editing removes the current score while retaining original diagnostics. **Edit → Apply & Copy** saves a correction. **Recognise Again** explicitly reruns OCR.
 
-The bundled mhchem extension renders `\ce{H2O}`, ions, isotopes and reaction notation such as `\ce{2 H2 + O2 -> 2 H2O}`. Ordinary mathematical notation such as `\mathrm{SO_4}^{2-}` also works. These are typesetting capabilities, not an evaluation of chemical OCR accuracy. Baker does not infer chemical bonds or reconstruct molecular structures.
+## Copy formats
 
-Chemformula's braced `\ch{...}` language and chemfig's molecular structures remain unsupported. Their source and internal whitespace remain intact in LaTeX/Markdown, with destination warnings for Unicode and Keynote. KaTeX's mathematical `\ch` alias is not a chemformula parser; Baker rejects braced chemistry input rather than displaying a misleading result.
+Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview.
 
-The standard named-operator catalogue follows the basic [AMS operator definitions](https://github.com/latex3/latex2e/blob/develop/required/amsmath/amsopn.dtx). Known names are normalised conservatively; custom and starred operator names retain their structure. Consult the [KaTeX support table](https://katex.org/docs/support_table.html) for additional notation. A successful preview does not guarantee that OCR read the original correctly.
+Copying removes ordinary token spacing, such as `v _ { x }` → `v_{x}`, while preserving text groups and explicit spacing. Known standard operators such as `\operatorname{ e x p }` become `\exp`; custom and starred operators retain their structure. The catalogue follows [AMS operator definitions](https://github.com/latex3/latex2e/blob/develop/required/amsmath/amsopn.dtx).
 
-Previews accept at most 8,000 characters, limit macro expansion and user-defined sizes, and impose image dimensions and a timeout. Each equation starts with fresh macro state. A single reusable renderer and a bounded cache avoid creating one web view per history entry. **Clear Preview Cache** also clears cached rendered images.
+## Preview and chemistry
+
+Bundled [KaTeX 0.19.0](https://katex.org/docs/support_table.html) renders common operators, accents, limits, sized delimiters, fractions, matrices, aligned equations and cases. Unsupported notation shows its source and an explanation; saved and copied LaTeX remain available.
+
+The mhchem extension renders `\ce{H2O}`, ions, isotopes and reactions such as `\ce{2 H2 + O2 -> 2 H2O}`. Ordinary notation such as `\mathrm{SO_4}^{2-}` also works. Chemical OCR accuracy has not been established; Baker does not reconstruct molecular structures.
+
+Chemformula’s braced `\ch{...}` and chemfig structures remain unsupported. Their LaTeX source and whitespace are preserved, with warnings for incompatible destinations. Successful rendering establishes neither OCR correctness nor Keynote or Unicode compatibility.
+
+Previews accept up to 8,000 characters, bound macro expansion, dimensions and rendering time, and reset macro state for each equation. One renderer and a bounded cache serve the workspace.
+
+## Offline use
+
+Preview scripts, fonts and styles ship with Baker. Prepared text and formula recognition work locally; download the optional PDF engine before travelling. Installed engines work offline. Previews cannot retrieve external images or run user-supplied HTML.
+
+## History
+
+**Settings → General → History** defaults to 50 formula results with no age limit. Choose another count or a 10-day or 30-day expiry. Clearing formula history removes text and diagnostics while retaining captures.
+
+**Settings → Formula → Clear Preview Cache** releases rendered previews. It also reconciles images deleted in Finder and removes their linked metadata; existing files remain. See [history and storage](storage.md#history).
+
+## Long formulas and failures
+
+MFR starts with a 256-token budget and can continue to 512 tokens within the original deadline, normally 45 seconds. Explicit non-default budgets keep their configured limit. Reaching the ceiling without an end token reports an error instead of accepting a partial equation.
+
+Failures offer recovery for model setup, launch, timeout, output or token limits. Technical diagnostics stay out of ordinary alerts and copied results. Workers exit after each job and remove temporary process files.

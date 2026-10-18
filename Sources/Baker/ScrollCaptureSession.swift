@@ -33,7 +33,7 @@ private final class ScrollStreamFrames: NSObject, SCStreamOutput, SCStreamDelega
         guard let buffer = snapshot.0, snapshot.1 != acceptedRevision else { return nil }
         var image: CGImage?
         guard VTCreateCGImageFromCVPixelBuffer(buffer, options: nil, imageOut: &image) == noErr, let image else {
-            throw BakerError(message: "Could not read the scrolling capture frame.")
+            throw BakerError(message: "Could not read the scrolling capture frame.", code: .captureFailed)
         }
         // Borrow the surface for this sample. The stitcher copies only accepted rows;
         // signatures and the small preview do not retain the capture buffer.
@@ -67,14 +67,14 @@ private actor ScrollAssembler {
         let height = min(600, previousHeight + stripHeight)
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw BakerError(message: "Could not prepare the scrolling preview.")
+            throw BakerError(message: "Could not prepare the scrolling preview.", code: .captureFailed)
         }
         context.interpolationQuality = .high
         if let previous = previewCanvas {
             context.draw(previous, in: CGRect(x: 0, y: stripHeight, width: width, height: previousHeight))
         }
         context.draw(previewSource, in: CGRect(x: 0, y: 0, width: width, height: stripHeight))
-        guard let preview = context.makeImage() else { throw BakerError(message: "Could not prepare the scrolling preview.") }
+        guard let preview = context.makeImage() else { throw BakerError(message: "Could not prepare the scrolling preview.", code: .captureFailed) }
         previewCanvas = preview
         return (outcome, buffer.acceptedFrames, buffer.height, preview)
     }
@@ -100,7 +100,7 @@ final class ScrollCaptureSession: ObservableObject {
     func start(capture: PreparedCapture, region: CaptureRegion, targetApplication: NSRunningApplication? = nil,
                completion: @escaping (Result<CGImage?, Error>) -> Void) {
         guard state == .idle else {
-            completion(.failure(BakerError(message: "This scrolling session has already been used."))); return
+            completion(.failure(BakerError(message: "This scrolling session has already been used.", code: .invalidState))); return
         }
         state = .preparing; self.completion = completion
         showControls(region: region)
@@ -114,7 +114,7 @@ final class ScrollCaptureSession: ObservableObject {
                 configuration.sourceRect = region.rect
                 configuration.width = capture.configuration.width; configuration.height = capture.configuration.height
                 guard configuration.width >= 80, configuration.height >= 100 else {
-                    throw BakerError(message: "Select a scrolling region at least 80 × 100 pixels, excluding fixed headers and scrollbars.")
+                    throw BakerError(message: "Select a scrolling region at least 80 × 100 pixels, excluding fixed headers and scrollbars.", code: .invalidInput)
                 }
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
                 configuration.captureResolution = .best
@@ -149,7 +149,7 @@ final class ScrollCaptureSession: ObservableObject {
                         }
                     }
                     if let requested = finishRequestedAt, frames.settled || now - requested >= 0.8 { break }
-                    if count == 0 && now - started > 5 { throw BakerError(message: "No screen frame arrived. Check Screen Recording permission and try again.") }
+                    if count == 0 && now - started > 5 { throw BakerError(message: "No screen frame arrived. Check Screen Recording permission and try again.", code: .captureFailed) }
                     try await Task.sleep(nanoseconds: 16_000_000)
                 }
                 state = .finishing
@@ -196,7 +196,7 @@ final class ScrollCaptureSession: ObservableObject {
         let visible = region.screen.visibleFrame
         let selected = CGRect(x: region.screen.frame.minX + region.rect.minX,
             y: region.screen.frame.maxY - region.rect.maxY, width: region.rect.width, height: region.rect.height)
-        let size = CGSize(width: min(420, visible.width - 24), height: 154)
+        let size = CGSize(width: min(420, visible.width - 24), height: 184)
         let candidates = [
             CGPoint(x: selected.minX, y: selected.minY - size.height - 12),
             CGPoint(x: selected.minX, y: selected.maxY + 12),
@@ -232,20 +232,21 @@ private struct ScrollControls: View {
                 RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.08))
                 if let image = session.preview { Image(nsImage: image).resizable().scaledToFit().padding(4) }
                 else { ProgressView().controlSize(.small) }
-            }.frame(width: 92, height: 116)
+            }.frame(width: 92, height: 146)
             VStack(alignment: .leading, spacing: 9) {
-                Text("Scrolling capture").font(.system(size: 12, weight: .semibold))
-                Text(session.message).font(.system(size: 11)).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
+                Text("Scrolling capture").font(BakerTypography.section)
+                Text(session.message).font(BakerTypography.body).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(session.count) sections · \(session.height) px · \(session.elapsed)s")
+                    .font(BakerTypography.supporting.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 Spacer(minLength: 0)
                 HStack {
-                    Text("\(session.count) sections · \(session.height) px · \(session.elapsed)s").font(.system(size: 10)).foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                     Button("Cancel", action: session.cancel).buttonStyle(.plain)
                     Button("Finish", action: session.finish).buttonStyle(.borderedProminent).tint(.accentColor)
                         .disabled(session.count == 0 || session.state != .capturing)
                 }
             }
-        }.padding(14).frame(height: 154)
+        }.padding(14).frame(height: 184)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.2), lineWidth: 1))
     }

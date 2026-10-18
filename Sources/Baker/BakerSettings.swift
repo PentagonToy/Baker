@@ -3,23 +3,36 @@ import BakerCore
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable {
-    case general = "General", capture = "Capture", shortcuts = "Shortcuts", menu = "Menu", formula = "Formula", pdf = "PDF Conversion", advanced = "Advanced"
+    case general = "General", capture = "Capture", formula = "Formula", pdf = "PDF", shortcuts = "Shortcuts", menu = "Menu", advanced = "Advanced"
     var symbol: String {
-        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "function"; case .pdf: return "doc.richtext"; case .advanced: return "slider.horizontal.3" }
+        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "sum"; case .pdf: return "doc.richtext"; case .advanced: return "slider.horizontal.3" }
     }
 }
-@MainActor private final class SettingsState: ObservableObject {
+extension BakerError.Recovery {
+    var settingsPage: SettingsPage? {
+        switch self {
+        case .formulaSettings: return .formula
+        case .pdfSettings: return .pdf
+        case .captureSettings: return .capture
+        case .advancedSettings: return .advanced
+        case .chooseLocation: return .general
+        default: return nil
+        }
+    }
+}
+
+@MainActor final class SettingsState: ObservableObject {
     @Published var page: SettingsPage
     @Published var confirmFormulaClear = false
-    init(page: SettingsPage) { self.page = page }
+    init(page: SettingsPage = .general) { self.page = page }
 }
 
 struct BakerSettings: View {
     @ObservedObject var model: Workbench
     @ObservedObject var shortcuts: CaptureShortcuts
     @StateObject private var state: SettingsState
-    init(model: Workbench, shortcuts: CaptureShortcuts, page: SettingsPage = .general) { self.model = model; self.shortcuts = shortcuts; _state = StateObject(wrappedValue: SettingsState(page: page)) }
-    @AppStorage("appearance") private var appearance = "system"
+    init(model: Workbench, shortcuts: CaptureShortcuts, page: SettingsPage = .general, state: SettingsState? = nil) { self.model = model; self.shortcuts = shortcuts; _state = StateObject(wrappedValue: state ?? SettingsState(page: page)); _appearance = AppStorage(PreferenceKeys.appearance, store: model.preferences.defaults) }
+    @AppStorage(PreferenceKeys.appearance) private var appearance
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         HStack(spacing: 0) {
@@ -28,8 +41,8 @@ struct BakerSettings: View {
                     Button { state.page = page } label: {
                         HStack(spacing: 10) {
                             Image(systemName: page.symbol).frame(width: 18)
-                            Text(page.rawValue)
-                        }.font(.system(size: 13, weight: .medium))
+                            Text(page.rawValue).lineLimit(1)
+                        }.font(BakerTypography.sidebar)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
                             .foregroundStyle(state.page == page ? BakerTheme.selectionForeground : Color.primary)
                             .background(state.page == page ? BakerTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 9))
@@ -39,12 +52,12 @@ struct BakerSettings: View {
                 HStack(spacing: 10) {
                     if let icon = BakerImages.appIcon(dark: colorScheme == .dark) { Image(nsImage: icon).resizable().scaledToFit().frame(width: 36, height: 36) }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Baker").font(.headline)
-                        Text("A keen eye.\nA fresh result.").font(.caption).foregroundStyle(.secondary)
-                        Text("Version " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Development")).font(.caption2).foregroundStyle(.secondary)
+                        Text("Baker").font(BakerTypography.section)
+                        Text("A keen eye.\nA fresh result.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                        Text("Version " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Development")).font(BakerTypography.supporting).foregroundStyle(.secondary)
                     }
                 }.padding(10)
-            }.padding(12).frame(width: 170).background(BakerTheme.sidebar)
+            }.padding(12).frame(width: 184).background(BakerTheme.sidebar)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
@@ -53,11 +66,12 @@ struct BakerSettings: View {
                     Spacer(minLength: 0)
                 }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(minWidth: 0, maxWidth: .infinity)
-        }.onChange(of: appearance) { _ in BakerAppearance.apply() }.tint(BakerTheme.accent).background(BakerTheme.background).frame(minWidth: 780, minHeight: 560)
+        }.onChange(of: appearance) { _ in BakerAppearance.apply(defaults: model.preferences.defaults) }.font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background).frame(minWidth: 780, minHeight: 560)
     }
     @ViewBuilder private var content: some View {
         switch state.page {
         case .general:
+            card("Startup") { LaunchAtLoginSettings(controller: model.launchAtLogin) }
             card("Clipboard") {
                 toggle("Copy captured images", value: $model.copyCapturedImages)
                 Divider()
@@ -65,7 +79,7 @@ struct BakerSettings: View {
                 Divider()
                 toggle("Open text editor after recognition", value: $model.showResults)
             }
-            Text("Formula results always copy the selected format and open in the Formula Workspace.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Formula results always copy the selected format and open in the Formula Workspace.").font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             card("Appearance") {
                 HStack {
                     Text("Theme"); Spacer()
@@ -77,33 +91,34 @@ struct BakerSettings: View {
                 }
             }
             card("Save location") {
-                Text(model.storageDirectory.path).font(.callout).lineLimit(2).truncationMode(.middle).textSelection(.enabled)
+                Text(model.storageDirectory.path).font(BakerTypography.body).lineLimit(2).truncationMode(.middle).textSelection(.enabled)
                 HStack {
                     Button("Choose Folder…", action: model.chooseStorageFolder).disabled(model.busy)
                     Button("Open Folder", action: model.revealCaptures)
                 }
             }
-            Text("Images and formula history are saved in this folder. You can choose a synced folder. Existing files stay in their previous location.").font(.caption).foregroundStyle(.secondary)
+            Text("Images, recordings and formula history are saved in this folder. You can choose a synced folder. Existing files stay in their previous location.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            HistorySettings(model: model, confirmFormulaClear: $state.confirmFormulaClear)
             card("Presets") {
                 HStack {
                     Button("Save Preset…", action: model.saveSettingsPreset)
                     Button("Load Preset…", action: model.loadSettingsPreset)
                 }.disabled(model.busy)
-                Text("Portable preferences in the Presets subfolder. Models stay on this Mac.").font(.caption).foregroundStyle(.secondary)
+                Text("Portable preferences in the Presets subfolder. Models stay on this Mac.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
         case .capture:
+            card("Screen Recording") { ScreenRecordingPermissionView(permission: model.screenRecordingPermission, busy: model.busy, reopen: { model.onReopen?() }) }
             card("Appearance") { toggle("Hide desktop icons in captures and recordings", value: $model.hideDesktopIcons) }
             card("Feedback") { toggle("Capture sounds", value: $model.captureSounds) }
             card("Quick previews") {
                 HStack { Text("Visible captures"); Spacer(); Stepper("\(model.visibleCaptures)", value: $model.visibleCaptures, in: 1...5).frame(width: 95) }
-                Divider()
-                HStack { Text("Capture history"); Spacer(); Button("Open Folder", action: model.revealCaptures) }
             }
-            Text("Closing a preview keeps its saved image and formula result.").font(.caption).foregroundStyle(.secondary)
+            Text("Closing a preview keeps its saved image and formula result.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            OCRLanguageSettings(selection: model.selectedOCRLanguages, setLanguage: model.setOCRLanguage)
         case .shortcuts:
             card("Capture and record") { CaptureShortcutSettings(shortcuts: shortcuts) }
         case .menu:
-            MenuLayoutSettings()
+            MenuLayoutSettings(preferences: model.preferences.defaults)
         case .formula:
             FormulaSetupView(setup: model.formulaSetup).disabled(model.busy)
             card("Unicode maths") {
@@ -115,46 +130,16 @@ struct BakerSettings: View {
                 Text("𝑥² + 𝛼𝑥 + ½ = 0").font(Font(model.selectedMathFont.resolvedFont)).padding(.vertical, 12)
                 if let url = model.selectedMathFont.bundledFontURL {
                     Button("Install for Other Apps…") { NSWorkspace.shared.open(url) }.help("Open Font Book to install this font for Keynote and other apps")
-                    Text("Included in Baker. Install through Font Book to retain this font in other apps.").font(.caption).foregroundStyle(.secondary)
+                    Text("Included in Baker. Install through Font Book to retain this font in other apps.").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 }
-                Text(model.selectedMathFont.installedFont == nil ? "Font unavailable; using \(model.selectedMathFont.resolvedFont.familyName ?? "system font")." : "Ordinary Paste includes this font.").font(.caption).foregroundStyle(.secondary)
+                Text(model.selectedMathFont.installedFont == nil ? "Font unavailable; using \(model.selectedMathFont.resolvedFont.familyName ?? "system font")." : "Ordinary Paste includes this font.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
-            card("Formula history") {
-                HStack {
-                    Text("Keep latest"); Spacer()
-                    Picker("Maximum results", selection: $model.formulaHistoryLimit) { ForEach([10, 25, 50, 100, 200, 500], id: \.self) { Text("\($0) results").tag($0) } }.labelsHidden().frame(width: 160)
-                }
-                HStack {
-                    Text("Keep for"); Spacer()
-                    Picker("Retention", selection: $model.formulaHistoryDays) { Text("No age limit").tag(0); Text("10 days").tag(10); Text("30 days").tag(30) }.labelsHidden().frame(width: 160)
-                }
-                Text("\(model.savedFormulas.count) saved results. Limits remove formula text and diagnostics; capture images remain.").font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Button("Clear Preview Cache", action: model.clearPreviewCache)
-                    Button("Clear Formula History…") { state.confirmFormulaClear = true }
-                        .confirmationDialog("Clear saved formula history?", isPresented: $state.confirmFormulaClear) {
-                            Button("Clear Formula History", role: .destructive, action: model.clearFormulaHistory)
-                        } message: { Text("Removes formula text and diagnostics from this Mac. Capture images remain.") }
-                }.disabled(model.busy)
+            card("Preview cache") {
+                Button("Clear Preview Cache", action: model.clearPreviewCache).disabled(model.busy)
             }
         case .pdf:
             PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
         case .advanced:
-            card("Text recognition languages") {
-                HStack { Text("Active languages"); Spacer(); Text("\(model.selectedOCRLanguages.count) / 3").foregroundStyle(.secondary) }
-                ForEach(OCRLanguages.choices, id: \.0) { code, name in
-                    let selected = model.selectedOCRLanguages.contains(code)
-                    Toggle(name, isOn: Binding(get: { model.selectedOCRLanguages.contains(code) }, set: { model.setOCRLanguage(code, enabled: $0) }))
-                        .disabled((!selected && model.selectedOCRLanguages.count >= 3) || (selected && model.selectedOCRLanguages.count == 1) || (!model.finnishTextMode && code != "fi-FI" && !OCRLanguages.supported.contains(code)))
-                }
-                Text("Choose 1–3 languages used in the capture. Fewer relevant languages may reduce ambiguity; the limit does not guarantee accuracy.").font(.caption).foregroundStyle(.secondary)
-                if model.finnishTextMode {
-                    Text("Text captures use Tesseract with the selected languages. Structured PDF OCR uses English.").font(.caption).foregroundStyle(.secondary)
-                    Text("The text recognition engine and language models are included in Baker.").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("Text captures use Apple Vision. Structured PDF OCR uses English.").font(.caption).foregroundStyle(.secondary)
-                }
-            }
             DisclosureGroup("Developer overrides") {
                 toggle("Use external OCR runtimes", value: $model.developerRuntimeOverrides)
                 if model.developerRuntimeOverrides {
@@ -168,7 +153,7 @@ struct BakerSettings: View {
     }
     private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Text(title).font(BakerTypography.section).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 14, content: content).padding(18).frame(maxWidth: .infinity, alignment: .leading)
                 .background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 13))
         }
@@ -179,7 +164,7 @@ struct BakerSettings: View {
     private func path(_ title: String, value: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack { Text(title); Spacer(); Button("Choose…") { let panel = NSOpenPanel(); panel.allowsMultipleSelection = false; if panel.runModal() == .OK, let url = panel.url { value.wrappedValue = url.path } } }
-            TextField("Not configured", text: value).textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced)).frame(minWidth: 0, maxWidth: .infinity).help(value.wrappedValue)
+            TextField("Not configured", text: value).textFieldStyle(.roundedBorder).font(.system(size: 13, design: .monospaced)).frame(minWidth: 0, maxWidth: .infinity).help(value.wrappedValue)
         }
     }
     private func open(_ address: String) { if let url = URL(string: address) { NSWorkspace.shared.open(url) } }
@@ -187,8 +172,8 @@ struct BakerSettings: View {
 
 @MainActor
 enum BakerAppearance {
-    static func apply() {
-        switch UserDefaults.standard.string(forKey: "appearance") {
+    static func apply(defaults: UserDefaults = .standard) {
+        switch BakerPreferences(defaults: defaults)[PreferenceKeys.appearance] {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
         case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
         default: NSApp.appearance = nil

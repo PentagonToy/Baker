@@ -45,11 +45,45 @@ func sample(index: Int, width: Int = 160, height: Int = 120) throws -> CMSampleB
     return sample!
 }
 
+func audioSample(index: Int) throws -> CMSampleBuffer {
+    let count = 4800
+    var pcm = [Float](repeating: 0, count: count * 2)
+    for frame in 0..<count {
+        let value = Float(sin(Double(index * count + frame) * 2 * .pi * 440 / 48_000) * 0.2)
+        pcm[frame * 2] = value; pcm[frame * 2 + 1] = value
+    }
+    var block: CMBlockBuffer?
+    let bytes = pcm.count * MemoryLayout<Float>.size
+    require(CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
+        blockLength: bytes, blockAllocator: kCFAllocatorDefault, customBlockSource: nil,
+        offsetToData: 0, dataLength: bytes, flags: 0, blockBufferOut: &block) == noErr, "audio block allocation")
+    pcm.withUnsafeBytes { data in
+        require(CMBlockBufferReplaceDataBytes(with: data.baseAddress!, blockBuffer: block!, offsetIntoDestination: 0, dataLength: bytes) == noErr, "audio block populated")
+    }
+    var stream = AudioStreamBasicDescription(mSampleRate: 48_000, mFormatID: kAudioFormatLinearPCM,
+        mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+        mBytesPerPacket: 8, mFramesPerPacket: 1, mBytesPerFrame: 8, mChannelsPerFrame: 2, mBitsPerChannel: 32, mReserved: 0)
+    var description: CMAudioFormatDescription?
+    require(CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &stream,
+        layoutSize: 0, layout: nil, magicCookieSize: 0, magicCookie: nil, extensions: nil,
+        formatDescriptionOut: &description) == noErr, "audio format created")
+    var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 48_000),
+        presentationTimeStamp: CMTime(value: Int64(index + 100), timescale: 10), decodeTimeStamp: .invalid)
+    var size = 8
+    var result: CMSampleBuffer?
+    require(CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: block,
+        formatDescription: description, sampleCount: count, sampleTimingEntryCount: 1,
+        sampleTimingArray: &timing, sampleSizeEntryCount: 1, sampleSizeArray: &size,
+        sampleBufferOut: &result) == noErr, "PCM audio sample created")
+    return result!
+}
+
 guard CommandLine.arguments.count == 2 else { fatalError("Pass a recording regression output directory.") }
 let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 Task {
     do {
+        require(RecordingFormat.video.maximumDuration == 180 && RecordingFormat.gif.maximumDuration == 30, "Video 3-minute and GIF 30-second limits")
         let scaled = try RecordingFormat.video.dimensions(width: 3840, height: 2160)
         require(scaled.width == 1920 && scaled.height == 1080, "4K region scales to 1920×1080")
         let odd = try RecordingFormat.gif.dimensions(width: 333, height: 251)
@@ -126,6 +160,78 @@ Task {
         require(staticDuration.seconds >= 0.3 && staticDuration.seconds < 1, "static ending preserves elapsed recording time")
         try? FileManager.default.removeItem(at: emptyURL)
         try? FileManager.default.removeItem(at: cancelURL)
+        let soundURL = root.appendingPathComponent("with-audio.mp4")
+        try? FileManager.default.removeItem(at: soundURL)
+        let soundWriter = try RecordingMovieWriter(url: soundURL, width: 160, height: 120, format: .video, capturesAudio: true)
+        soundWriter.appendAudio(try audioSample(index: -1))
+        for index in 0..<12 {
+            soundWriter.append(try sample(index: index))
+            soundWriter.appendAudio(try audioSample(index: index))
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        _ = try await soundWriter.finish()
+        let soundAsset = AVURLAsset(url: soundURL)
+        let soundTracks = try await soundAsset.loadTracks(withMediaType: .audio)
+        require(soundTracks.count == 1, "MP4 contains one AAC system-audio track")
+        let soundDuration = try await soundAsset.load(.duration)
+        let reader = try AVAssetReader(asset: soundAsset)
+        let decoded = AVAssetReaderTrackOutput(track: soundTracks[0], outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMIsFloatKey: true, AVLinearPCMBitDepthKey: 32, AVLinearPCMIsNonInterleaved: false])
+        reader.add(decoded); require(reader.startReading(), "AAC decoding starts")
+        var energy = 0.0, audioFrames = 0
+        while let buffer = decoded.copyNextSampleBuffer() {
+            let timestamp = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+            require(timestamp >= 0 && timestamp <= soundDuration.seconds + 0.05, "Audio timestamps share the video timeline")
+            if let block = CMSampleBufferGetDataBuffer(buffer) {
+                let length = CMBlockBufferGetDataLength(block)
+                var data = [Float](repeating: 0, count: length / 4)
+                let status = data.withUnsafeMutableBytes { CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: length, destination: $0.baseAddress!) }
+                require(status == noErr, "Decoded PCM is accessible")
+                energy += data.reduce(0) { $0 + Double($1 * $1) }; audioFrames += data.count
+            }
+        }
+        require(reader.status == .completed && audioFrames >= 12 * 4800 * 2 * 3 / 4 && energy / Double(audioFrames) > 0.001, "AAC preserves non-silent source audio")
+        let noAudioURL = root.appendingPathComponent("audio-enabled-no-samples.mp4")
+        try? FileManager.default.removeItem(at: noAudioURL)
+        let noAudio = try RecordingMovieWriter(url: noAudioURL, width: 160, height: 120, format: .video, capturesAudio: true)
+        noAudio.append(try sample(index: 0))
+        try await Task.sleep(nanoseconds: 100_000_000)
+        _ = try await noAudio.finish()
+        require(FileManager.default.fileExists(atPath: noAudioURL.path), "Enabled audio with no received audio still saves the video")
+        let limitURL = root.appendingPathComponent("three-minute-bound.mp4")
+        try? FileManager.default.removeItem(at: limitURL)
+        let limited = try RecordingMovieWriter(url: limitURL, width: 16, height: 16, format: .video)
+        limited.append(try sample(index: 0, width: 16, height: 16))
+        try await Task.sleep(nanoseconds: 100_000_000)
+        limited.append(try sample(index: 1799, width: 16, height: 16))
+        try await Task.sleep(nanoseconds: 100_000_000)
+        limited.append(try sample(index: 1900, width: 16, height: 16))
+        _ = try await limited.finish()
+        let limitDuration = try await AVURLAsset(url: limitURL).load(.duration)
+        require(limitDuration.seconds > 179 && limitDuration.seconds <= 180, "Video accepts the three-minute timeline and rejects later frames")
+        // A synthetic long timeline exercises the former 150-frame GIF truncation without a wall-clock wait.
+        let longURL = root.appendingPathComponent("thirty-seconds.mp4")
+        try? FileManager.default.removeItem(at: longURL)
+        let longWriter = try RecordingMovieWriter(url: longURL, width: 16, height: 16, format: .gif, capturesAudio: true)
+        for index in 0..<300 {
+            longWriter.append(try sample(index: index, width: 16, height: 16))
+            try await Task.sleep(nanoseconds: 3_000_000)
+        }
+        _ = try await longWriter.finish()
+        let longAsset = AVURLAsset(url: longURL)
+        let gifAudio = try await longAsset.loadTracks(withMediaType: .audio)
+        require(gifAudio.isEmpty, "GIF source is silent even when audio is requested")
+        let longGIF = root.appendingPathComponent("thirty-seconds.gif")
+        _ = try await RecordingGIFExporter.export(movie: longURL, to: longGIF, cancellation: RecordingCancellation())
+        let longSource = CGImageSourceCreateWithURL(longGIF as CFURL, nil)!
+        require(CGImageSourceGetCount(longSource) == 300, "30-second GIF exports all 300 frames")
+        var longDelay = 0.0
+        for index in 0..<CGImageSourceGetCount(longSource) {
+            let info = CGImageSourceCopyPropertiesAtIndex(longSource, index, nil) as! [CFString: Any]
+            let props = info[kCGImagePropertyGIFDictionary] as! [CFString: Any]
+            longDelay += props[kCGImagePropertyGIFUnclampedDelayTime] as? Double ?? 0
+        }
+        require(abs(longDelay - 30) < 0.05, "GIF playback duration reaches 30 seconds")
         print("Recording regression passed")
         exit(0)
     } catch { print("FAIL \(error)"); exit(1) }

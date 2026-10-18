@@ -29,6 +29,7 @@ cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
 # Replace the complete pinned renderer to avoid retaining stale vendor files.
 if [[ -d "$app/Contents/Resources/FormulaPreview" ]]; then rm -rf -- "$app/Contents/Resources/FormulaPreview"; fi
 cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/image_tools_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$app/Contents/Resources/"
@@ -43,6 +44,11 @@ if [[ -n "${BAKER_RUNTIME_DIRECTORY:-}" ]]; then
 elif [[ "$build_configuration" == release && ! -d "$app/Contents/Resources/Runtime" ]]; then
     print -u2 "A complete release needs BAKER_RUNTIME_DIRECTORY; see tools/bundle_runtime.py"
     exit 1
+fi
+# Image tracing uses the existing interpreter and pinned local payloads, never a download.
+if [[ -x "$app/Contents/Resources/Runtime/python/bin/python3.12" ]]; then
+    [[ -d "$app/Contents/Resources/ImageTools" ]] && rm -rf -- "$app/Contents/Resources/ImageTools"
+    "$app/Contents/Resources/Runtime/python/bin/python3.12" -I -B "$source_dir/tools/prepare_image_tools.py" --destination "$app/Contents/Resources/ImageTools" --relocate
 fi
 if [[ -n "${BAKER_DOCUMENT_ENGINE_DIRECTORY:-}" ]]; then
     if [[ -d "$app/Contents/Resources/DocumentEngine" ]]; then rm -rf -- "$app/Contents/Resources/DocumentEngine"; fi
@@ -104,7 +110,7 @@ fi
 # A persistent signing identity gives privacy permissions a stable app identity.
 # Ad-hoc signing is local-build fallback; rebuilding can require renewed consent.
 signing_identity="${BAKER_SIGN_IDENTITY:--}"
-for runtime_folder in "$app/Contents/Resources/Runtime" "$app/Contents/Resources/DocumentEngine"; do
+for runtime_folder in "$app/Contents/Resources/Runtime" "$app/Contents/Resources/DocumentEngine" "$app/Contents/Resources/ImageTools"; do
     [[ -d "$runtime_folder" ]] || continue
     while IFS= read -r -d '' native_file; do
         if file -b "$native_file" | grep -q 'Mach-O'; then codesign --force --sign "$signing_identity" "$native_file"; fi

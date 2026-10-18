@@ -1,6 +1,6 @@
 # Capture
 
-Choose a capture action from Baker’s menu-bar icon. A centred hint disappears when you start dragging and is excluded from the saved image. For Area, Scrolling, Text or Formula, drag an area and release; press Escape to cancel. **All** captures the entire monitor containing the pointer immediately, including its menu bar and Dock.
+Choose a capture action from Baker’s menu-bar icon. Drag to select an area; Escape cancels. The centred hint disappears when dragging begins and stays out of the capture. **All** immediately captures the monitor containing the pointer, including its menu bar and Dock.
 
 | Action | Result |
 | --- | --- |
@@ -10,21 +10,21 @@ Choose a capture action from Baker’s menu-bar icon. A centred hint disappears 
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-text-dark.svg"><img src="../../others/assests/symbols/capture-text.svg" width="22" alt="Text"></picture> Text | Saves the source and recognises text without a thumbnail |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-formula-dark.svg"><img src="../../others/assests/symbols/capture-formula.svg" width="22" alt="Formula"></picture> Formula | Saves the source without a thumbnail, opens the equation and copies the selected format |
 
-Baker prepares Apple text OCR in the background after launch. The first recognition can still take longer while macOS prepares its model. Text recognition copies automatically when **Settings → General → Copy recognised text** is enabled. Formula recognition always copies the selected format. Both retain the source image in history without adding a quick preview.
+Text copies automatically when **General → Copy recognised text** is enabled. Formula always copies the selected format. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
 
-Image previews use the same golden-ratio rectangle for every capture. Images fit inside it without cropping. The stack follows the pointer to the lower-left corner of the active monitor; it stays in place during a drag.
+Image thumbnails fit without cropping and follow the pointer to the lower-left corner of the active monitor. The stack stays in place during a drag.
 
 Hover over an image thumbnail to copy, save, pin or recognise it. **Save** confirms the file in the capture folder and closes the thumbnail without a location chooser. For another destination, use **Save a Copy As…** in the context menu.
 
-A successful drop into another app closes its thumbnail; cancelled or rejected drops keep it. Older thumbnails slide upwards and fade as new captures fill the stack. Images are preserved in the chosen save folder before previews appear, including captures that leave the stack.
+A successful drop closes its thumbnail; a cancelled or rejected drop keeps it. Closing a thumbnail preserves the saved file.
 
 In **Settings → Capture**, enable **Hide desktop icons in captures and recordings** to exclude Finder’s desktop icons from images, scrolling captures and recordings. Your desktop stays unchanged; open Finder windows remain visible.
 
 ## Shortcuts
 
-Open **Settings → Shortcuts** to record shortcuts for Area, All, Scrolling, Text, Formula, Video and GIF. Include Command or Control. Shortcuts work while another app is active and appear to the right of their menu commands. Menu labels update when the menu opens. Press Escape to cancel recording, or Delete to clear a shortcut. Baker reports conflicting assignments. Tab, arrows and function keys have readable labels; for example, Control–Tab appears as `⌃⇥`.
+Assign shortcuts in **Settings → Shortcuts**, including Command or Control. They work across apps and appear beside menu commands; for example, Control–Tab appears as `⌃⇥`. **Record…** shows the Video shortcut; the GIF shortcut opens the same recorder with GIF selected. Escape cancels shortcut entry, Delete clears it and conflicting assignments are reported.
 
-The recorder highlights while listening and pauses Baker’s capture shortcuts. Escape or switching away cancels recording. The Settings window stays visible when a capture or recording starts; close it with its red window button when finished.
+While entering a shortcut, Baker pauses its capture shortcuts. Switching away cancels entry. Settings stays visible during capture.
 
 ## Scrolling
 
@@ -49,10 +49,24 @@ Results and edits are saved. Find them in [Recent](recent.md) without repeating 
 
 ## Edit a capture
 
-Double-click an image thumbnail, or choose its **Edit** action. Add a pen stroke, rectangle, ellipse, arrow or text; drag with Crop to select a crop. **Undo** removes the last edit.
+Double-click an image thumbnail, or choose its **Edit** action. Add a pen stroke, rectangle, ellipse, arrow or text; drag with Crop to select a crop. **Undo** removes the last edit; **Redo** restores it. The drawing canvas supports Command–Z and Shift–Command–Z.
 
-Enable **Fill** for an opaque rectangle or ellipse to mask content. **Done** overwrites this capture and returns it to the same stack position; its previous OCR result is removed. **Cancel** discards the edits. Previously exported copies remain unchanged.
+Choose from the eight **Okabe–Ito** colours or Baker’s additional white masking swatch. **Mask** selects a white, filled rectangle; **Fill** makes rectangles and ellipses opaque. **Done** replaces the capture, removes its previous OCR result and returns it to the thumbnail stack. **Cancel** preserves the original. Previously exported copies remain unchanged.
 
-Area, Text and Formula use a non-activating selection panel and prepare a snapshot of the pointer’s monitor when capture starts. This helps preserve open menus without activating Baker. Other monitors and failed snapshots use the normal live capture path; menu preservation depends on the application and timing. Scrolling and recording remain live.
+**Remove Background → Paper & Slides** removes plain or softly shaded backgrounds from diagrams. **Photo Cutout** isolates a subject but can omit graph axes and labels. A checkerboard shows transparency. Both support Undo and images up to eight megapixels.
 
-Baker’s workspaces stay visible during selection. Capture thumbnails hide temporarily; selection controls are excluded from captured images. Ordinary workspaces remain visible in the frozen selection and can be captured.
+**Vectorise** traces the edited image as Colour or Black & White, after applying masks and crops. Undo restores the image and edits. Done replaces the PNG with one SVG; Save, Copy and drag use that SVG. Tracing supports up to four megapixels. Inspect small text and fine lines before confirming.
+
+Reopening a thumbnail’s SVG editor converts it to an image in memory. Done saves one PNG, or one SVG if vectorised again; Cancel preserves the SVG. History offers SVG preview, copy, save and drag. To recognise text or maths again, first edit the SVG as an image.
+
+Area, Text and Formula prepare a snapshot of the pointer’s monitor to help capture open menus. Other monitors and failed snapshots use live capture; menu preservation depends on the app and timing. Scrolling and recording remain live.
+
+Baker workspaces remain visible and can be captured. Thumbnails hide temporarily; selection controls stay out of the image.
+
+## Repeat an area
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-repeat-dark.svg"><img src="../../others/assests/symbols/capture-repeat.svg" width="22" alt="Repeat Area"></picture> **Capture → Repeat Area** captures the last successfully saved Area, Text or Formula selection again without showing the selector. It creates a new image through the normal save, clipboard and thumbnail flow; it does not rerun the previous OCR action. Assign its own shortcut in **Settings → Shortcuts** for repeated capture workflows.
+
+The area follows its original display. Disconnecting or resizing that display disables Repeat Area until a new selection is captured. All, Scrolling and Record leave the remembered area unchanged. The selection stays on this Mac and is excluded from presets.
+
+Palette values follow Masataka Okabe and Kei Ito’s [Color Universal Design](https://jfly.uni-koeln.de/color/). Names and selection marks supplement colour.

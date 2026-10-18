@@ -89,7 +89,7 @@ final class CaptureService {
 
     func prepare(_ region: CaptureRegion, hideDesktopIcons: Bool = false) async throws -> PreparedCapture {
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
-            throw BakerError(message: "Allow Baker in System Settings > Privacy & Security > Screen Recording, then try again.")
+            throw BakerError(message: "Allow Baker in System Settings > Privacy & Security > Screen Recording, then try again.", code: .permissionDenied)
         }
         captureAccessKnown = true
         let pending = contentTask
@@ -101,7 +101,7 @@ final class CaptureService {
         } else { content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
         let number = region.screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         guard let display = content.displays.first(where: { $0.displayID == number?.uint32Value }) else {
-            throw BakerError(message: "The selected display is no longer available.")
+            throw BakerError(message: "The selected display is no longer available.", code: .captureFailed)
         }
         let iconWindows = hideDesktopIcons ? content.windows.filter {
             $0.owningApplication?.bundleIdentifier == "com.apple.finder" && $0.windowLayer == CGWindowLevelForKey(.desktopIconWindow)
@@ -118,7 +118,7 @@ final class CaptureService {
         guard configuration.width >= 2, configuration.height >= 2,
               configuration.width <= 8192, configuration.height <= 8192,
               configuration.width <= ScrollStitcher.pixelLimit / configuration.height else {
-            throw BakerError(message: "Choose a region between 2 × 2px and 32 megapixels, with each side no larger than 8192px.")
+            throw BakerError(message: "Choose a region between 2 × 2px and 32 megapixels, with each side no larger than 8192px.", code: .invalidInput)
         }
         configuration.showsCursor = false
         configuration.captureResolution = .best

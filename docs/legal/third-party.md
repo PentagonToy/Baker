@@ -9,6 +9,8 @@ Baker includes unchanged resources with their upstream notices. Baker’s own so
 | TeX Gyre Pagella Math 1.632 | GUST Font License | Original README, manifest, GUST licence and LPPL |
 | KaTeX 0.19.0 scripts, styles and fonts | MIT | Upstream licence, version and SHA-256 inventory |
 | KaTeX mhchem extension | MIT adaptation with retained Apache-2.0 upstream notices | Original attribution and Apache-2.0 licence |
+| VTracer 0.6.15 | MIT | Original licence, pinned wheel, source archive and hashes |
+| Potrace 1.16 command-line tool and private library | GPL-2.0-or-later | Original COPYING, exact source archive, Homebrew build recipe and provenance |
 | `tessdata_fast` language models | Apache 2.0 | Upstream licence, source revision and file hashes |
 
 The offline formula renderer comes from [KaTeX](https://github.com/KaTeX/KaTeX/tree/v0.19.0), including its mhchem extension. Its notices and pinned file inventory ship under `Contents/Resources/FormulaPreview`; the source copy is `Sources/Baker/Resources/FormulaPreview`. Baker does not load these resources from a CDN.
@@ -31,3 +33,5 @@ Document-enabled builds include MLX, a quantised GLM-OCR checkpoint with a Baker
 [Models and references](../help/recognition.md) distinguishes included dependencies, Baker adaptations and comparison-only repositories. Package metadata and retained notices identify the precise bundled versions.
 
 Model cards retained in [`tools/recognition/notices`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition/notices) identify upstream declarations. New document-engine packages include these cards and corrected checkpoint provenance. Baker’s AGPL source and the corresponding build scripts must accompany the binary distribution alongside dependency notices.
+
+Capture image-tool inputs and provenance are documented in [Local capture image tools](https://github.com/PentagonToy/Baker/tree/main/others/image-tools). App builds retain their notices, corresponding source archives and build recipe under `Contents/Resources/ImageTools`. VTracer handles colour outlines; Potrace handles monochrome outlines. SVGcode and AutoTrace are research references, not bundled applications.

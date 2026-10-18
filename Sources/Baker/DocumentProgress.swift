@@ -74,11 +74,11 @@ struct DocumentProgressView: View {
                             Capsule().fill(BakerTheme.accent).frame(width: geometry.size.width * fraction)
                         }
                     }.frame(height: 6).accessibilityValue(Text(fraction, format: .percent))
-                    Text("\(Int(fraction * 100))% · \(progress.completed)/\(progress.total) pages").font(.caption.monospacedDigit())
+                    Text("\(Int(fraction * 100))% · \(progress.completed)/\(progress.total) pages").font(BakerTypography.supporting.monospacedDigit())
                 }
             } else { ProgressView().controlSize(.small) }
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(progress.timing()).font(.caption).foregroundStyle(.secondary)
+                Text(progress.timing()).font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
         }.accessibilityLabel("PDF conversion progress")
     }

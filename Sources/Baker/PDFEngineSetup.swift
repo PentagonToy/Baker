@@ -40,6 +40,7 @@ private final class PDFDownloadProgress: NSObject, URLSessionDownloadDelegate, @
 @MainActor
 final class PDFEngineSetup: ObservableObject {
     @Published private(set) var ready = false
+    @Published private(set) var failure: BakerError?
     @Published private(set) var working = false
     @Published private(set) var progress = 0.0
     @Published private(set) var message = "PDF conversion needs an optional download."
@@ -74,7 +75,7 @@ final class PDFEngineSetup: ObservableObject {
     }
     func prepare() {
         guard !working, let descriptor, available else { return }
-        working = true; progress = 0
+        failure = nil; working = true; progress = 0
         job = Task { [self] in
             let files = FileManager.default
             let stage = directory.deletingLastPathComponent().appendingPathComponent(".install-" + UUID().uuidString)
@@ -85,12 +86,12 @@ final class PDFEngineSetup: ObservableObject {
                       descriptor.archive_bytes > 0, descriptor.unpacked_bytes > 0,
                       descriptor.url.scheme == "https", descriptor.url.host == "github.com",
                       descriptor.url.path.hasPrefix("/PentagonToy/Baker/releases/download/"),
-                      descriptor.archive_sha256.count == 64, descriptor.manifest_sha256.count == 64 else { throw BakerError(message: "The PDF engine download information is invalid. Update Baker.") }
+                      descriptor.archive_sha256.count == 64, descriptor.manifest_sha256.count == 64 else { throw BakerError(message: "The PDF engine download information is invalid. Update Baker.", code: .configurationInvalid, recovery: .updateApp) }
                 let minimum = descriptor.minimum_macos.split(separator: ".").compactMap { Int($0) }
-                guard minimum.count >= 2, ProcessInfo.processInfo.isOperatingSystemAtLeast(.init(majorVersion: minimum[0], minorVersion: minimum[1], patchVersion: minimum.count > 2 ? minimum[2] : 0)) else { throw BakerError(message: "This PDF engine needs macOS \(descriptor.minimum_macos) or later.") }
+                guard minimum.count >= 2, ProcessInfo.processInfo.isOperatingSystemAtLeast(.init(majorVersion: minimum[0], minorVersion: minimum[1], patchVersion: minimum.count > 2 ? minimum[2] : 0)) else { throw BakerError(message: "This PDF engine needs macOS \(descriptor.minimum_macos) or later.", code: .unsupportedSystem) }
                 try files.createDirectory(at: directory.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 let free = try directory.deletingLastPathComponent().resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
-                guard free > Int64(descriptor.archive_bytes + descriptor.unpacked_bytes + 256 * 1_024 * 1_024) else { throw BakerError(message: "There is not enough free space to install the PDF engine.") }
+                guard free > Int64(descriptor.archive_bytes + descriptor.unpacked_bytes + 256 * 1_024 * 1_024) else { throw BakerError(message: "There is not enough free space to install the PDF engine.", code: .insufficientSpace) }
                 message = "Downloading PDF engine…"
                 let options = URLSessionConfiguration.ephemeral
                 options.timeoutIntervalForRequest = 60; options.timeoutIntervalForResource = 7_200
@@ -113,7 +114,7 @@ final class PDFEngineSetup: ObservableObject {
                 defer { monitor.cancel() }
                 let (temporary, response) = try await session.download(from: descriptor.url, delegate: delegate)
                 defer { try? files.removeItem(at: temporary) }
-                guard let http = response as? HTTPURLResponse, http.statusCode == 200, response.url?.scheme == "https" else { throw BakerError(message: "The PDF engine server could not complete the download. Try again later.") }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200, response.url?.scheme == "https" else { throw BakerError(message: "The PDF engine server could not complete the download. Try again later.", code: .downloadFailed) }
                 try files.moveItem(at: temporary, to: archive)
                 try Task.checkCancellation()
                 message = "Checking and installing PDF engine…"; progress = 1
@@ -132,35 +133,19 @@ final class PDFEngineSetup: ObservableObject {
                 if existing { try? files.removeItem(at: backup) }
                 ready = true; message = "Installed · PDF recognition runs on this Mac."
             } catch {
-                message = Task.isCancelled ? "Download cancelled. You can try again." : "Could not install the PDF engine: " + error.localizedDescription
+                failure = Task.isCancelled ? nil : BakerError.wrapping(error, fallback: .downloadFailed)
+                message = failure.map { "Could not install the PDF engine: " + $0.userDescription } ?? "Download cancelled."
             }
         }
     }
     nonisolated private static func unpack(python: URL, installer: URL, descriptor: URL, archive: URL, stage: URL) throws {
-        let process = Process(), log = archive.appendingPathExtension("log")
-        FileManager.default.createFile(atPath: log.path, contents: nil)
-        defer { try? FileManager.default.removeItem(at: log) }
-        let handle = try FileHandle(forWritingTo: log); defer { try? handle.close() }
-        process.executableURL = python
-        process.arguments = ["-I", "-B", installer.path, "--archive", archive.path, "--descriptor", descriptor.path, "--stage", stage.path]
-        process.standardOutput = handle; process.standardError = handle; process.standardInput = FileHandle.nullDevice
-        try Task.checkCancellation(); try process.run()
-        let deadline = Date().addingTimeInterval(600)
-        while process.isRunning {
-            if Task.isCancelled || Date() > deadline {
-                process.terminate()
-                let until = Date().addingTimeInterval(2)
-                while process.isRunning && Date() < until { Thread.sleep(forTimeInterval: 0.05) }
-                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-                process.waitUntilExit()
-                if Task.isCancelled { throw CancellationError() }
-                throw BakerError(message: "PDF engine installation timed out. Retry the download.")
-            }
-            Thread.sleep(forTimeInterval: 0.1)
+        let response = try runProcess(python, arguments: ["-I", "-B", installer.path, "--archive", archive.path, "--descriptor", descriptor.path, "--stage", stage.path], timeout: 600, maximumOutputBytes: 1_048_576)
+        guard response.status == 0 else {
+            throw BakerError(message: "The PDF engine could not be verified.", code: .integrityFailed,
+                             diagnostic: response.diagnostic ?? String(data: response.output.suffix(1024), encoding: .utf8), recovery: .pdfSettings)
         }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw BakerError(message: String((try? String(contentsOf: log))?.suffix(500) ?? "PDF engine verification failed.")) }
     }
+
     func cancel() { job?.cancel() }
     func close() async { job?.cancel(); await job?.value }
     func waitUntilReady() async throws {
@@ -168,14 +153,14 @@ final class PDFEngineSetup: ObservableObject {
         let pending = job
         await withTaskCancellationHandler(operation: { await pending?.value }, onCancel: { Task { @MainActor [weak self] in self?.cancel() } })
         try Task.checkCancellation()
-        guard ready else { throw BakerError(message: message) }
+        guard ready else { throw failure ?? BakerError(message: message, code: .modelNotReady, recovery: .pdfSettings) }
     }
     func remove() {
         guard !working else { return }
         do {
             if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
             ready = false; progress = 0; refresh()
-        } catch { message = "Could not remove the PDF engine: " + error.localizedDescription }
+        } catch { message = "Could not remove the PDF engine: " + BakerError.wrapping(error, fallback: .storageFailed).userDescription }
     }
 }
 
@@ -184,11 +169,11 @@ struct PDFEngineSetupView: View {
     var inUse = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(setup.ready ? "PDF engine installed" : "Optional PDF engine", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(.headline)
-            Text(setup.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Label(setup.ready ? "PDF engine installed" : "Optional PDF engine", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(BakerTypography.section)
+            Text(setup.message).font(BakerTypography.body).fixedSize(horizontal: false, vertical: true)
             if setup.working {
                 ProgressView(value: setup.progress)
-                HStack { Text(setup.progress < 1 ? "\(Int(setup.progress * 100))% downloaded" : "Verifying files…").font(.caption).foregroundStyle(.secondary); Spacer(); Button("Cancel", action: setup.cancel) }
+                HStack { Text(setup.progress < 1 ? "\(Int(setup.progress * 100))% downloaded" : "Verifying files…").font(BakerTypography.supporting).foregroundStyle(.secondary); Spacer(); Button("Cancel", action: setup.cancel) }
             } else {
                 HStack {
                     Button(setup.ready ? "Reinstall" : "Download · " + setup.downloadSize, action: setup.prepare).disabled(!setup.available || inUse)
@@ -199,9 +184,9 @@ struct PDFEngineSetupView: View {
                             } message: { Text("Your files and history remain. PDF conversion will need another download.") }
                     }
                 }
-                Text("Download: \(setup.downloadSize) · Installed: \(setup.installedSize)").font(.caption).foregroundStyle(.secondary)
+                Text("Download: \(setup.downloadSize) · Installed: \(setup.installedSize)").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
-            Text("Only needed for PDF conversion. Images and documents stay on this Mac; downloads come from Baker’s GitHub releases.").font(.caption).foregroundStyle(.secondary)
+            Text("Only needed for PDF conversion. Images and documents stay on this Mac; downloads come from Baker’s GitHub releases.").font(BakerTypography.supporting).foregroundStyle(.secondary)
         }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 13))
     }
 }

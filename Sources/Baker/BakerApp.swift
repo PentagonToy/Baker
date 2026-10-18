@@ -24,28 +24,26 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let shortcuts = CaptureShortcuts()
     private var statusItem: NSStatusItem!
     private lazy var overlays = CaptureOverlayController(model: model)
-    private var filesWorkspace: NSWindow?
-    private var history: NSPanel?
-    private var result: NSPanel?
-    private var formulaWorkspace: NSPanel?
-    private var settings: NSWindow?
-    private var export: NSPanel?
+    private let windows = WorkspaceWindows()
+    private let settingsState = SettingsState()
     private var subscriptions: Set<AnyCancellable> = []
     private var terminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        model.onReopen = { [weak self] in self?.reopen() }
         BakerAppearance.apply()
         LegacyCloudCleanup.run()
         model.canChangeStorage = { [weak self] in self?.overlays.hasOpenEditors != true }
         model.onStorageChanged = { [weak self] in
             self?.overlays.resetStorage()
-            self?.formulaWorkspace?.orderOut(nil); self?.result?.orderOut(nil)
+            self?.windows.hide(.formula, .result)
         }
         shortcuts.perform = { [weak self] action in
             guard let self, !self.model.busy else { return }
             switch action {
             case "area": self.captureRegion()
             case "all": self.captureAll()
+            case "repeat": self.repeatCaptureArea()
             case "scroll": self.captureScroll()
             case "text": self.captureText()
             case "formula": self.captureFormula()
@@ -55,6 +53,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         model.onFormulaSetupNeeded = { [weak self] in self?.openSettings(.formula) }
+        model.onSettingsNeeded = { [weak self] page in self?.openSettings(page) }
         model.onOpenFiles = { [weak self] format in self?.showFiles(format) }
         NSApp.setActivationPolicy(.accessory)
         installApplicationMenu()
@@ -85,18 +84,35 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.overlays.setVisible(visible)
         }
         model.onExportReady = { [weak self] in self?.showExport() }
-        if !UserDefaults.standard.bool(forKey: "hasShownRecognitionSetup") {
-            UserDefaults.standard.set(true, forKey: "hasShownRecognitionSetup")
+        if !model.preferences[PreferenceKeys.hasShownRecognitionSetup] {
+            model.preferences[PreferenceKeys.hasShownRecognitionSetup] = true
             openSettings(.formula)
         }
         model.$problem.compactMap { $0 }.receive(on: RunLoop.main).sink { [weak self] message in
             self?.model.playCaptureFeedback(success: false)
             let alert = NSAlert(); alert.messageText = "Baker"; alert.informativeText = message
-            alert.addButton(withTitle: "OK"); NSApp.activate(ignoringOtherApps: true); alert.runModal()
+            let failure = self?.model.failure
+            if let suggestion = failure?.recoverySuggestion, !message.contains(suggestion) { alert.informativeText += "\n\n" + suggestion }
+            let page = failure?.recovery.settingsPage
+            let permissions = failure?.recovery == .systemPermissions
+            if permissions {
+                alert.addButton(withTitle: "Open System Settings"); alert.addButton(withTitle: "Not Now")
+            } else {
+                alert.addButton(withTitle: "OK")
+                if page != nil { alert.addButton(withTitle: "Open Settings") }
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            let choice = alert.runModal()
+            if permissions, choice == .alertFirstButtonReturn { self?.model.screenRecordingPermission.openSettings() }
+            else if choice == .alertSecondButtonReturn, let page { self?.openSettings(page) }
             self?.model.problem = nil
         }.store(in: &subscriptions)
         rebuildMenu(menu)
         model.warmCaptureSelection()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.terminating, !self.model.busy else { return }
+            self.model.launchAtLogin.presentFirstLaunchOffer()
+        }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // Reopening a menu-bar utility must not create an unrelated result window.
@@ -112,7 +128,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         return .terminateLater
     }
-    func applicationWillTerminate(_ notification: Notification) { model.cleanup() }
+    func applicationWillTerminate(_ notification: Notification) { windows.closeAll(); model.cleanup() }
     func menuNeedsUpdate(_ menu: NSMenu) { rebuildMenu(menu) }
 
     private func installApplicationMenu() {
@@ -197,7 +213,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
         item.attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.secondaryLabelColor])
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.secondaryLabelColor])
         return item
     }
     private func rebuildMenu(_ menu: NSMenu) {
@@ -206,18 +222,17 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(heading("CAPTURE"))
         menu.addItem(item("All", #selector(captureAll), symbol: "display", custom: "capture-all", enabled: !model.busy, shortcut: "all"))
         menu.addItem(item("Area", #selector(captureRegion), symbol: "viewfinder", custom: "capture-area", enabled: !model.busy, shortcut: "area"))
+        menu.addItem(item("Repeat Area", #selector(repeatCaptureArea), symbol: "arrow.clockwise", custom: "capture-repeat", enabled: !model.busy && model.canRepeatArea, shortcut: "repeat"))
         menu.addItem(item("Scrolling", #selector(captureScroll), symbol: "scroll", custom: "capture-scroll", enabled: !model.busy, shortcut: "scroll"))
         menu.addItem(item("Text", #selector(captureText), symbol: "text.viewfinder", custom: "capture-text", enabled: !model.busy, shortcut: "text"))
-        menu.addItem(item("Formula", #selector(captureFormula), symbol: "function", custom: "capture-formula", enabled: !model.busy, shortcut: "formula"))
-        menu.addItem(.separator()); menu.addItem(heading("RECORD"))
-        menu.addItem(item("Video", #selector(recordVideo), symbol: "video", custom: "record-video", enabled: !model.busy, shortcut: "video"))
-        menu.addItem(item("GIF", #selector(recordGIF), symbol: "photo.stack", custom: "record-gif", enabled: !model.busy, shortcut: "gif"))
+        menu.addItem(item("Formula", #selector(captureFormula), symbol: "sum", custom: "capture-formula", enabled: !model.busy, shortcut: "formula"))
+        menu.addItem(item("Record…", #selector(recordScreen), symbol: "record.circle", custom: "record-video", enabled: !model.busy, shortcut: "video"))
         if model.isRecording {
             menu.addItem(item("Stop Recording", #selector(stopRecording), symbol: "stop.circle.fill"))
         }
         menu.addItem(.separator()); menu.addItem(heading("CLIPBOARD & FILES"))
         menu.addItem(item("Open Files", #selector(openImage), symbol: "folder", custom: "files-open", enabled: !model.busy))
-        menu.addItem(item("Formula Workspace", #selector(newFormulaWorkspace), symbol: "function"))
+        menu.addItem(item("Formula Workspace", #selector(newFormulaWorkspace), symbol: "sum"))
         menu.addItem(item("Open Clipboard Image", #selector(pasteImage), symbol: "clipboard", custom: "clipboard-image", enabled: !model.busy))
         menu.addItem(item("Read Clipboard Text", #selector(readClipboard), symbol: "text.viewfinder", custom: "clipboard-text", enabled: !model.busy))
         if model.busy && !model.isRecording {
@@ -228,7 +243,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Capture History", #selector(showHistory), symbol: "photo.stack", custom: "capture-history"))
         menu.addItem(item("Open Capture Folder", #selector(openCaptureFolder), symbol: "folder", custom: "files-open"))
 
-        menu.addItem(item("Last Result", #selector(showResult), symbol: "doc.text"))
+        menu.addItem(item("Last Result", #selector(showResult), symbol: "doc.text", enabled: !model.output.isEmpty && !model.busy))
         menu.addItem(item("Last Export", #selector(showExport), symbol: "doc", enabled: model.exportURL != nil || model.isConvertingPDF))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", #selector(showSettings), symbol: "gearshape", custom: "settings", key: ","))
@@ -237,13 +252,14 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     // Start in the normal run-loop mode after AppKit finishes menu tracking.
     // Global shortcuts use the same path; other applications' menus are untouched.
-    private func startCapture(scrolling: Bool = false, action: CaptureAction = .image, fullScreen: Bool = false) {
+    private func startCapture(scrolling: Bool = false, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false) {
         statusItem.menu?.cancelTracking()
         RunLoop.main.perform(inModes: [.default]) { [weak self] in
-            MainActor.assumeIsolated { self?.model.capture(scrolling: scrolling, action: action, fullScreen: fullScreen) }
+            MainActor.assumeIsolated { self?.model.capture(scrolling: scrolling, action: action, fullScreen: fullScreen, reuseArea: reuseArea) }
         }
     }
     @objc private func captureRegion() { startCapture() }
+    @objc private func repeatCaptureArea() { startCapture(reuseArea: true) }
     @objc private func captureAll() { startCapture(fullScreen: true) }
     @objc private func captureScroll() { startCapture(scrolling: true) }
     @objc private func captureText() { startCapture(action: .text) }
@@ -251,23 +267,39 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func captureUnicode() { startCapture(action: .unicode) }
     private func showFiles(_ format: PDFExportFormat? = nil) {
         if let format { model.filesInbox.pdfFormat = format }
-        if filesWorkspace == nil {
+        let window = windows.resolve(.files) {
             let panel = FilesWorkspaceWindow()
-            panel.title = "Baker · Clipboard & Files"; panel.isReleasedWhenClosed = false; panel.hidesOnDeactivate = false
+            panel.title = "Baker · Clipboard & Files"
             panel.contentView = NSHostingView(rootView: FilesWorkspace(model: model, inbox: model.filesInbox))
-            panel.center(); model.filesInbox.presentationWindow = panel; filesWorkspace = panel
+            return panel
         }
-        filesWorkspace?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        model.filesInbox.presentationWindow = window
+        windows.show(.files)
     }
     @objc private func openImage() { showFiles() }
     @objc private func pasteImage() { model.pasteImage() }
     @objc private func readClipboard() { model.pasteImage(recogniseText: true) }
+    @objc private func recordScreen() {
+        // A menu key equivalent must retain the Video shortcut's explicit format.
+        if let event = NSApp.currentEvent, event.type == .keyDown, let binding = shortcuts.bindings["video"],
+           UInt32(event.keyCode) == binding.keyCode,
+           event.modifierFlags.intersection([.command, .control, .option, .shift]) == binding.menuModifiers {
+            model.record(format: .video)
+        } else { model.record() }
+    }
     @objc private func recordVideo() { model.record(format: .video) }
     @objc private func recordGIF() { model.record(format: .gif) }
     @objc private func stopRecording() { model.stopRecording() }
     @objc private func pdfMarkdown() { showFiles(.markdown) }
     @objc private func pdfLatex() { showFiles(.latex) }
     @objc private func cancelJob() { model.cancelJob() }
+    private func reopen() {
+        guard !model.busy, !overlays.hasOpenEditors else {
+            model.report(BakerError(message: "Finish the current operation and close capture editors before reopening Baker.", code: .invalidState)); return
+        }
+        do { try AppReopen.schedule(); NSApp.terminate(nil) }
+        catch { model.report(error) }
+    }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func showPreview() {
@@ -275,13 +307,15 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func openCaptureFolder() { model.revealCaptures() }
     @objc private func showHistory() {
-        if history == nil {
-            let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 620, height: 460), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            panel.title = "Baker · Capture History"; panel.isReleasedWhenClosed = false; panel.hidesOnDeactivate = false
+        model.refreshCaptureHistory(enforceLimits: true)
+        _ = windows.resolve(.history) {
+            let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 840, height: 620), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            panel.title = "Baker · Capture History"
+            panel.contentMinSize = NSSize(width: 720, height: 460)
             panel.contentView = NSHostingView(rootView: CaptureHistoryView(model: model, show: { [weak self] in self?.overlays.show($0) }))
-            panel.center(); history = panel
+            return panel
         }
-        history?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        windows.show(.history)
     }
     @objc private func newFormulaWorkspace() {
         if model.focusedFormulaID == nil,
@@ -293,54 +327,54 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func showFormulaWorkspace() {
         let hasResult = model.focusedFormulaID.flatMap { model.formulaResults[$0] } != nil
-        if formulaWorkspace == nil {
+        let panel = windows.resolve(.formula) {
             let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 740, height: hasResult ? 700 : 400),
                 styleMask: [.titled, .closable, .resizable, .nonactivatingPanel], backing: .buffered, defer: false)
-            panel.title = "Baker · Formula"; panel.isReleasedWhenClosed = false
-            panel.becomesKeyOnlyIfNeeded = true; panel.hidesOnDeactivate = false
-            panel.level = .normal; panel.minSize = NSSize(width: 680, height: hasResult ? 560 : 400)
+            panel.title = "Baker · Formula"
+            panel.becomesKeyOnlyIfNeeded = true
+            panel.minSize = NSSize(width: 680, height: hasResult ? 560 : 400)
             panel.contentView = CaptureHostingView(rootView: FormulaWorkspace(model: model, showHistory: { [weak self] in self?.showHistory() }))
-            panel.center(); formulaWorkspace = panel
+            return panel
         }
-        if hasResult, let panel = formulaWorkspace {
+        if hasResult {
             panel.minSize = NSSize(width: 680, height: 560)
             if (panel.contentView?.bounds.height ?? 0) < 520 { panel.setContentSize(NSSize(width: max(740, panel.contentView?.bounds.width ?? 0), height: 700)) }
         }
-        formulaWorkspace?.orderFrontRegardless()
+        windows.show(.formula, presentation: .passive)
     }
     @objc private func showResult() {
-        if result == nil {
+        _ = windows.resolve(.result) {
             let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            panel.title = "Baker · Result"; panel.isReleasedWhenClosed = false; panel.hidesOnDeactivate = false
+            panel.title = "Baker · Result"
             panel.contentView = NSHostingView(rootView: ResultView(model: model))
-            panel.center(); result = panel
+            return panel
         }
-        result?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        windows.show(.result)
     }
-    @objc private func showSettings() { openSettings(.general) }
-    private func openSettings(_ page: SettingsPage) {
-        if settings == nil {
+    @objc private func showSettings() { openSettings() }
+    private func openSettings(_ page: SettingsPage? = nil) {
+        if let page { settingsState.page = page }
+        _ = windows.resolve(.settings) {
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 860, height: 620),
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             window.contentMinSize = NSSize(width: 780, height: 560)
-            window.identifier = NSUserInterfaceItemIdentifier("baker.settings")
-            window.title = "Baker · Settings"; window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: BakerSettings(model: model, shortcuts: shortcuts)); window.center(); settings = window
+            window.title = "Baker · Settings"
+            window.contentView = NSHostingView(rootView: BakerSettings(model: model, shortcuts: shortcuts, state: settingsState))
+            return window
         }
-        settings?.contentView = NSHostingView(rootView: BakerSettings(model: model, shortcuts: shortcuts, page: page))
-        settings?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        windows.show(.settings)
     }
 
     @objc private func showExport() {
-        if export == nil {
+        _ = windows.resolve(.export) {
             let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 460, height: 300),
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            panel.title = "Baker · Export"; panel.isReleasedWhenClosed = false; panel.hidesOnDeactivate = false
+            panel.title = "Baker · Export"
             panel.contentView = NSHostingView(rootView: ExportView(model: model))
-            panel.center(); export = panel
+            return panel
         }
-        export?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        windows.show(.export)
     }
 }
 
@@ -351,9 +385,9 @@ private struct ExportView: View {
             Label(model.isConvertingPDF ? "Converting PDF" : model.exportURL?.lastPathComponent ?? "Export",
                   systemImage: model.isConvertingPDF ? "doc.text.magnifyingglass" : "doc.badge.checkmark")
                 .font(.title3.weight(.semibold)).lineLimit(2)
-            Text(model.exportSummary).font(.callout).foregroundStyle(.secondary)
+            Text(model.exportSummary).font(BakerTypography.body).foregroundStyle(.secondary)
             if model.isConvertingPDF { DocumentProgressView(progress: model.documentProgress) }
-            Text(model.status).font(.caption).foregroundStyle(.secondary)
+            Text(model.status).font(BakerTypography.supporting).foregroundStyle(.secondary)
             HStack {
                 if model.isConvertingPDF { Button("Cancel", action: model.cancelJob) }
                 Spacer()
@@ -384,8 +418,8 @@ private struct ResultView: View {
                 case .unicode: TextEditor(text: $model.unicode)
                 }
             }.scrollContentBackground(.hidden).background(BakerTheme.surface).disabled(model.busy).font(model.format == .unicode ? Font(model.selectedMathFont.resolvedFont) : .system(size: 16, design: .monospaced))
-            if model.format == .unicode { Text(model.unicodeMessage).font(.caption).foregroundStyle(.secondary) }
-            Text(model.status).font(.caption).foregroundStyle(.secondary)
+            if model.format == .unicode { Text(model.unicodeMessage).font(BakerTypography.supporting).foregroundStyle(.secondary) }
+            Text(model.status).font(BakerTypography.supporting).foregroundStyle(.secondary)
         }.padding(16).frame(minWidth: 420, minHeight: 260).background(BakerTheme.background)
     }
 }

@@ -15,6 +15,7 @@ private final class FormulaWorkspaceState: ObservableObject {
 }
 
 struct FormulaWorkspace: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
     @ObservedObject var model: Workbench
@@ -33,7 +34,7 @@ struct FormulaWorkspace: View {
                 if !formulaRecords.isEmpty {
                 Divider().frame(height: 20)
                 Button { navigate(1) } label: { Image(systemName: "chevron.left") }.disabled(!canNavigate(1))
-                Text(position).monospacedDigit().font(.caption).foregroundStyle(.secondary)
+                Text(position).monospacedDigit().font(BakerTypography.supporting).foregroundStyle(.secondary)
                 Button { navigate(-1) } label: { Image(systemName: "chevron.right") }.disabled(!canNavigate(-1))
                 }
                 Spacer()
@@ -77,25 +78,25 @@ struct FormulaWorkspace: View {
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     }.padding(8)
                                 }
-                                else if let error = state.originalError { Text(error).font(.caption).foregroundStyle(.black).padding(12) }
+                                else if let error = state.originalError { Text(error).font(BakerTypography.supporting).foregroundStyle(.black).padding(12) }
                                 else { ProgressView().controlSize(.small) }
                             }
                             Text("\(record.pixelWidth) × \(record.pixelHeight) px · Original capture")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(BakerTypography.supporting).foregroundStyle(.secondary)
                         }
                         if model.formulaInputPending || state.previewMode != .original {
                             preview(model.formulaInputPending ? "Previous result" : "Rendered") {
                                 if result.phase == .recognising {
-                                    VStack(spacing: 10) { ProgressView(); Text("Recognising locally…").font(.callout).foregroundStyle(.black) }
+                                    VStack(spacing: 10) { ProgressView(); Text("Recognising locally…").font(BakerTypography.body).foregroundStyle(.black) }
                                 } else if let image = result.preview {
                                     Image(nsImage: image).resizable().scaledToFit().blendMode(colorScheme == .dark ? .normal : .multiply).padding(12)
                                 } else if result.phase == .failed {
                                     VStack(spacing: 10) {
-                                        Text(result.error).font(.callout).foregroundStyle(.black).textSelection(.enabled)
-                                        Button("Try Again") { model.recogniseSavedFormula(record) }.disabled(model.busy)
+                                        Text(result.error).font(BakerTypography.body).foregroundStyle(.black).textSelection(.enabled)
+                                        FormulaFailureActions(model: model, record: record, failure: result.failure)
                                     }.padding(16)
                                 } else if let error = result.previewError {
-                                    VStack(spacing: 8) { Text(result.latex).font(.system(.body, design: .monospaced)); Text(error).font(.caption) }
+                                    VStack(spacing: 8) { Text(result.latex).font(.system(.body, design: .monospaced)); Text(error).font(BakerTypography.supporting) }
                                         .foregroundStyle(.black).padding(14)
                                 } else { ProgressView("Rendering…").foregroundStyle(.black) }
                             }
@@ -103,17 +104,17 @@ struct FormulaWorkspace: View {
                         if result.phase == .ready {
                             if let confidence = result.confidence {
                                 HStack(spacing: 10) {
-                                    Text("OCR confidence").font(.caption).foregroundStyle(.secondary)
+                                    Text("OCR confidence").font(BakerTypography.supporting).foregroundStyle(.secondary)
                                     GeometryReader { geometry in
                                         ZStack(alignment: .leading) {
                                             Capsule().fill(Color.secondary.opacity(0.2))
                                             Capsule().fill(confidenceColor(confidence)).frame(width: geometry.size.width * min(1, max(0, confidence)))
                                         }
                                     }.frame(maxWidth: .infinity).frame(height: 7).accessibilityLabel("OCR confidence").accessibilityValue(Text(confidence, format: .percent))
-                                    Text(confidence, format: .percent.precision(.fractionLength(0))).font(.caption.monospacedDigit())
+                                    Text(confidence, format: .percent.precision(.fractionLength(0))).font(BakerTypography.supporting.monospacedDigit())
                                 }.help("Model token confidence, not a verified probability that the entire equation is correct. Compare the original before using it.")
                             } else {
-                                Text(result.wasEdited ? "Edited · OCR confidence no longer applies" : "OCR confidence unavailable").font(.caption).foregroundStyle(.secondary)
+                                Text(result.wasEdited ? "Edited · OCR confidence no longer applies" : "OCR confidence unavailable").font(BakerTypography.supporting).foregroundStyle(.secondary)
                             }
                             DisclosureGroup("Recognition details") {
                                 VStack(alignment: .leading, spacing: 5) {
@@ -129,9 +130,9 @@ struct FormulaWorkspace: View {
                                     Button("Recognise Again") {
                                         model.recogniseSavedFormula(record)
                                     }.disabled(model.busy)
-                                }.font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                                }.font(BakerTypography.supporting).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            Text("Copy format").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("Copy format").font(BakerTypography.supporting.weight(.semibold)).foregroundStyle(.secondary)
                             formatRow(.latex, text: result.style.format(result.latex), result: result, id: record.id)
                             formatRow(.markdown, text: LatexCopyStyle.displayDollar.format(result.latex), result: result, id: record.id)
                             formatRow(.keynote, text: result.keynote, result: result, id: record.id)
@@ -142,11 +143,11 @@ struct FormulaWorkspace: View {
                                         ForEach(LatexCopyStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                                     }.frame(maxWidth: 300)
                                 } else if result.format == .markdown {
-                                    Text("Display maths · $$ delimiters on separate lines").font(.caption).foregroundStyle(.secondary)
+                                    Text("Display maths · $$ delimiters on separate lines").font(BakerTypography.supporting).foregroundStyle(.secondary)
                                 } else if result.format == .keynote {
                                     Text(result.keynoteWarning.isEmpty ? "Keynote: bare maths with compatible matrix environments." : result.keynoteWarning)
-                                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                                } else { Text(result.warning).font(.caption).foregroundStyle(.secondary) }
+                                        .font(BakerTypography.supporting).foregroundStyle(.secondary).textSelection(.enabled)
+                                } else { Text(result.warning).font(BakerTypography.supporting).foregroundStyle(.secondary) }
                                 Spacer()
                             }
                         }
@@ -161,7 +162,7 @@ struct FormulaWorkspace: View {
                 Text(model.busy ? model.status : result?.copyStatus ?? "Ready").lineLimit(1)
                 Spacer()
                 Text("Local · \(formulaRecords.count) \(formulaRecords.count == 1 ? "result" : "results")").foregroundStyle(.secondary)
-            }.font(.caption).padding(.horizontal, 18).padding(.vertical, 10)
+            }.font(BakerTypography.supporting).padding(.horizontal, 18).padding(.vertical, 10)
         }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $state.dropTargeted) { providers in
             guard !model.busy, let provider = providers.first else { return false }
@@ -172,8 +173,9 @@ struct FormulaWorkspace: View {
             return true
         }
         .overlay { if state.dropTargeted { RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.accent, lineWidth: 3).allowsHitTesting(false) } }
-        .tint(BakerTheme.accent)
+        .font(BakerTypography.body).tint(BakerTheme.accent)
         .background(BakerTheme.background)
+        .animation(BakerMotion.selection(reduced: reduceMotion), value: state.previewMode)
         .frame(minWidth: 660, minHeight: result == nil ? 340 : 520)
         .task(id: model.focusedFormulaID) {
             state.original = nil; state.originalID = nil; state.originalError = nil
@@ -190,7 +192,14 @@ struct FormulaWorkspace: View {
     }
     private func preview<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Text(title).font(BakerTypography.supporting).foregroundStyle(.secondary)
+                Spacer()
+                if title == "Original", let record {
+                    Button { Task { _ = await model.copyCapture(record) } } label: { Label("Copy Image", systemImage: "doc.on.doc") }
+                        .buttonStyle(.borderless).font(BakerTypography.supporting)
+                }
+            }
             ZStack { RoundedRectangle(cornerRadius: 10).fill(BakerTheme.paper); content() }
                 .frame(maxWidth: .infinity).frame(height: state.previewMode == .both ? 150 : 240)
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.gray.opacity(0.18)))
@@ -198,19 +207,20 @@ struct FormulaWorkspace: View {
     }
     private func formatRow(_ format: OutputFormat, text: String, result: FormulaResult, id: UUID) -> some View {
         HStack(spacing: 10) {
-            Text(format.rawValue).font(.system(size: 12, weight: .semibold)).frame(width: 78, alignment: .leading)
-            ScrollView(.horizontal) { Text(text.replacingOccurrences(of: "\n", with: " ↵ ")).font(format == .unicode ? Font(model.selectedMathFont.resolvedFont.withSize(16)) : .system(size: 12, design: .monospaced)).lineLimit(1).textSelection(.enabled) }.scrollContentBackground(.hidden).frame(height: format == .unicode ? 24 : 18)
+            Text(format.rawValue).font(BakerTypography.section).frame(width: 78, alignment: .leading)
+            ScrollView(.horizontal) { Text(text.replacingOccurrences(of: "\n", with: " ↵ ")).font(format == .unicode ? Font(model.selectedMathFont.resolvedFont.withSize(16)) : .system(size: 13, design: .monospaced)).lineLimit(1).textSelection(.enabled) }.scrollContentBackground(.hidden).frame(height: format == .unicode ? 24 : 18)
             if format == .unicode && !result.warning.isEmpty { Button { state.showUnicodeWarning.toggle() } label: { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
                     .buttonStyle(.borderless).help(result.warning).accessibilityLabel("Unicode representation warning: " + result.warning)
                     .onHover { hovering in state.showUnicodeWarning = hovering }
                     .popover(isPresented: $state.showUnicodeWarning, arrowEdge: .bottom) {
-                        Text(result.warning).font(.callout).padding(14).frame(width: 300).fixedSize(horizontal: false, vertical: true)
+                        Text(result.warning).font(BakerTypography.body).padding(14).frame(width: 300).fixedSize(horizontal: false, vertical: true)
                     } }
-            if result.format == format { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
+            if result.copiedFormat == format { Label("Copied", systemImage: "checkmark.circle.fill").font(BakerTypography.supporting).foregroundStyle(.green).transition(.opacity) }
             Button { model.chooseFormulaFormat(id, format) } label: { Image(systemName: "doc.on.doc").frame(width: 26, height: 22) }
                 .buttonStyle(.borderless).help("Select and copy \(format.rawValue)")
         }.padding(10).background(result.format == format ? BakerTheme.accent.opacity(0.13) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle()).onTapGesture { model.chooseFormulaFormat(id, format) }
+            .animation(BakerMotion.selection(reduced: reduceMotion), value: result.copiedFormat)
     }
     private func confidenceColor(_ value: Double) -> Color {
         // Presentation scale only: red → orange → green, not calibrated accuracy bands.
@@ -224,7 +234,7 @@ struct FormulaWorkspace: View {
             VStack(spacing: 8) {
                 Image(systemName: "photo.badge.plus").font(.system(size: 23))
                 Text("Drop a formula image").font(.headline)
-                Text("Drop a capture here, or choose Image… above.").font(.caption)
+                Text("Drop a capture here, or choose Image… above.").font(BakerTypography.supporting)
             }.foregroundStyle(.black.opacity(0.75)).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

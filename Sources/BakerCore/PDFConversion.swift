@@ -83,28 +83,28 @@ public enum PDFConverter {
         try checkCancellation()
         let manager = FileManager.default
         guard source.standardizedFileURL.resolvingSymlinksInPath() != destination.standardizedFileURL.resolvingSymlinksInPath() else {
-            throw BakerError(message: "The export must use a different file from the source PDF.")
+            throw BakerError(message: "The export must use a different file from the source PDF.", code: .exportFailed)
         }
-        guard !manager.fileExists(atPath: destination.path) else { throw BakerError(message: "The export destination already exists.") }
+        guard !manager.fileExists(atPath: destination.path) else { throw BakerError(message: "The export destination already exists.", code: .exportFailed) }
         guard (1...2_000).contains(options.maximumPages), (1...64 * 1_024 * 1_024).contains(options.maximumOutputBytes),
-              (1...250_000).contains(options.maximumPageCharacters) else { throw BakerError(message: "PDF resource limits are invalid.") }
+              (1...250_000).contains(options.maximumPageCharacters) else { throw BakerError(message: "PDF resource limits are invalid.", code: .configurationInvalid) }
         let access = source.startAccessingSecurityScopedResource()
         defer { if access { source.stopAccessingSecurityScopedResource() } }
         let attributes = try manager.attributesOfItem(atPath: source.path)
         guard let size = attributes[.size] as? NSNumber, size.int64Value <= 256 * 1_024 * 1_024 else {
-            throw BakerError(message: "PDF files are limited to 256 MB.")
+            throw BakerError(message: "PDF files are limited to 256 MB.", code: .resourceLimit)
         }
-        guard let document = PDFDocument(url: source) else { throw BakerError(message: "The PDF is corrupt or could not be opened.") }
-        guard !document.isLocked else { throw BakerError(message: "This PDF is password locked. Unlock a copy before converting it.") }
-        guard document.allowsCopying else { throw BakerError(message: "This PDF does not allow text extraction. Export an unrestricted copy first.") }
-        guard document.pageCount > 0 else { throw BakerError(message: "The PDF has no pages.") }
-        guard document.pageCount <= options.maximumPages else { throw BakerError(message: "The PDF exceeds the \(options.maximumPages)-page limit.") }
+        guard let document = PDFDocument(url: source) else { throw BakerError(message: "The PDF is corrupt or could not be opened.", code: .invalidInput) }
+        guard !document.isLocked else { throw BakerError(message: "This PDF is password locked. Unlock a copy before converting it.", code: .invalidInput) }
+        guard document.allowsCopying else { throw BakerError(message: "This PDF does not allow text extraction. Export an unrestricted copy first.", code: .invalidInput) }
+        guard document.pageCount > 0 else { throw BakerError(message: "The PDF has no pages.", code: .invalidInput) }
+        guard document.pageCount <= options.maximumPages else { throw BakerError(message: "The PDF exceeds the \(options.maximumPages)-page limit.", code: .resourceLimit) }
         if let engine = options.documentEngine {
             return try PDFDocumentWorker.convert(source: source, destination: destination, format: format, engine: engine,
                                                  options: options, expectedPages: document.pageCount, isCancelled: isCancelled, progress: progress)
         }
         let temporary = destination.deletingLastPathComponent().appendingPathComponent(".baker-pdf-\(UUID().uuidString).tmp")
-        guard manager.createFile(atPath: temporary.path, contents: nil) else { throw BakerError(message: "The export file could not be created.") }
+        guard manager.createFile(atPath: temporary.path, contents: nil) else { throw BakerError(message: "The export file could not be created.", code: .exportFailed) }
         defer { try? manager.removeItem(at: temporary) }
         let handle = try FileHandle(forWritingTo: temporary)
         defer { try? handle.close() }
@@ -112,7 +112,7 @@ public enum PDFConverter {
         func write(_ text: String) throws {
             try checkCancellation()
             let bytes = Data(text.utf8)
-            guard bytes.count <= options.maximumOutputBytes - written else { throw BakerError(message: "The export exceeds the output size limit.") }
+            guard bytes.count <= options.maximumOutputBytes - written else { throw BakerError(message: "The export exceeds the output size limit.", code: .resourceLimit) }
             try handle.write(contentsOf: bytes)
             written += bytes.count
         }
@@ -124,7 +124,7 @@ public enum PDFConverter {
         for index in 0..<document.pageCount {
             try checkCancellation()
             let summary: PDFPageSummary = try autoreleasepool {
-                guard let page = document.page(at: index) else { throw BakerError(message: "PDF page \(index + 1) could not be read.") }
+                guard let page = document.page(at: index) else { throw BakerError(message: "PDF page \(index + 1) could not be read.", code: .recognitionFailed) }
                 progress(.init(pageNumber: index + 1, totalPages: document.pageCount, phase: .reading, message: "Reading page \(index + 1) of \(document.pageCount)"))
                 let content = try extract(page: page, pageNumber: index + 1, maximumCharacters: options.maximumPageCharacters, languages: options.recognitionLanguages, finnish: options.finnishTextMode, tesseractPath: options.tesseractExecutable,
                     isCancelled: isCancelled, beforeOCR: {
@@ -160,12 +160,12 @@ public enum PDFConverter {
                                 isCancelled: () -> Bool, beforeOCR: () -> Void) throws -> PDFPageContent {
         let box = page.bounds(for: .cropBox)
         guard box.width.isFinite, box.height.isFinite, box.width > 0, box.height > 0,
-              box.width <= 1_000_000, box.height <= 1_000_000 else { throw BakerError(message: "PDF page \(pageNumber) has invalid dimensions.") }
+              box.width <= 1_000_000, box.height <= 1_000_000 else { throw BakerError(message: "PDF page \(pageNumber) has invalid dimensions.", code: .invalidInput) }
         if isCancelled() { throw CancellationError() }
         let native = clean(page.string ?? "")
-        guard native.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.") }
+        guard native.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.", code: .resourceLimit) }
         if !native.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard page.numberOfCharacters <= maximumCharacters else { throw BakerError(message: "Page exceeds the character geometry limit.") }
+            guard page.numberOfCharacters <= maximumCharacters else { throw BakerError(message: "Page exceeds the character geometry limit.", code: .resourceLimit) }
             let characterBoxes = (0..<page.numberOfCharacters).map { page.characterBounds(at: $0) }.filter { !$0.isEmpty && $0.midY.isFinite && $0.minX.isFinite }.sorted { $0.midY < $1.midY }
             let lines = (page.selection(for: box)?.selectionsByLine() ?? []).flatMap { splitColumns($0, page: page, characterBoxes: characterBoxes) }
             var blocks: [PDFTextBlock] = []
@@ -182,7 +182,7 @@ public enum PDFConverter {
                 let text = clean(line.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
                 count += text.count
-                guard count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.") }
+                guard count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the text size limit.", code: .resourceLimit) }
                 var heading: Int?
                 if let attributed = line.attributedString, attributed.length > 0,
                    let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont,
@@ -203,10 +203,10 @@ public enum PDFConverter {
         beforeOCR()
         let image = try rasterise(page, box: box)
         if isCancelled() { throw CancellationError() }
-        if finnish || languages.contains("fi-FI") {
-            let text = clean(try FinnishOCR.recognise(image, executable: tesseractPath, languages: languages.contains("fi-FI") ? languages : ["fi-FI"]))
+        if finnish || OCRLanguages.usesTesseract(languages) {
+            let text = clean(try FinnishOCR.recognise(image, executable: tesseractPath, languages: finnish && !languages.contains("fi-FI") ? ["fi-FI"] : languages))
             if isCancelled() { throw CancellationError() }
-            guard text.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the recognised text size limit.") }
+            guard text.count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the recognised text size limit.", code: .resourceLimit) }
             return .init(pageNumber: pageNumber, pageSize: box.size, blocks: text.isEmpty ? [] : [.init(text: text, bounds: box, source: .tesseract)], source: .tesseract,
                 warnings: [text.isEmpty ? "No text was found on this page." : "Tesseract OCR used a bounded page raster. Paragraphs, columns and maths require review."])
         }
@@ -220,7 +220,7 @@ public enum PDFConverter {
             let text = clean(candidate.string).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
             count += text.count
-            guard count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the recognised text size limit.") }
+            guard count <= maximumCharacters else { throw BakerError(message: "Page \(pageNumber) exceeds the recognised text size limit.", code: .resourceLimit) }
             let b = observation.boundingBox
             return .init(text: text, bounds: CGRect(x: box.minX + b.minX * box.width, y: box.minY + b.minY * box.height, width: b.width * box.width, height: b.height * box.height), source: .vision)
         }
@@ -234,14 +234,14 @@ public enum PDFConverter {
         guard width <= 4_096, height <= 4_096, width * height <= 8_000_000,
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw BakerError(message: "The PDF page could not be rasterised within the memory limit.")
+            throw BakerError(message: "The PDF page could not be rasterised within the memory limit.", code: .resourceLimit)
         }
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.scaleBy(x: CGFloat(width) / box.width, y: CGFloat(height) / box.height)
         context.translateBy(x: -box.minX, y: -box.minY)
         page.draw(with: .cropBox, to: context)
-        guard let image = context.makeImage() else { throw BakerError(message: "The PDF page raster is unavailable.") }
+        guard let image = context.makeImage() else { throw BakerError(message: "The PDF page raster is unavailable.", code: .recognitionFailed) }
         return image
     }
 

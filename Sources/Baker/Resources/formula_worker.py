@@ -8,6 +8,19 @@ import threading
 import time
 
 
+class FormulaConfigurationError(ValueError):
+    pass
+
+
+class FormulaTokenLimitError(ValueError):
+    pass
+
+
+def error_payload(error):
+    code = "formula_token_limit" if isinstance(error, FormulaTokenLimitError) else "recognition_timeout" if isinstance(error, TimeoutError) else "model_not_ready" if isinstance(error, FormulaConfigurationError) else "recognition_failed"
+    return {"error": str(error), "error_code": code}
+
+
 def read_json(path):
     if path.stat().st_size > 1_000_000:
         raise ValueError(f"Metadata is too large: {path.name}.")
@@ -69,7 +82,7 @@ def prepare_image(path, max_pixels, processor):
         return np.ascontiguousarray(pixels.transpose(2, 0, 1)[None])
 
 
-def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
+def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline, fallback_max_tokens=None):
     import numpy as np
 
     if (model.get("decoder_start_token_id"), model.get("eos_token_id"), model.get("pad_token_id")) != (1, 2, 0):
@@ -78,7 +91,12 @@ def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
     log_probabilities = []
     minimum_probability = 1.0
     ambiguous_count = 0
-    for _ in range(max_tokens):
+    # Continue only an exhausted default budget, with the same decoder/hidden states.
+    # Never reload models or reset the original deadline for a long equation.
+    budget = max_tokens if fallback_max_tokens is None else fallback_max_tokens
+    if not 1 <= max_tokens <= budget <= 512:
+        raise ValueError("Formula decode budgets must remain within 512 tokens.")
+    for _ in range(budget):
         if time.monotonic() >= deadline:
             raise TimeoutError("Formula recognition exceeded its time limit.")
         logits = decoder.run(["logits"], {"input_ids": np.asarray([generated], dtype=np.int64), "encoder_hidden_states": hidden})[0]
@@ -99,7 +117,7 @@ def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline):
         minimum_probability = min(minimum_probability, probability)
         ambiguous_count += int(probability < 0.8)  # diagnostic threshold, not an accuracy category
         generated.append(token)
-    raise ValueError("Formula exceeds the decode token limit; capture a smaller equation.")
+    raise FormulaTokenLimitError("Formula exceeds the decode token limit; capture a smaller equation.")
 
 
 
@@ -144,7 +162,7 @@ def recognise(image_path, settings):
     decoder = ort.InferenceSession(str(directory / "decoder_model.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
     if [(item.name, item.type) for item in decoder.get_inputs()] != [("input_ids", "tensor(int64)"), ("encoder_hidden_states", "tensor(float)")]:
         raise ValueError("Unsupported formula decoder interface.")
-    result = decode_tokens(decoder, hidden, tokenizer, model, settings["max_new_tokens"], deadline)
+    result = decode_tokens(decoder, hidden, tokenizer, model, settings["max_new_tokens"], deadline, fallback_max_tokens=512 if settings["max_new_tokens"] == 256 else None)
     result["model"] = identity
     return result
 
@@ -167,13 +185,16 @@ def main():
 
     def timed_out():
         # A process deadline also bounds time spent inside native model calls.
-        if emit({"error": "Formula recognition exceeded its time limit."}):
+        if emit(error_payload(TimeoutError("Formula recognition exceeded its time limit."))):
             os._exit(1)
 
     try:
         if len(sys.argv) != 3:
             raise ValueError("Usage: formula_worker.py IMAGE CONFIG.json")
-        settings = read_settings(sys.argv[2])
+        try:
+            settings = read_settings(sys.argv[2])
+        except (OSError, ValueError) as error:
+            raise FormulaConfigurationError(str(error)) from error
         watchdog = threading.Timer(settings["timeout_seconds"], timed_out)
         watchdog.daemon = True
         watchdog.start()
@@ -182,7 +203,7 @@ def main():
         emit(result)
         return 0
     except Exception as error:
-        emit({"error": str(error)})
+        emit(error_payload(error))
         return 1
     finally:
         if watchdog is not None:

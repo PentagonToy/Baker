@@ -11,7 +11,7 @@ struct FormulaResultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Formula", systemImage: "function").font(.system(size: 12, weight: .semibold))
+                Label("Formula", systemImage: "sum").font(BakerTypography.section)
                 Spacer()
                 if result.phase == .recognising { ProgressView().controlSize(.small) }
                 Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 22, height: 22) }
@@ -20,13 +20,13 @@ struct FormulaResultCard: View {
             Group {
                 switch result.phase {
                 case .recognising:
-                    VStack(spacing: 8) { Text("Recognising equation…").font(.callout); Text("Local processing").font(.caption).foregroundStyle(.secondary) }
+                    VStack(spacing: 8) { Text("Recognising equation…").font(BakerTypography.body); Text("Local processing").font(BakerTypography.supporting).foregroundStyle(.secondary) }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed:
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Could not recognise this equation", systemImage: "exclamationmark.triangle").font(.callout.weight(.medium))
-                        ScrollView { Text(result.error).font(.caption).textSelection(.enabled) }
-                        Button("Try Again") { model.selectCapture(record, action: .formula) }.disabled(model.busy)
+                        Label("Could not recognise this equation", systemImage: "exclamationmark.triangle").font(BakerTypography.body.weight(.medium))
+                        ScrollView { Text(result.error).font(BakerTypography.supporting).textSelection(.enabled) }
+                        FormulaFailureActions(model: model, record: record, failure: result.failure)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 case .ready:
                     ZStack {
@@ -60,9 +60,9 @@ struct FormulaResultCard: View {
                             ForEach(LatexCopyStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }.labelsHidden().frame(maxWidth: 220)
                     } else if result.format == .keynote {
-                        Text(result.keynoteWarning.isEmpty ? "Keynote LaTeX · no delimiters" : "Check compatibility").font(.caption2).foregroundStyle(.secondary).help(result.keynoteWarning)
+                        Text(result.keynoteWarning.isEmpty ? "Keynote LaTeX · no delimiters" : "Check compatibility").font(BakerTypography.supporting).foregroundStyle(.secondary).help(result.keynoteWarning)
                     } else {
-                        Text("Editable Unicode · layout approximated").font(.caption2).foregroundStyle(.secondary).help(result.warning)
+                        Text("Editable Unicode · layout approximated").font(BakerTypography.supporting).foregroundStyle(.secondary).help(result.warning)
                     }
                     Spacer(minLength: 0)
                     Button("Edit…") { model.editFormula(record.id) }.buttonStyle(.plain).disabled(model.busy)
@@ -72,15 +72,34 @@ struct FormulaResultCard: View {
                     Text(result.copyStatus.isEmpty ? "Ready" : result.copyStatus)
                     Spacer()
                     if result.previewError != nil { Text("Source preview").help(result.previewError ?? "") }
-                }.font(.caption2).foregroundStyle(.secondary)
+                }.font(BakerTypography.supporting).foregroundStyle(.secondary)
             } else {
                 Text(result.phase == .recognising ? "The selected format will copy automatically." : "The original capture is saved in history.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
         }
         .padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.2), lineWidth: 1))
         .padding(3)
         .accessibilityElement(children: .contain).accessibilityLabel("Formula result")
+    }
+}
+
+/// Recovery stays explicit: retry transient errors, prepare models, or choose a new input.
+struct FormulaFailureActions: View {
+    @ObservedObject var model: Workbench
+    let record: CaptureRecord
+    let failure: BakerError?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let suggestion = failure?.recoverySuggestion { Text(suggestion).font(BakerTypography.supporting) }
+            if let page = failure?.recovery.settingsPage {
+                Button("Open Settings") { model.onSettingsNeeded?(page) }
+            } else if failure?.isRetryable == true {
+                Button("Try Again") { model.recogniseSavedFormula(record) }.disabled(model.busy)
+            } else {
+                Button("Choose Image…") { model.openImage(asFormula: true) }.disabled(model.busy)
+            }
+        }
     }
 }

@@ -22,4 +22,4 @@ Use the menu to capture, record or open files. Set global shortcuts in **Setting
 
 ## Appearance and storage
 
-In **Settings → General**, choose **System**, **Light** or **Dark**. Light appearance uses warm cream surfaces. Clipboard preferences appear first; the save folder and portable presets are below. The sidebar shows Baker’s version.
+In **Settings → General**, choose **System**, **Light** or **Dark**. Light appearance uses warm cream surfaces. Save location, History and Presets appear below the clipboard and appearance controls. The sidebar shows Baker’s version.

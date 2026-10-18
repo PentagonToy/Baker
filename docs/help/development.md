@@ -1,45 +1,53 @@
 # Development builds
 
-User setup and development configuration are separate. Normal use needs no Python path or JSON configuration. **Settings → Advanced → Developer overrides → Use external OCR runtimes** lets developers select their own Python, model configuration and Tesseract executable. Existing path preferences are retained, but are inactive until this override is enabled.
+Normal use needs no Python path or JSON configuration. Developers can enable **Settings → Advanced → Developer overrides → Use external OCR runtimes** to select Python, model configuration and Tesseract paths.
 
-## Automatic local build
+## Local build
 
-On a prepared Workspace Mac, double-click `others/builder/Build.command`. It checks the configured runtime and models, builds the app, validates PDF output, backs up the installed app and replaces it safely. It does not install packages or download models. See the [builder guide](https://github.com/PentagonToy/Baker/blob/main/others/builder/README.md) for preparation and build-only checks.
+On a prepared Workspace Mac, run `others/builder/Build.command`. It checks runtimes, builds the app, validates PDF output, backs up the installed app and replaces it. It installs no packages and downloads no models. The [builder guide](https://github.com/PentagonToy/Baker/blob/main/others/builder/README.md) covers preparation and build-only checks.
 
-The published 0.0.1 app contains both runtimes. Baker 0.0.2 and later keep the formula runtime and its MFR model in the app and package the structured-PDF engine separately. The PDF pipeline combines layout, formula and table recognition with native PDF characters. Recognition and reconstruction are separate so geometry or text corrections can be checked against cached page results without rerunning every model.
+The app contains the formula runtime and MFR model; the structured-PDF engine is optional. `VERSION` supplies the app version. Update it with `CHANGELOG.md` before packaging a release.
 
-The validated bundled MFR `mlp-int8-v1` variant is prepared with `tools/optimize_document_models.py`: feed-forward encoder matrices use INT8; attention and decoder weights remain FP32. The tool verifies the pinned upstream files and records the recipe, source revision and output hashes. Models are generated outside the checkout. Formula setup uses a separate variant cache and repairs from the included model; it does not request the upstream FP32 file under an INT8 checksum.
+## Runtime packaging
 
-The selected PDF engine uses native-text reuse, ONNX layout detection and mixed-precision GLM-OCR with the corrected Baker adapter. MLX model loading is lazy and the worker exits after each job. The standalone runtime excludes PyTorch, Transformers and the general MLX-VLM launcher. See [models and references](recognition.md) for source revisions, provenance and measured limits.
-
-`VERSION` supplies the app's short version. Update it with `CHANGELOG.md`; the builder checks that the packaged version matches.
-
-## Formula runtime packaging
-
-Use a standalone arm64 CPython 3.12 build environment with the pinned `tools/formula-requirements.txt` packages, plus a local Tesseract installation. Run the packaging tool from that environment and keep generated files outside the checkout:
+Prepare standalone arm64 CPython 3.12 with `tools/formula-requirements.txt` and a local Tesseract installation. Keep generated files outside the checkout:
 
 ```sh
 python tools/bundle_runtime.py --destination /external/build/runtime --tesseract /absolute/path/to/tesseract
 BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_FORMULA_MODELS_DIRECTORY=/external/build/prepared-engine BAKER_BUILD_DIRECTORY=/external/build/app ./tools/prepare_app.sh
 ```
 
-The runtime tool copies the standalone interpreter and the required package distributions, preserves their notices, relocates non-system Tesseract libraries and tests imports. It does not copy a virtual environment or change the user's Python installation. The app build signs nested native binaries and sets its minimum macOS version from the runtime manifest. Use an appropriate `BAKER_SIGN_IDENTITY` for distribution; ad-hoc signing supports local development and does not provide notarisation.
+The runtime tool copies the standalone interpreter and dependencies, retains notices, relocates non-system libraries and checks imports. The app build stages pinned image tools offline, relocates Potrace’s private library and signs nested native binaries. See [image-tool packaging](https://github.com/PentagonToy/Baker/tree/main/others/image-tools).
 
-Current local Tesseract dependencies require macOS 26; the selected document engine raises the complete build requirement to macOS 26.2. Building the source app for macOS 14 does not make those binary libraries compatible with macOS 14. Prepare and test an older-target runtime before advertising that compatibility.
+Current packaged libraries require macOS 26.0 for capture and 26.2 for PDF conversion. The Swift source target of macOS 14 does not establish compatibility with those older systems. The runtime manifests determine the packaged minimum.
 
-After building, `tools/package_dmg.sh /path/to/Baker.app /external/build/Baker.dmg` creates a drag-to-Applications disk image and verifies it. This does not notarise the app.
+Use `BAKER_SIGN_IDENTITY` for a distribution signing identity. Ad-hoc signing supports local development; it provides no notarisation. After building, `tools/package_dmg.sh /path/to/Baker.app /external/build/Baker.dmg` creates and verifies the disk image. See [release preparation](https://github.com/PentagonToy/Baker/blob/main/others/release/README.md) for final checks.
 
-## Development without bundled engines
+## Signing
+
+The builder accepts a `signing_identity` in its ignored local configuration and passes it to nested native files and the app. Without one it uses ad-hoc signing, whose designated requirement changes with the binary and can invalidate privacy permission records across builds.
+
+Developer ID requires [Apple Developer Program membership](https://developer.apple.com/programs/whats-included/). A self-signed local code-signing certificate can provide a stable identity for development, but does not provide Developer ID distribution or notarisation; permission retention still needs testing. Creating or trusting a certificate changes the login keychain and requires the owner’s consent. Keep its private key out of the repository. See [Apple’s code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+
+## Unbundled development
 
 ```sh
 BAKER_BUILD_CONFIGURATION=debug BAKER_BUILD_DIRECTORY=/external/build/debug ./tools/prepare_app.sh
 ```
 
-Enable Developer overrides for an unbundled build. Set Python to an environment containing the pinned formula requirements, and prepare a model with `tools/provision_formula_model.py`. The generated `baker-config.json` remains available for experiments with decoding limits. Builds using an affected Swift toolchain can select `BAKER_BUILD_SYSTEM=native`; that engine is a temporary workaround.
+Enable developer overrides, select Python with the pinned formula requirements and prepare a model with `tools/provision_formula_model.py`. Its `baker-config.json` supports decoding experiments. `BAKER_BUILD_SYSTEM=native` remains available for affected Swift toolchains.
 
-## 0.0.1 measurements
+## Models and PDF distribution
 
-On an M1 Pro with two worker threads, 31 formula images were processed in fresh subprocesses for each variant.
+`tools/optimize_document_models.py` prepares MFR `mlp-int8-v1`: encoder feed-forward matrices use INT8; attention and decoder remain FP32. It checks pinned inputs and records the recipe and output hashes. Formula setup maintains a separate variant cache and repairs from the included model.
+
+The PDF engine lazily loads mixed-precision GLM-OCR and exits after each job. Recognition and reconstruction remain separate, allowing text and geometry changes to be checked against cached page results. [Models and references](recognition.md) records the selected engines, source revisions and validation.
+
+The builder creates an engine archive and pinned descriptor, tests extraction and compares PDF output. Follow the [PDF distribution procedure](https://github.com/PentagonToy/Baker/blob/main/others/builder/PDF-DISTRIBUTION.md) when changing its payload.
+
+## Formula measurements
+
+An M1 Pro comparison processed 31 formula images in fresh subprocesses with two worker threads per variant.
 
 | Measurement | Original FP32 | MLP INT8 and sequential sessions |
 | --- | ---: | ---: |
@@ -47,8 +55,31 @@ On an M1 Pro with two worker threads, 31 formula images were processed in fresh 
 | Median worker peak RSS | 259.4 MiB | 179.7 MiB |
 | Median end-to-end worker time | 1.32 s | 1.19 s |
 
-These are single-batch worker measurements, not whole-app or PDF memory guarantees. LaTeX matched exactly in 28 of 31 cases; three formatting differences were reviewed. A separate 15-crop comparison had one spacing difference. No new symbol or numeric change was found in these comparisons; this is not a general accuracy score. PDF measurements and limitations are recorded in [models and references](recognition.md).
+LaTeX matched in 28 cases; the other three had reviewed formatting differences. A separate 15-crop comparison found one spacing difference. These samples establish neither general OCR accuracy nor whole-app memory usage.
 
-## Optional PDF distribution
+## Code ownership
 
-The builder creates a separate PDF engine archive and pinned descriptor, tests extraction through the base app’s Python runtime, and compares the installed engine’s PDF output. No download service or Python package installation is required on the user’s Mac. See the [PDF distribution procedure](https://github.com/PentagonToy/Baker/blob/main/others/builder/PDF-DISTRIBUTION.md) in the source repository for local packaging, acceptance and later upload steps. PDF Engine 1.0.0 is published and its public download/install path has passed acceptance. The current descriptor enables that pinned asset. The current base runtime requires macOS 26.0; the optional MLX PDF engine requires 26.2. This is a binary-library requirement, not a change to the source deployment target.
+Workbench forwards UI commands to capture, recognition, document, clipboard, storage and export coordinators. CaptureLibrary bounds its thumbnail cache to six images and serialises formula writes. WorkspaceWindows retains workspace content; ordinary Settings reopening preserves its page, while recovery actions select their destination. Shutdown cancels and awaits active work.
+
+`PreferenceKeys` declares persisted names, types and defaults. `BakerPreferences` receives an explicit `UserDefaults` domain shared with SwiftUI bindings. Migrations preserve existing selections. `BakerError` codes determine recovery guidance; UI alerts omit bounded technical diagnostics and cancellation.
+
+CaptureStore serialises archive access. Imports preserve the source on failure. PNG/SVG format replacement retains capture identity and uses a recovery journal. Recordings use a separate index and bounded first-frame previews. Recognition workers run per job rather than remaining resident.
+
+ProcessCompletion observes termination before launch and wakes waiting callers. A 100 ms watchdog checks cancellation and output limits; PDF progress reads occur at most every 250 ms and read up to 16 KiB. Monotonic deadlines allow two seconds for termination before killing and reaping a child. Failure diagnostics retain at most 500 characters from the final 2 KiB of a log.
+
+## Focused checks
+
+Run each tool with `--output /absolute/path/outside/the/repository`. Checks interpret Swift without building or installing the app.
+
+| Tool | Coverage |
+| --- | --- |
+| `tools/test_preferences.py` | Preference compatibility, migration, errors and recovery |
+| `tools/test_workflows.py` | Ownership, cancellation, cache bounds and clipboard precedence |
+| `tools/test_lifecycles.py` | Retained windows, settings state and PDF process protocol |
+| `tools/test_capture_editor.py` | Drawing, masking, palette and repeat-area geometry |
+| `tools/test_history_retention.py` | Retention, missing-file reconciliation and recoverable removal |
+| `tools/test_image_tools.py` | Tracing, transparency, Undo, PNG/SVG replacement and SVG clipboard |
+| `tools/test_background_removal.py` | Smooth light/dark backgrounds, filled figures and foreground preservation |
+| `tools/test_permissions.py` | Permission refresh and safe reopen arguments without modifying macOS settings |
+
+`tools/test_recording_history.py` additionally needs `--fixtures` containing authored `synthetic.mp4` and `synthetic.gif`. Source checks supplement installed-app tests for recording, window focus, cancellation and clean-machine compatibility.

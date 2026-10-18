@@ -96,7 +96,7 @@ final class FilesInbox: ObservableObject {
                     message = "Preparing PDF engine…"
                     try await model.pdfEngineSetup.waitUntilReady()
                     message = ""
-                } catch { message = error.localizedDescription; return }
+                } catch { message = BakerError.wrapping(error).userDescription; return }
             }
             do {
                 while model.busy {
@@ -116,22 +116,16 @@ final class FilesInbox: ObservableObject {
                 defer { if access { source.stopAccessingSecurityScopedResource() } }
                 do {
                     if source.pathExtension.lowercased() == "pdf" {
-                        guard let engine = model.preparedDocumentEngine else { throw BakerError(message: "Install the PDF engine before converting PDFs.") }
+                        guard let engine = model.preparedDocumentEngine else { throw BakerError(message: "Install the PDF engine before converting PDFs.", code: .modelNotReady, recovery: .pdfSettings) }
                         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("baker-inbox-" + UUID().uuidString)
                         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
                         folders.append(folder)
                         let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
                         var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = engine
-                        let worker = Task.detached {
-                            try PDFConverter.convert(source: source, destination: destination, format: format, options: options, isCancelled: { Task.isCancelled }, progress: { progress in
-                                Task { @MainActor [weak self] in
-                                    guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
-                                    self.items[index].progress?.update(progress)
-                                    self.items[index].message = progress.message
-                                }
-                            })
+                        let report = try await model.documentFlow.convert(source: source, destination: destination, format: format, options: options) { [weak self] progress in
+                            guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
+                            self.items[index].progress?.update(progress); self.items[index].message = progress.message
                         }
-                        let report = try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
                         try Task.checkCancellation()
                         items[index].export = report.destination
                         items[index].message = "\(report.totalPages) pages · \(format.rawValue.uppercased()) ready"
@@ -143,7 +137,7 @@ final class FilesInbox: ObservableObject {
                 } catch is CancellationError {
                     items[index].phase = .cancelled; items[index].message = "Cancelled"; break
                 } catch {
-                    items[index].phase = .failed; items[index].message = error.localizedDescription
+                    items[index].phase = .failed; items[index].message = BakerError.wrapping(error).userDescription
                 }
             }
             for index in items.indices where items[index].phase == .waiting {
@@ -161,15 +155,16 @@ final class FilesInbox: ObservableObject {
         }
         task?.cancel(); _ = await task?.value; clear() }
     func save(_ file: InboxFile) {
-        guard let source = file.export else { return }
+        guard !running, !model.busy, let source = file.export else { return }
         let panel = NSSavePanel(); panel.directoryURL = model.storageDirectory; panel.nameFieldStringValue = source.lastPathComponent
         if panel.runModal() == .OK, let destination = panel.url {
-            do {
-                let staging = destination.deletingLastPathComponent().appendingPathComponent(".baker-export-" + UUID().uuidString)
-                defer { try? FileManager.default.removeItem(at: staging) }
-                try PDFExportBundle.save(source: source, destination: destination)
-                message = "Saved " + destination.lastPathComponent
-            } catch { message = error.localizedDescription }
+            running = true; model.busy = true; message = "Saving file…"
+            task = Task {
+                defer { running = false; model.busy = false; task = nil }
+                do { try await model.fileExports.save(source: source, destination: destination); message = "Saved " + destination.lastPathComponent }
+                catch is CancellationError { message = "Save cancelled." }
+                catch { message = BakerError.wrapping(error, fallback: .exportFailed).userDescription }
+            }
         }
     }
 }
@@ -192,7 +187,7 @@ struct FilesWorkspace: View {
             VStack(spacing: 10) {
                 Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
                 Text("Drop images and PDFs here").font(.headline)
-                Text("Select several files · originals stay in place").font(.caption).foregroundStyle(.secondary)
+                Text("Select several files · originals stay in place").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 Button("Choose Files…", action: inbox.browse).disabled(model.busy || inbox.running)
             }.frame(maxWidth: .infinity).padding(24)
                 .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
@@ -211,7 +206,7 @@ struct FilesWorkspace: View {
                 Picker("PDF output", selection: $inbox.pdfFormat) {
                     Text("Markdown").tag(PDFExportFormat.markdown); Text("LaTeX").tag(PDFExportFormat.latex)
                 }.frame(width: 220).disabled(model.busy || inbox.running)
-                Text(model.preparedDocumentEngine == nil ? "PDF engine download required" : "Local document recognition").font(.caption).foregroundStyle(.secondary)
+                Text(model.preparedDocumentEngine == nil ? "PDF engine download required" : "Local document recognition").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
@@ -225,7 +220,7 @@ struct FilesWorkspace: View {
                     Image(systemName: file.url.pathExtension.lowercased() == "pdf" ? "doc.richtext" : "photo")
                     VStack(alignment: .leading, spacing: 3) {
                         Text(file.url.lastPathComponent).lineLimit(1)
-                        Text(file.message).font(.caption).foregroundStyle(file.phase == .failed ? .red : .secondary).lineLimit(2).help(file.message)
+                        Text(file.message).font(BakerTypography.supporting).foregroundStyle(file.phase == .failed ? .red : .secondary).lineLimit(2).help(file.message)
                         if file.phase == .processing, let progress = file.progress { DocumentProgressView(progress: progress).frame(maxWidth: .infinity) }
                     }
                     Spacer()
@@ -234,7 +229,7 @@ struct FilesWorkspace: View {
                     if let capture = file.capture { Button("Formula") { model.selectCapture(capture, action: .formula) }.disabled(model.busy) }
                 }.padding(.vertical, 4)
             }.scrollContentBackground(.hidden).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 10))
-            Text(inbox.message.isEmpty ? "Images are archived. Save PDF outputs before clearing this list or quitting." : inbox.message).font(.caption).foregroundStyle(.secondary)
-        }.tint(BakerTheme.accent).padding(20).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
+            Text(inbox.message.isEmpty ? "Images are archived. Save PDF outputs before clearing this list or quitting." : inbox.message).font(BakerTypography.supporting).foregroundStyle(.secondary)
+        }.font(BakerTypography.body).tint(BakerTheme.accent).padding(20).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
     }
 }

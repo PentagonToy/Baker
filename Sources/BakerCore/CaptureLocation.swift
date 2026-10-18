@@ -8,7 +8,7 @@ public enum CaptureLocation {
         let legacy = pictures.appendingPathComponent("Baker", isDirectory: true)
         if !files.fileExists(atPath: target.path), files.fileExists(atPath: legacy.path) {
             let values = try legacy.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            guard values.isDirectory == true, values.isSymbolicLink != true else { throw BakerError(message: "The previous capture folder could not be moved safely. It remains in Pictures/Baker.") }
+            guard values.isDirectory == true, values.isSymbolicLink != true else { throw BakerError(message: "The previous capture folder could not be moved safely. It remains in Pictures/Baker.", code: .storageFailed) }
             try files.createDirectory(at: documents, withIntermediateDirectories: true)
             try files.moveItem(at: legacy, to: target)
         }

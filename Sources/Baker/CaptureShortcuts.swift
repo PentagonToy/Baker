@@ -47,7 +47,7 @@ final class CaptureShortcuts: ObservableObject {
     static let actions = [("area", "Area", "capture-area"), ("scroll", "Scrolling", "capture-scroll"),
                           ("text", "Text", "capture-text"), ("formula", "Formula", "capture-formula"),
                           ("video", "Video", "record-video"), ("gif", "GIF", "record-gif"),
-                          ("all", "All", "capture-all")]
+                          ("all", "All", "capture-all"), ("repeat", "Repeat Area", "capture-repeat")]
     @Published private(set) var bindings: [String: CaptureShortcut] = [:]
     @Published var message: String?
     private var registrations: [String: EventHotKeyRef] = [:]
@@ -71,7 +71,7 @@ final class CaptureShortcuts: ObservableObject {
     private let defaults: UserDefaults
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: "captureShortcuts"),
+        if let data = defaults.data(forKey: PreferenceKeys.captureShortcuts.name),
            let saved = try? JSONDecoder().decode([String: CaptureShortcut].self, from: data) { bindings = saved }
         InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
             guard let event, let context else { return OSStatus(eventNotHandledErr) }
@@ -100,7 +100,7 @@ final class CaptureShortcuts: ObservableObject {
             if let previous { register(action, previous) }; return false
         }
         bindings[action] = binding
-        if let data = try? JSONEncoder().encode(bindings) { defaults.set(data, forKey: "captureShortcuts") }
+        if let data = try? JSONEncoder().encode(bindings) { defaults.set(data, forKey: PreferenceKeys.captureShortcuts.name) }
         return true
     }
     @discardableResult private func register(_ action: String, _ binding: CaptureShortcut) -> Bool {
@@ -214,8 +214,8 @@ struct CaptureShortcutSettings: View {
                     Button { shortcuts.set(action, nil) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.plain).help("Clear shortcut")
                 }
             }
-            Text("Use Command or Control with a key. Baker shortcuts pause while recording. Escape cancels; Delete clears.").font(.caption).foregroundStyle(.secondary)
-            if let message = shortcuts.message { Text(message).font(.caption).foregroundStyle(.orange) }
+            Text("Use Command or Control with a key. Baker shortcuts pause while recording. Escape cancels; Delete clears.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            if let message = shortcuts.message { Text(message).font(BakerTypography.supporting).foregroundStyle(.orange) }
         }
     }
 }

@@ -35,7 +35,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
     func render(_ latex: String) async throws -> NSImage {
         try Task.checkCancellation()
         guard latex.count <= 8000, latex.utf8.count <= 32_000 else {
-            throw BakerError(message: "Formula preview is limited to 8,000 characters. The LaTeX is still available.")
+            throw BakerError(message: "Formula preview is limited to 8,000 characters. The LaTeX is still available.", code: .resourceLimit)
         }
         var source = LatexWhitespace.compact(latex)
         for (open, close) in [("$$", "$$"), (#"\["#, #"\]"#), (#"\("#, #"\)"#), ("$", "$")] {
@@ -44,7 +44,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
             }
         }
         guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw BakerError(message: "There is no formula to preview.")
+            throw BakerError(message: "There is no formula to preview.", code: .invalidInput)
         }
         if let image = cache.object(forKey: source as NSString) { return image }
         let id = UUID()
@@ -66,11 +66,11 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
             do { try await Task.sleep(nanoseconds: 10_000_000_000) } catch { return }
             guard let self, self.active?.id == request.id else { return }
             self.resetWebView()
-            self.finish(request.id, .failure(BakerError(message: "Formula preview timed out. The LaTeX is still available.")))
+            self.finish(request.id, .failure(BakerError(message: "Formula preview timed out. The LaTeX is still available.", code: .processTimedOut)))
         }
         if loaded { typeset(request); return }
         guard let resourceURL else {
-            finish(request.id, .failure(BakerError(message: "The bundled formula renderer is missing."))); return
+            finish(request.id, .failure(BakerError(message: "The bundled formula renderer is missing.", code: .modelNotReady, recovery: .updateApp))); return
         }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
@@ -90,12 +90,12 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
             switch result {
             case .failure(let error):
                 let detail = (error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String ?? error.localizedDescription
-                self.finish(request.id, .failure(BakerError(message: "Cannot preview this notation: \(String(detail.prefix(400))) The LaTeX is still available.")))
+                self.finish(request.id, .failure(BakerError(message: "Cannot preview this notation: \(String(detail.prefix(400))) The LaTeX is still available.", code: .previewUnsupported)))
             case .success(let value):
                 guard let size = value as? [String: NSNumber], let width = size["width"]?.doubleValue,
                       let height = size["height"]?.doubleValue, width.isFinite, height.isFinite,
                       width > 0, height > 0, width <= 4096, height <= 2048, width * height <= 4_000_000 else {
-                    self.finish(request.id, .failure(BakerError(message: "Formula preview exceeds its image size limit."))); return
+                    self.finish(request.id, .failure(BakerError(message: "Formula preview exceeds its image size limit.", code: .resourceLimit))); return
                 }
                 let config = WKSnapshotConfiguration()
                 config.rect = NSRect(x: 0, y: 0, width: width, height: height)
@@ -109,7 +109,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
                             self.finish(request.id, .success(bitmap))
                         } catch { self.finish(request.id, .failure(error)) }
                     } else {
-                        self.finish(request.id, .failure(error ?? BakerError(message: "Could not create the formula preview.")))
+                        self.finish(request.id, .failure(error ?? BakerError(message: "Could not create the formula preview.", code: .previewFailed)))
                     }
                 }
             }
@@ -123,11 +123,11 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
               let context = CGContext(data: nil, width: pixelsWide, height: pixelsHigh, bitsPerComponent: 8,
                 bytesPerRow: pixelsWide * 4, space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw BakerError(message: "Could not allocate the formula preview.")
+            throw BakerError(message: "Could not allocate the formula preview.", code: .previewFailed)
         }
         context.interpolationQuality = .high
         context.draw(source, in: CGRect(x: 0, y: 0, width: pixelsWide, height: pixelsHigh))
-        guard let bitmap = context.makeImage() else { throw BakerError(message: "Could not finish the formula preview.") }
+        guard let bitmap = context.makeImage() else { throw BakerError(message: "Could not finish the formula preview.", code: .previewFailed) }
         return NSImage(cgImage: bitmap, size: NSSize(width: width, height: height))
     }
 
@@ -163,7 +163,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(webView, error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(webView, error) }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { failed(webView, BakerError(message: "The formula renderer stopped. Try opening the result again.")) }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { failed(webView, BakerError(message: "The formula renderer stopped. Try opening the result again.", code: .previewFailed)) }
     private func failed(_ view: WKWebView, _ error: Error) {
         guard view === webView, let id = active?.id else { return }
         resetWebView(); finish(id, .failure(error))

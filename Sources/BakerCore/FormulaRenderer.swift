@@ -6,28 +6,28 @@ import Foundation
 /// Unsupported TeX constructs throw, so callers can retain the literal source.
 public enum FormulaRenderer {
     public static func render(_ latex: String, fontName: String = "STIXTwoMath-Regular", fontSize: CGFloat = 30, scale: CGFloat = 2) throws -> CGImage {
-        guard latex.count <= 8000, latex.utf8.count <= 32_000 else { throw BakerError(message: "Formula preview is limited to 8,000 characters.") }
+        guard latex.count <= 8000, latex.utf8.count <= 32_000 else { throw BakerError(message: "Formula preview is limited to 8,000 characters.", code: .resourceLimit) }
         guard fontSize.isFinite, (10...96).contains(fontSize), scale.isFinite, (0.5...3).contains(scale), !fontName.isEmpty, fontName.count <= 200 else {
-            throw BakerError(message: "The formula preview font or scale is outside its supported range.")
+            throw BakerError(message: "The formula preview font or scale is outside its supported range.", code: .invalidInput)
         }
         var source = LatexWhitespace.compact(latex)
         for (open, close) in [("$$", "$$"), (#"\["#, #"\]"#), (#"\("#, #"\)"#), ("$", "$")] {
             if source.hasPrefix(open), source.hasSuffix(close), source.count >= open.count + close.count { source = String(source.dropFirst(open.count).dropLast(close.count)); break }
         }
-        guard !source.isEmpty else { throw BakerError(message: "There is no formula to preview.") }
+        guard !source.isEmpty else { throw BakerError(message: "There is no formula to preview.", code: .invalidInput) }
         let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
-        guard CTFontCopyPostScriptName(font) as String == fontName else { throw BakerError(message: "The requested formula preview font is unavailable.") }
+        guard CTFontCopyPostScriptName(font) as String == fontName else { throw BakerError(message: "The requested formula preview font is unavailable.", code: .previewFailed) }
         var parser = FormulaPreviewParser(source)
         let node = try parser.row(depth: 0)
         let box = try FormulaPreviewLayout(fontName: fontName).layout(node, size: fontSize)
-        guard !box.paint.isEmpty else { throw BakerError(message: "There is no visible formula to preview.") }
+        guard !box.paint.isEmpty else { throw BakerError(message: "There is no visible formula to preview.", code: .invalidInput) }
         let padding: CGFloat = 16
         let width = ceil((box.width + padding * 2) * scale), height = ceil((box.ascent + box.descent + padding * 2) * scale)
         guard width.isFinite, height.isFinite, width > 0, height > 0, width <= 8192, height <= 4096, width * height <= 16_000_000 else {
-            throw BakerError(message: "Formula preview exceeds its 8192 × 4096 pixel or 16-megapixel limit.")
+            throw BakerError(message: "Formula preview exceeds its 8192 × 4096 pixel or 16-megapixel limit.", code: .resourceLimit)
         }
         guard let context = CGContext(data: nil, width: Int(width), height: Int(height), bitsPerComponent: 8, bytesPerRow: Int(width) * 4,
-            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { throw BakerError(message: "Could not allocate the formula preview.") }
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { throw BakerError(message: "Could not allocate the formula preview.", code: .previewFailed) }
         context.setFillColor(CGColor(gray: 1, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.scaleBy(x: scale, y: scale)
         context.translateBy(x: padding, y: padding + box.descent)
@@ -44,7 +44,7 @@ public enum FormulaRenderer {
                 points.dropFirst().forEach { context.addLine(to: $0) }; context.setLineWidth(thickness); context.strokePath()
             }
         }
-        guard let image = context.makeImage() else { throw BakerError(message: "Could not finish the formula preview.") }
+        guard let image = context.makeImage() else { throw BakerError(message: "Could not finish the formula preview.", code: .previewFailed) }
         return image
     }
 }
@@ -69,7 +69,7 @@ private struct FormulaPreviewParser {
         let token = Array(value), end = position + token.count
         return input[position...].starts(with: token) && (end == input.count || !(input[end].isASCII && input[end].isLetter))
     }
-    func failure(_ message: String) -> BakerError { BakerError(message: message + " The literal LaTeX is still available.") }
+    func failure(_ message: String) -> BakerError { BakerError(message: message + " The literal LaTeX is still available.", code: .previewUnsupported) }
 
     mutating func row(depth: Int, closing: Character? = nil, right: Bool = false, matrixCell: Bool = false) throws -> FormulaPreviewNode {
         guard depth <= 32 else { throw failure("Formula preview nesting exceeds 32 levels.") }
@@ -273,7 +273,7 @@ private struct FormulaPreviewLayout {
         var text = text
         if let style, style != "mathrm" {
             let result = UnicodeMath.convert("\\" + style + "{" + text + "}")
-            guard result.warnings.isEmpty, !result.text.contains("\\") else { throw BakerError(message: "This mathematical alphabet is not supported by formula preview.") }
+            guard result.warnings.isEmpty, !result.text.contains("\\") else { throw BakerError(message: "This mathematical alphabet is not supported by formula preview.", code: .previewUnsupported) }
             text = result.text
         } else if !upright && style != "mathrm" { text = UnicodeMath.convert(text, italicVariables: true).text }
         if text.isEmpty { return FormulaPreviewBox(width: 0, ascent: 0, descent: 0, paint: []) }
@@ -335,7 +335,7 @@ private struct FormulaPreviewLayout {
                 if !child.paint.isEmpty { minX = min(minX, width); maxX = max(maxX, width + child.width) }
                 paint += child.shifted(x: width, y: 0); width += child.width
                 ascent = max(ascent, child.ascent); descent = max(descent, child.descent)
-                guard width < 8192, paint.count <= 20_000 else { throw BakerError(message: "The formula is too wide or complex for a native preview.") }
+                guard width < 8192, paint.count <= 20_000 else { throw BakerError(message: "The formula is too wide or complex for a native preview.", code: .resourceLimit) }
             }
             box = FormulaPreviewBox(width: max(0, max(width, maxX) - minX), ascent: ascent, descent: descent, paint: paint.map { $0.translated(x: -minX, y: 0) })
         case let .fraction(numerator, denominator, compact):
@@ -377,7 +377,7 @@ private struct FormulaPreviewLayout {
             box = FormulaPreviewBox(width: l.width + b.width + r.width + gap * 2, ascent: max(b.ascent, l.ascent, r.ascent), descent: max(b.descent, l.descent, r.descent), paint: l.paint + b.shifted(x: l.width + gap, y: 0) + r.shifted(x: l.width + gap + b.width + gap, y: 0))
         }
         guard box.width.isFinite, box.ascent.isFinite, box.descent.isFinite, box.width <= 8192, box.ascent + box.descent <= 4096 else {
-            throw BakerError(message: "Formula preview dimensions exceed their safe limit.")
+            throw BakerError(message: "Formula preview dimensions exceed their safe limit.", code: .previewFailed)
         }
         return box
     }

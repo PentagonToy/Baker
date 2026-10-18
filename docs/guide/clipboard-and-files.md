@@ -11,7 +11,7 @@ Images are copied into capture history. Choose **Formula** beside an imported im
 
 ## Formula images
 
-Choose **Formula Workspace** under **Clipboard & Files** to show a new-image drop area and an empty rendered preview. Drop an image or capture thumbnail into the window to recognise it and copy the selected formula format. **Image…** opens the file picker. Use **History** to choose any saved formula by date and source text, or use the arrows to move between results. **New** clears the displayed preview, confidence and copy fields without deleting saved results. From the new-image screen, the left arrow returns to the last selected result. History includes saved formulas from earlier app sessions; the counter counts actual results only.
+Choose **Formula Workspace** for image drops, **Image…** for a file chooser and **New** for an empty input. **History** and the arrows reopen saved equations. See [Formula Workspace](../help/formula.md#formula-workspace).
 
 To remove surrounding text before recognition, double-click a capture thumbnail, cover it with an opaque white filled rectangle, then choose **Done**. Drag the updated thumbnail into Formula Workspace. The edit overwrites that capture; keep a separate copy if you need the original.
 
@@ -25,7 +25,7 @@ To remove surrounding text before recognition, double-click a capture thumbnail,
 
 ## PDF conversion
 
-The published 0.0.1 app includes the PDF engine. Development builds prompt for a one-time engine download before processing queued PDFs, then continue conversion automatically after verification. The separate PDF Engine 1.0.0 asset is available; development builds verify it before use rather than silently returning a lower-quality text extraction. Captures and formula recognition do not need this download.
+The first PDF conversion requests a one-time engine download and continues after verification. The installed engine works offline; captures and formula recognition need no PDF download. Manage it in **Settings → PDF**.
 
 The prepared PDF engine recognises layout, text, equations and tables locally, using available PDF characters to recover text and scripts. Figure files are saved in a companion folder; keep it beside the document when moving the export. No quality switch or online OCR account is needed.
 

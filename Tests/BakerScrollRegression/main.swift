@@ -7,7 +7,7 @@ import VideoToolbox
 
 var checks = 0
 func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {
-    guard try condition() else { throw BakerError(message: "FAIL: \(name)") }
+    guard try condition() else { throw BakerError(message: "FAIL: \(name)", code: .operationFailed) }
     checks += 1; print("PASS \(name)")
 }
 func page(repeating: Bool = false, blankMargin: Int = 36) -> CGImage {
@@ -50,7 +50,7 @@ func samePixels(_ left: CGImage, _ right: CGImage) -> Bool {
 func write(_ image: CGImage, _ url: URL) throws {
     let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)!
     CGImageDestinationAddImage(destination, image, nil)
-    guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "PNG output failed") }
+    guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "PNG output failed", code: .operationFailed) }
 }
 guard CommandLine.arguments.count == 2 else { fatalError("Pass an output directory") }
 let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
@@ -78,7 +78,7 @@ do {
     try check(try moving.observe(crop(source, 180)) == .appended(180), "two stable samples append the final scroll position")
     let finished = try moving.finish()
     try check(finished?.height == 660 && moving.state == .finished, "Finish produces exactly the accepted content")
-    do { _ = try moving.finish(); throw BakerError(message: "Finish completed twice") }
+    do { _ = try moving.finish(); throw BakerError(message: "Finish completed twice", code: .operationFailed) }
     catch { try check(error.localizedDescription != "Finish completed twice", "a second Finish cannot produce another completion") }
     var continuous = ScrollCaptureBuffer()
     _ = try continuous.observe(crop(source, 0), allowMoving: true)
@@ -95,7 +95,7 @@ do {
     idle.cancel()
     try check(idle.state == .cancelled && idle.acceptedFrames == 0, "Cancel releases accepted strips")
     try check(try idle.finish() == nil, "Cancel followed by Finish never produces an image")
-    do { _ = try idle.append(crop(source, 0)); throw BakerError(message: "Cancelled session accepted frame") }
+    do { _ = try idle.append(crop(source, 0)); throw BakerError(message: "Cancelled session accepted frame", code: .operationFailed) }
     catch { try check(error.localizedDescription != "Cancelled session accepted frame", "cancelled sessions cannot accept more content") }
     var one = ScrollCaptureBuffer()
     _ = try one.observe(crop(source, 0))

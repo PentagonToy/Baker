@@ -8,13 +8,13 @@ public enum RecordingFormat: String, Sendable {
 
     public var fileExtension: String { self == .video ? "mp4" : "gif" }
     public var title: String { self == .video ? "Video" : "GIF" }
-    public var maximumDuration: TimeInterval { self == .video ? 60 : 15 }
+    public var maximumDuration: TimeInterval { self == .video ? 180 : 30 }
     public var framesPerSecond: Int { self == .video ? 30 : 10 }
     public var maximumDimension: Int { self == .video ? 1920 : 960 }
 
     /// H.264 requires even dimensions. Never upscale the selected region.
     public func dimensions(width: Int, height: Int) throws -> (width: Int, height: Int) {
-        guard width >= 2, height >= 2 else { throw BakerError(message: "The recording region is too small.") }
+        guard width >= 2, height >= 2 else { throw BakerError(message: "The recording region is too small.", code: .invalidInput) }
         let scale = min(1, Double(maximumDimension) / Double(max(width, height)))
         return (max(2, Int(Double(width) * scale) / 2 * 2), max(2, Int(Double(height) * scale) / 2 * 2))
     }
@@ -26,6 +26,7 @@ public final class RecordingMovieWriter: @unchecked Sendable {
     private let lock = NSLock()
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
+    private let audioInput: AVAssetWriterInput?
     private let frameInterval: CMTime
     private let maximumDuration: Double
     private var firstTime: CMTime?
@@ -38,10 +39,10 @@ public final class RecordingMovieWriter: @unchecked Sendable {
     private var failure: Error?
     public let url: URL
 
-    public init(url: URL, width: Int, height: Int, format: RecordingFormat) throws {
+    public init(url: URL, width: Int, height: Int, format: RecordingFormat, capturesAudio: Bool = false) throws {
         guard width >= 2, height >= 2, width <= format.maximumDimension, height <= format.maximumDimension,
               width.isMultiple(of: 2), height.isMultiple(of: 2) else {
-            throw BakerError(message: "The recording dimensions are invalid.")
+            throw BakerError(message: "The recording dimensions are invalid.", code: .invalidInput)
         }
         self.url = url
         maximumDuration = format.maximumDuration
@@ -57,9 +58,17 @@ public final class RecordingMovieWriter: @unchecked Sendable {
                 AVVideoAllowFrameReorderingKey: false]
         ])
         input.expectsMediaDataInRealTime = true
-        guard writer.canAdd(input) else { throw BakerError(message: "The video encoder is unavailable.") }
+        guard writer.canAdd(input) else { throw BakerError(message: "The video encoder is unavailable.", code: .recordingFailed) }
         writer.add(input)
-        guard writer.startWriting() else { throw writer.error ?? BakerError(message: "Could not start the video encoder.") }
+        if capturesAudio && format == .video {
+            let audio = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 2, AVEncoderBitRateKey: 128_000])
+            audio.expectsMediaDataInRealTime = true
+            guard writer.canAdd(audio) else { throw BakerError(message: "The system-audio encoder is unavailable.", code: .recordingFailed) }
+            writer.add(audio); audioInput = audio
+        } else { audioInput = nil }
+        guard writer.startWriting() else { throw writer.error ?? BakerError(message: "Could not start the video encoder.", code: .recordingFailed) }
     }
 
     public var droppedFrames: Int { lock.lock(); defer { lock.unlock() }; return dropped }
@@ -86,11 +95,40 @@ public final class RecordingMovieWriter: @unchecked Sendable {
         do {
             let copy = try retimed(sample, at: relativeTime)
             guard input.append(copy) else {
-                failure = writer.error ?? BakerError(message: "The video encoder could not accept a frame.")
+                failure = writer.error ?? BakerError(message: "The video encoder could not accept a frame.", code: .recordingFailed)
                 return
             }
             lastSample = copy; lastTime = relativeTime
         } catch { failure = error }
+    }
+
+    /// Audio shares the first screen frame's clock. Samples before it are discarded without buffering.
+    public func appendAudio(_ sample: CMSampleBuffer) {
+        lock.lock(); defer { lock.unlock() }
+        guard !closing, !cancelled, failure == nil, let audioInput, let firstTime,
+              CMSampleBufferIsValid(sample), CMSampleBufferDataIsReady(sample) else { return }
+        guard audioInput.isReadyForMoreMediaData else {
+            if writer.status == .failed { failure = writer.error }
+            return
+        }
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sample)
+        guard timestamp.isNumeric else { return }
+        let time = CMTimeSubtract(timestamp, firstTime)
+        guard time.seconds >= 0, time.seconds < maximumDuration else { return }
+        var count = 0
+        guard CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count) == noErr,
+              count > 0, count <= 65_536 else { return }
+        var timing = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: count)
+        guard CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &timing, entriesNeededOut: &count) == noErr else { return }
+        for index in timing.indices {
+            timing[index].presentationTimeStamp = CMTimeSubtract(timing[index].presentationTimeStamp, firstTime)
+            if timing[index].decodeTimeStamp.isNumeric { timing[index].decodeTimeStamp = CMTimeSubtract(timing[index].decodeTimeStamp, firstTime) }
+        }
+        var copy: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopyWithNewTiming(allocator: kCFAllocatorDefault, sampleBuffer: sample,
+            sampleTimingEntryCount: timing.count, sampleTimingArray: &timing, sampleBufferOut: &copy)
+        guard status == noErr, let copy else { failure = BakerError(message: "Could not timestamp system audio.", code: .recordingFailed); return }
+        if !audioInput.append(copy) { failure = writer.error ?? BakerError(message: "The audio encoder could not accept a sample.", code: .recordingFailed) }
     }
 
     public func finish() async throws -> URL {
@@ -103,28 +141,29 @@ public final class RecordingMovieWriter: @unchecked Sendable {
             return (cancelled, writer.status, writer.error)
         }
         if wasCancelled { throw CancellationError() }
-        guard status == .completed else { throw error ?? BakerError(message: "Could not finish the recording.") }
+        guard status == .completed else { throw error ?? BakerError(message: "Could not finish the recording.", code: .recordingFailed) }
         return url
     }
 
     private func beginFinish() throws {
         lock.lock(); defer { lock.unlock() }
         guard !cancelled else { throw CancellationError() }
-        guard !closing else { throw BakerError(message: "This recording has already ended.") }
+        guard !closing else { throw BakerError(message: "This recording has already ended.", code: .invalidState) }
         closing = true
         if let failure { throw failure }
-        guard let lastSample, let startedAt else { throw BakerError(message: "No screen frames were received. Check Screen Recording permission and try again.") }
+        guard let lastSample, let startedAt else { throw BakerError(message: "No screen frames were received. Check Screen Recording permission and try again.", code: .captureFailed) }
         let duration = min(maximumDuration, max(lastTime.seconds + frameInterval.seconds,
             ProcessInfo.processInfo.systemUptime - startedAt))
         let ending = CMTime(seconds: duration, preferredTimescale: 600)
         let tail = CMTimeSubtract(ending, frameInterval)
         if CMTimeCompare(tail, lastTime) > 0, input.isReadyForMoreMediaData {
             guard input.append(try retimed(lastSample, at: tail)) else {
-                throw writer.error ?? BakerError(message: "Could not finish the last video frame.")
+                throw writer.error ?? BakerError(message: "Could not finish the last video frame.", code: .recordingFailed)
             }
         }
         writer.endSession(atSourceTime: ending)
         input.markAsFinished()
+        audioInput?.markAsFinished()
         self.lastSample = nil
     }
 
@@ -140,7 +179,7 @@ public final class RecordingMovieWriter: @unchecked Sendable {
         var copy: CMSampleBuffer?
         let status = CMSampleBufferCreateCopyWithNewTiming(allocator: kCFAllocatorDefault, sampleBuffer: sample,
             sampleTimingEntryCount: 1, sampleTimingArray: &timing, sampleBufferOut: &copy)
-        guard status == noErr, let copy else { throw BakerError(message: "Could not timestamp the recording frame (\(status)).") }
+        guard status == noErr, let copy else { throw BakerError(message: "Could not timestamp the recording frame (\(status)).", code: .recordingFailed) }
         return copy
     }
 }
@@ -159,9 +198,9 @@ public enum RecordingGIFExporter {
         let asset = AVURLAsset(url: movie)
         let assetDuration = try await asset.load(.duration)
         let duration = min(RecordingFormat.gif.maximumDuration, assetDuration.seconds)
-        guard duration.isFinite, duration > 0 else { throw BakerError(message: "The recording has no usable duration.") }
+        guard duration.isFinite, duration > 0 else { throw BakerError(message: "The recording has no usable duration.", code: .invalidInput) }
         let fps = RecordingFormat.gif.framesPerSecond
-        let frameCount = max(1, min(150, Int(ceil(duration * Double(fps)))))
+        let frameCount = max(1, min(Int(RecordingFormat.gif.maximumDuration) * fps, Int(ceil(duration * Double(fps)))))
         let destination = try StreamingGIFFile(url: output)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
@@ -197,7 +236,7 @@ private final class StreamingGIFFile {
 
     init(url: URL) throws {
         guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
-            throw BakerError(message: "Could not create the GIF file.")
+            throw BakerError(message: "Could not create the GIF file.", code: .recordingFailed)
         }
         file = try FileHandle(forWritingTo: url)
     }
@@ -288,6 +327,6 @@ private final class StreamingGIFFile {
         throw malformed()
     }
 
-    private func malformed() -> BakerError { BakerError(message: "Could not encode a GIF frame.") }
+    private func malformed() -> BakerError { BakerError(message: "Could not encode a GIF frame.", code: .recordingFailed) }
     private func word(_ bytes: Data, _ offset: Int) -> Int { Int(bytes[offset]) | Int(bytes[offset + 1]) << 8 }
 }

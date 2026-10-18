@@ -26,7 +26,7 @@ actor CaptureStore {
     }
     func savedFormulas() throws -> [UUID: SavedFormula] { try formulas().formulas }
     func saveFormula(_ value: SavedFormula) throws {
-        guard try opened().records.contains(where: { $0.id == value.id }) else { throw BakerError(message: "Formula capture is missing from history.") }
+        guard try opened().records.contains(where: { $0.id == value.id }) else { throw BakerError(message: "Formula capture is missing from history.", code: .storageFailed) }
         try formulas().save(value)
     }
     func maintainFormulas(limit: Int, days: Int, now: Date = Date()) throws -> [UUID: SavedFormula] {
@@ -42,15 +42,26 @@ actor CaptureStore {
         try Task.checkCancellation()
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("baker-edited-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, "public.png" as CFString, 1, nil) else { throw BakerError(message: "Could not prepare the edited capture.") }
+        guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, "public.png" as CFString, 1, nil) else { throw BakerError(message: "Could not prepare the edited capture.", code: .storageFailed) }
         CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "Could not encode the edited capture.") }
+        guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "Could not encode the edited capture.", code: .storageFailed) }
         let archive = try opened(), formulas = try formulas(), previous = formulas.formulas[record.id]
         try formulas.retain(Set(formulas.formulas.keys).subtracting([record.id]))
         let updated: CaptureRecord
         do { updated = try archive.replace(source: temporary, record: record) }
         catch { if let previous { try? formulas.save(previous) }; throw error }
         return StoredCapture(record: updated, thumbnail: try archive.thumbnail(for: updated))
+    }
+    func replace(vector: CaptureSVG, record: CaptureRecord) throws -> StoredCapture {
+        try Task.checkCancellation()
+        let thumbnail = try vector.raster(maximumPixelSize: 600)
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("baker-edited-\(UUID().uuidString).svg")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        try vector.data.write(to: temporary, options: .atomic)
+        let archive = try opened(), formulas = try formulas(), previous = formulas.formulas[record.id]
+        try formulas.retain(Set(formulas.formulas.keys).subtracting([record.id]))
+        do { return StoredCapture(record: try archive.replace(source: temporary, record: record), thumbnail: thumbnail) }
+        catch { if let previous { try? formulas.save(previous) }; throw error }
     }
     init(directory: URL) { self.directory = directory }
     private func opened() throws -> CaptureArchive {
@@ -78,10 +89,10 @@ actor CaptureStore {
         try Task.checkCancellation()
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("baker-capture-\(UUID().uuidString).png")
         guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, "public.png" as CFString, 1, nil) else {
-            throw BakerError(message: "Could not prepare the captured image.")
+            throw BakerError(message: "Could not prepare the captured image.", code: .storageFailed)
         }
         CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "Could not encode the captured image.") }
+        guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "Could not encode the captured image.", code: .storageFailed) }
         do {
             let result = try add(file: temporary)
             try? FileManager.default.removeItem(at: temporary)
@@ -90,12 +101,59 @@ actor CaptureStore {
             try? FileManager.default.removeItem(at: temporary)
             throw CancellationError()
         } catch {
-            throw BakerError(message: "\(error.localizedDescription) Original retained at \(temporary.path)")
+            let cause = BakerError.wrapping(error, fallback: .storageFailed)
+            throw BakerError(message: "\(cause.userDescription) Original retained at \(temporary.path)", code: cause.code, diagnostic: cause.diagnostic, recovery: cause.recovery)
         }
+    }
+    func vector(_ record: CaptureRecord) throws -> CaptureSVG {
+        guard record.isVector, try opened().records.contains(record) else { throw BakerError(message: "The saved vector capture changed.", code: .storageConflict) }
+        let url = try opened().fileURL(for: record)
+        let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true, (values.fileSize ?? Int.max) <= CaptureSVG.maximumBytes else {
+            throw BakerError(message: "The saved vector capture is unavailable or too large.", code: .storageFailed)
+        }
+        let value = try CaptureSVG(data: Data(contentsOf: url))
+        guard value.width == record.pixelWidth, value.height == record.pixelHeight else { throw BakerError(message: "The saved vector dimensions changed.", code: .storageConflict) }
+        return value
     }
     func original(_ record: CaptureRecord) throws -> CGImage {
         try Task.checkCancellation()
         return try opened().original(for: record)
     }
-    func thumbnail(_ record: CaptureRecord) throws -> CGImage { try opened().thumbnail(for: record) }
+    func thumbnail(_ record: CaptureRecord) throws -> CGImage {
+        try Task.checkCancellation()
+        return try opened().thumbnail(for: record)
+    }
+}
+
+extension CaptureStore {
+    func recordings() throws -> [RecordingRecord] { try RecordingArchive(directory: directory).records() }
+    func addRecording(_ source: URL) throws -> RecordingRecord { try RecordingArchive(directory: directory).add(source) }
+    func recordingThumbnail(_ record: RecordingRecord) throws -> CGImage { try RecordingArchive(directory: directory).thumbnail(record) }
+}
+
+
+extension CaptureStore {
+    func reconcileHistory() throws -> [CaptureRecord] {
+        let store = try opened()
+        let records = try store.reconcile()
+        // Reload metadata before reconciliation so another app instance's edits are respected.
+        formulaArchive = nil
+        try formulas().retain(Set(records.map(\.id)))
+        return records
+    }
+    func retentionCandidates(_ policy: CaptureRetentionPolicy) throws -> [CaptureRemovalCandidate] {
+        try Task.checkCancellation()
+        let records = try reconcileHistory()
+        return try policy.expired(in: records).map { record in
+            let values = try opened().fileURL(for: record).resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+            guard let size = values.fileSize else { throw BakerError(message: "A capture size could not be read.", code: .storageFailed) }
+            return CaptureRemovalCandidate(record: record, bytes: size, modified: values.contentModificationDate)
+        }
+    }
+    func trashCaptures(_ candidates: [CaptureRemovalCandidate], trash: (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }) throws {
+        try Task.checkCancellation()
+        _ = try opened().reconcile(trashing: candidates, trash: trash)
+        _ = try reconcileHistory()
+    }
 }

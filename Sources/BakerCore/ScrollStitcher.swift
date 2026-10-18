@@ -20,13 +20,13 @@ public struct ScrollCaptureBuffer {
     public var height: Int { stitcher.height }
 
     public mutating func append(_ image: CGImage) throws -> StitchOutcome {
-        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.") }
+        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.", code: .invalidState) }
         return try stitcher.append(image)
     }
 
     /// Start immediately. Continuous mode validates overlap; stable mode waits for matching samples.
     public mutating func observe(_ image: CGImage, settled: Bool = false, allowMoving: Bool = false) throws -> StitchOutcome? {
-        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.") }
+        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.", code: .invalidState) }
         defer { candidate = allowMoving ? nil : image }
         if acceptedFrames == 0 { return try append(image) }
         if !settled && !allowMoving {
@@ -37,8 +37,8 @@ public struct ScrollCaptureBuffer {
 
     public mutating func finish() throws -> CGImage? {
         if state == .cancelled { return nil }
-        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.") }
-        guard acceptedFrames > 0 else { throw BakerError(message: "No screen frame was captured. Try again after checking Screen Recording permission.") }
+        guard state == .collecting else { throw BakerError(message: "This scrolling capture has already ended.", code: .invalidState) }
+        guard acceptedFrames > 0 else { throw BakerError(message: "No screen frame was captured. Try again after checking Screen Recording permission.", code: .captureFailed) }
         let image = try stitcher.render()
         stitcher = ScrollStitcher(); candidate = nil; state = .finished
         return image
@@ -69,7 +69,7 @@ public struct ScrollStitcher {
         guard image.width >= 80, image.height >= 100,
               image.width <= 8192, image.height <= 8192,
               image.width * image.height <= Self.pixelLimit else {
-            throw BakerError(message: "Choose a region at least 80 × 100px, with each side no larger than 8192px.")
+            throw BakerError(message: "Choose a region at least 80 × 100px, with each side no larger than 8192px.", code: .invalidInput)
         }
         let signature = try FrameSignature(image)
         guard let previous else {
@@ -105,7 +105,7 @@ public struct ScrollStitcher {
             return .rejected("The 32-megapixel limit was reached. Finish and continue in a separate capture.")
         }
         guard let strip = image.cropping(to: CGRect(x: 0, y: image.height - best.0, width: width, height: best.0)) else {
-            throw BakerError(message: "Could not create the next image strip.")
+            throw BakerError(message: "Could not create the next image strip.", code: .captureFailed)
         }
         // Cropped CGImages can retain the complete source. Own only the appended rows.
         pieces.append(try Self.ownedCopy(strip)); height = nextHeight; self.previous = signature; acceptedFrames += 1
@@ -117,14 +117,14 @@ public struct ScrollStitcher {
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                 bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw BakerError(message: "Not enough memory to assemble the image.")
+            throw BakerError(message: "Not enough memory to assemble the image.", code: .resourceLimit)
         }
         var top = 0
         for image in pieces {
             context.draw(image, in: CGRect(x: 0, y: height - top - image.height, width: width, height: image.height))
             top += image.height
         }
-        guard let result = context.makeImage() else { throw BakerError(message: "Image assembly failed.") }
+        guard let result = context.makeImage() else { throw BakerError(message: "Image assembly failed.", code: .captureFailed) }
         return result
     }
 
@@ -133,10 +133,10 @@ public struct ScrollStitcher {
               let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
                 bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw BakerError(message: "Could not retain the captured image within its memory limit.")
+            throw BakerError(message: "Could not retain the captured image within its memory limit.", code: .resourceLimit)
         }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        guard let copy = context.makeImage() else { throw BakerError(message: "Could not retain the captured image.") }
+        guard let copy = context.makeImage() else { throw BakerError(message: "Could not retain the captured image.", code: .captureFailed) }
         return copy
     }
 }
@@ -152,16 +152,16 @@ private struct FrameSignature {
         // Downsample horizontally, but retain every vertical row for pixel-accurate shifts.
         guard let context = CGContext(data: nil, width: columns, height: height, bitsPerComponent: 8,
             bytesPerRow: columns, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: 0) else {
-            throw BakerError(message: "Could not prepare image matching.")
+            throw BakerError(message: "Could not prepare image matching.", code: .captureFailed)
         }
         context.interpolationQuality = .low
         // Ignore narrow edge bands containing scrollbars and window borders.
         let inset = max(4, image.width / 30)
         guard let crop = image.cropping(to: CGRect(x: inset, y: 0, width: image.width - 2 * inset, height: height)) else {
-            throw BakerError(message: "Could not read the matching region.")
+            throw BakerError(message: "Could not read the matching region.", code: .captureFailed)
         }
         context.draw(crop, in: CGRect(x: 0, y: 0, width: columns, height: height))
-        guard let data = context.data else { throw BakerError(message: "Could not read image data.") }
+        guard let data = context.data else { throw BakerError(message: "Could not read image data.", code: .captureFailed) }
         pixels = Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self), count: columns * height))
         var features = [UInt8](repeating: 0, count: columns * height)
         for y in 0..<height {

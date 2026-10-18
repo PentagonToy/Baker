@@ -21,6 +21,13 @@ final class CaptureOverlayController {
 
     init(model: Workbench) {
         self.model = model
+        model.$captures.sink { [weak self] records in
+            let ids = Set(records.map(\.id))
+            DispatchQueue.main.async {
+                guard let self else { return }
+                for card in self.cards where !ids.contains(card.id) { self.dismiss(card.id) }
+            }
+        }.store(in: &subscriptions)
         model.$visibleCaptures.sink { [weak self] _ in
             DispatchQueue.main.async { self?.layout() }
         }.store(in: &subscriptions)
@@ -80,31 +87,40 @@ final class CaptureOverlayController {
             layout()
             if visible { panel.orderFrontRegardless() }
             await NSAnimationContext.runAnimationGroup { context in context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.25; panel.animator().alphaValue = 1 }
-        } catch { model.problem = error.localizedDescription }
+        } catch { model.report(error, fallback: .storageFailed) }
     }
     func edit(_ record: CaptureRecord) {
         guard !model.busy else { return }
         if let editor = editors[record.id] { editor.makeKeyAndOrderFront(nil); return }
         do {
             let url = model.captureURL(record)
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-                throw BakerError(message: "The capture could not be opened for editing.")
+            let image: CGImage
+            if record.isVector {
+                // Rasterise in memory; Cancel leaves the SVG file untouched.
+                let vector = try CaptureSVG(data: Data(contentsOf: url))
+                image = try vector.raster(maximumPixelSize: max(vector.width, vector.height))
+            } else {
+                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), let pixels = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                    throw BakerError(message: "The capture could not be opened for editing.", code: .storageFailed)
+                }
+                image = pixels
             }
             let state = CaptureEditorState(image: image)
             let editor = CaptureEditWindow(contentRect: CGRect(x: 0, y: 0, width: 980, height: 700), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             editor.isReleasedWhenClosed = false; editor.title = "Baker · Edit Capture"; editor.contentMinSize = NSSize(width: 850, height: 500)
             editor.onClose = { [weak self] in
+                state.cancelProcessing()
                 guard let self else { return }
                 self.editors.removeValue(forKey: record.id)
                 if self.visible { self.cards.first { $0.id == record.id }?.panel.orderFrontRegardless() }
             }
             editor.contentView = CaptureHostingView(rootView: CaptureEditorView(state: state, done: { [weak self, weak editor] in
-                guard let self, !state.saving else { return }
+                guard let self, !state.saving, !state.processing else { return }
                 state.saving = true; state.error = nil; editor?.standardWindowButton(.closeButton)?.isEnabled = false
                 Task {
                     do {
                         let image = try state.rendered()
-                        let updated = try await self.model.saveEditedCapture(image, replacing: record)
+                        let updated = try await self.model.saveEditedCapture(image, vector: state.vector, replacing: record)
                         editor?.onClose = nil; self.editors.removeValue(forKey: record.id); editor?.close()
                         await self.present(updated, replacing: record.id)
                     } catch { state.error = error.localizedDescription; state.saving = false; editor?.standardWindowButton(.closeButton)?.isEnabled = true }
@@ -113,7 +129,7 @@ final class CaptureOverlayController {
             editors[record.id] = editor
             cards.first { $0.id == record.id }?.panel.orderOut(nil)
             editor.center(); editor.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
-        } catch { model.problem = error.localizedDescription }
+        } catch { model.report(error, fallback: .storageFailed) }
     }
     func dismiss(_ id: UUID) {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
@@ -215,8 +231,8 @@ struct CaptureCardView: View {
                     action("Edit", symbol: "pencil") { edit() }
                     action("Pin", symbol: "pin") { model.selectCapture(record, action: .image) }.disabled(model.busy)
                     Divider().frame(height: 18).overlay(.white.opacity(0.3))
-                    action("Read Text", symbol: "text.viewfinder") { model.selectCapture(record, action: .text) }.disabled(model.busy)
-                    action("Recognise Formula", symbol: "function") { model.selectCapture(record, action: .formula) }.disabled(model.busy)
+                    action("Read Text", symbol: "text.viewfinder") { model.selectCapture(record, action: .text) }.disabled(model.busy || record.isVector)
+                    action("Recognise Formula", symbol: "sum") { model.selectCapture(record, action: .formula) }.disabled(model.busy || record.isVector)
                 }.buttonStyle(.plain).foregroundStyle(.white).padding(10)
             }
         }
@@ -243,59 +259,6 @@ struct CaptureCardView: View {
     private func action(_ title: String, symbol: String, perform: @escaping () -> Void) -> some View {
         Button(action: perform) { Image(systemName: symbol).frame(width: 31, height: 30).contentShape(Rectangle()) }
             .help(title).accessibilityLabel(title)
-    }
-}
-
-@MainActor
-private final class CaptureHistoryState: ObservableObject { @Published var limit = 100; @Published var query = ""; @Published var matches = Set<UUID>() }
-
-struct CaptureHistoryView: View {
-    @ObservedObject var model: Workbench
-    let show: (CaptureRecord) -> Void
-    @ObservedObject private var state = CaptureHistoryState()
-    private var matchingRecords: [CaptureRecord] {
-        let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return model.captures.filter { record in
-            query.isEmpty || state.matches.contains(record.id)
-        }
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { Text("Capture History").font(.title2.weight(.semibold)); Spacer(); Button("Open Folder", action: model.revealCaptures) }
-            Text("\(model.captures.count) saved captures · closing a preview keeps its original file.").font(.caption).foregroundStyle(.secondary)
-            TextField("Search formulas or filenames", text: $state.query).textFieldStyle(.roundedBorder).onChange(of: state.query) { state.limit = 100 }
-            List {
-                ForEach(matchingRecords.prefix(state.limit)) { record in
-                    HStack {
-                        Image(systemName: "photo").foregroundStyle(.secondary)
-                        VStack(alignment: .leading) {
-                            Text(record.createdAt, format: .dateTime.year().month().day().hour().minute().second())
-                            Text("\(record.pixelWidth) × \(record.pixelHeight) · \(record.fileName)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer()
-                        if let formula = model.savedFormulas[record.id] {
-                            Text(formula.latex).font(.caption.monospaced()).lineLimit(1).frame(maxWidth: 150)
-                            Button("Formula") { model.openSavedFormula(record.id) }.disabled(model.busy)
-                        }
-                        Button("Copy") { Task { _ = await model.copyCapture(record) } }
-                        Button("Preview") { show(record) }
-                    }.padding(.vertical, 4)
-                }
-                if state.limit < matchingRecords.count { Button("Show More") { state.limit += 100 } }
-            }
-            .scrollContentBackground(.hidden)
-            if model.captures.isEmpty { Text("Your next capture will appear here.").foregroundStyle(.secondary) }
-        }.padding(20).frame(minWidth: 560, minHeight: 340).background(BakerTheme.background)
-        .task(id: state.query) {
-            let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !query.isEmpty else { state.matches = []; return }
-            do {
-                try await Task.sleep(nanoseconds: 180_000_000)
-                let matches = try await model.searchCaptures(query)
-                guard !Task.isCancelled else { return }
-                state.matches = matches
-            } catch is CancellationError {} catch { model.problem = error.localizedDescription }
-        }
     }
 }
 

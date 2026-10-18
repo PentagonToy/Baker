@@ -8,7 +8,7 @@ Capture the detail. Serve the result fresh from Baker.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../others/assests/banner/baker_banner_dark.svg"><img src="../others/assests/banner/baker_banner_light.svg" alt="Baker — Capture. Recognise. Create."></picture>
 
-Capture a screen region, recognise text or equations, and paste the result into your work. Baker is a macOS menu-bar app for Apple Silicon, with local OCR, image editing, scrolling captures, silent video and GIF recording.
+Capture a screen region, recognise text or equations, and paste the result into your work. Baker is a macOS menu-bar app for Apple Silicon, with local OCR, image editing, scrolling captures, video with optional system audio and silent GIF recording.
 
 ## Capture, then continue
 

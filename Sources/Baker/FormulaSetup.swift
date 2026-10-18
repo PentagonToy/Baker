@@ -21,6 +21,7 @@ private final class ModelDownloadProgress: NSObject, URLSessionDownloadDelegate,
 @MainActor
 final class FormulaSetup: ObservableObject {
     @Published private(set) var ready = false
+    @Published private(set) var failure: BakerError?
     @Published private(set) var working = false
     @Published private(set) var progress = 0.0
     @Published private(set) var message = "Checking formula recognition…"
@@ -47,10 +48,10 @@ final class FormulaSetup: ObservableObject {
     }
     private static func manifest() throws -> FormulaModelManifest {
         let bundle = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main : Bundle.module
-        guard let source = bundle.url(forResource: "formula-model", withExtension: "json") else { throw BakerError(message: "Baker's model download information is missing. Reinstall Baker.") }
+        guard let source = bundle.url(forResource: "formula-model", withExtension: "json") else { throw BakerError(message: "Baker's model download information is missing. Reinstall Baker.", code: .configurationInvalid, recovery: .updateApp) }
         let value = try JSONDecoder().decode(FormulaModelManifest.self, from: Data(contentsOf: source))
         guard value.variant == nil || (value.variant == "mlp-int8-v1" && value.bundledOnly == true) else {
-            throw BakerError(message: "The bundled formula variant is unsupported. Reinstall Baker.")
+            throw BakerError(message: "The bundled formula variant is unsupported. Reinstall Baker.", code: .configurationInvalid, recovery: .updateApp)
         }
         return value
     }
@@ -94,12 +95,12 @@ final class FormulaSetup: ObservableObject {
                     try await Task.detached { try Self.verify(directory, manifest: manifest) }.value
                 }
                 ready = true; message = "Ready · local formula recognition"
-            } catch { ready = false; message = "The formula model needs repair. Use Repair Model below." }
+            } catch { ready = false; failure = BakerError.wrapping(error, fallback: .integrityFailed); message = "The formula model needs repair. Use Repair Model below." }
         }
     }
     func prepare() {
         guard !working, runtimeAvailable else { return }
-        working = true; progress = 0; message = "Preparing formula recognition…"
+        failure = nil; working = true; progress = 0; message = "Preparing formula recognition…"
         job = Task { [self] in
             let files = FileManager.default
             let stage = directory.deletingLastPathComponent().appendingPathComponent(".download-\(UUID().uuidString)")
@@ -109,7 +110,7 @@ final class FormulaSetup: ObservableObject {
                 if manifest.bundledOnly == true {
                     guard let bundled = bundledModel,
                           files.fileExists(atPath: bundled.appendingPathComponent("encoder_model.onnx").path) else {
-                        throw BakerError(message: "The included model is missing. Reinstall Baker.")
+                        throw BakerError(message: "The included model is missing. Reinstall Baker.", code: .modelNotReady, recovery: .updateApp)
                     }
                     message = "Preparing the included formula model…"
                     try await Task.detached { try Self.provisionBundledModel(bundled, directory: self.directory, manifest: manifest) }.value
@@ -133,7 +134,7 @@ final class FormulaSetup: ObservableObject {
                     }
                     let (temporary, response) = try await session.download(from: url, delegate: delegate)
                     defer { try? files.removeItem(at: temporary) }
-                    guard let http = response as? HTTPURLResponse, http.statusCode == 200, response.url?.scheme == "https" else { throw BakerError(message: "The model server could not complete the download. Try again later.") }
+                    guard let http = response as? HTTPURLResponse, http.statusCode == 200, response.url?.scheme == "https" else { throw BakerError(message: "The model server could not complete the download. Try again later.", code: .downloadFailed) }
                     try await Task.detached { try ModelIntegrity.verify(temporary, bytes: expected.bytes, sha256: expected.sha256) }.value
                     try files.moveItem(at: temporary, to: stage.appendingPathComponent(name))
                     complete += expected.bytes; progress = Double(complete) / Double(total)
@@ -149,7 +150,8 @@ final class FormulaSetup: ObservableObject {
                 if existing { try? files.removeItem(at: backup) }
                 ready = true; message = "Ready · local formula recognition"
             } catch {
-                message = Task.isCancelled ? "Download cancelled. You can try again at any time." : "Could not prepare recognition: \(error.localizedDescription)"
+                failure = Task.isCancelled ? nil : BakerError.wrapping(error, fallback: .downloadFailed)
+                message = failure.map { "Could not prepare recognition: " + $0.userDescription } ?? "Download cancelled."
             }
         }
     }
@@ -157,7 +159,7 @@ final class FormulaSetup: ObservableObject {
     func remove() {
         guard !working else { return }
         do { if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }; ready = false; progress = 0; message = "Model removed. Your capture history remains." }
-        catch { message = "Could not remove the formula model: \(error.localizedDescription)" }
+        catch { message = "Could not remove the formula model: \(BakerError.wrapping(error, fallback: .storageFailed).userDescription)" }
     }
 }
 
@@ -165,8 +167,8 @@ struct FormulaSetupView: View {
     @ObservedObject var setup: FormulaSetup
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(setup.ready ? "Formula recognition is ready" : "Prepare formula recognition", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(.headline)
-            Text(setup.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Label(setup.ready ? "Formula recognition is ready" : "Prepare formula recognition", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(BakerTypography.section)
+            Text(setup.message).font(BakerTypography.body).fixedSize(horizontal: false, vertical: true)
             if setup.working {
                 ProgressView(value: setup.progress)
                 Button("Cancel", action: setup.cancel)
@@ -176,7 +178,7 @@ struct FormulaSetupView: View {
                     if setup.ready { Button("Remove Model", action: setup.remove) }
                 }
             }
-            Text("Downloads from Hugging Face. Images stay on this Mac. The recognition engine is included; no Python installation is needed.").font(.caption).foregroundStyle(.secondary)
+            Text("Downloads from Hugging Face. Images stay on this Mac. The recognition engine is included; no Python installation is needed.").font(BakerTypography.supporting).foregroundStyle(.secondary)
         }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 13))
     }
 }

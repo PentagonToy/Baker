@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+- Handle smoothly shaded slide backgrounds while preserving text, thin axes and filled figures; retain the exact uniform-background path and reversible editing.
+- Add Screen Recording status, System Settings access and an explicit reopen action without resetting privacy permissions or changing signing certificates.
+
+- Add reversible background removal and colour or monochrome SVG tracing to the capture editor, using native Vision, VTracer and Potrace without a resident worker.
+- Replace each edited capture with one PNG or SVG; preserve the original until Done succeeds, offer SVG-only preview actions in History and rasterise vectors in memory when reopening the thumbnail editor.
+
+- Group image and formula history under General; default image retention to no count or age limit, review removals before using Trash and retain folder-specific approval for future captures.
+- Reconcile missing capture files and linked formula metadata when clearing caches, opening history and starting Baker; preserve existing unreadable files and unavailable-folder errors.
+
+- Retain workspace windows through one lifecycle owner; reopening Settings preserves the selected page and hosted view, while recovery actions select their intended page.
+- Wake PDF waits on process termination, share bounded termination and diagnostic-tail handling, and reduce progress-file reads while retaining cancellation and output limits.
+
+- Separate capture, recognition, document, clipboard, storage and export lifecycles from the UI model without adding a resident worker.
+- Show thumbnail cards and media filters in Capture History; save recordings automatically alongside images and formulas, and put Open Capture Folder first in Recent.
+- Use the summation symbol consistently for formula commands, and add copy feedback and reduced-motion-aware selection transitions.
+
+- Increase control and supporting-text sizes, and remove language-picker footnotes.
+- Centralise typed preference keys and defaults, preserve existing domains and make language migration idempotent.
+- Require typed errors, retain their recovery guidance at UI boundaries and keep technical diagnostics out of ordinary alerts; bound PDF installer output through the shared process runner.
+- Add up to five text OCR languages, including Arabic, Persian, Spanish, French, Chinese and Japanese, with bundled offline fallback models. Move language choices to Capture, shorten the PDF sidebar label and group settings by workflow.
+- Reorder menu groups and commands using drag handles, with accessible move actions and explicit Apply/Revert controls.
+- Add a compact capture editor with a built-in Okabe–Ito palette, white masking preset and undo/redo.
+- Add Repeat Area with a separate shortcut, an authored symbol and validated per-display selection persistence.
+
+- Preserve script scope on grouped sums and linear fractions, support scoped legacy fonts and OCR operator wrappers, and align Greek variants with the preview. Preserve unsupported structures exactly and warn on malformed syntax.
+
+- Convert derivative primes and repeated or reverse primes to Unicode instead of preserving representable LaTeX.
+
+- Combine recording under Capture → Record… with an area-adjacent Video/GIF setup panel, cursor option and compact elapsed-time controls; retain format shortcuts and migrate menu preferences.
+- Add optional system audio to MP4 recording and extend limits to three minutes for video and 30 seconds for silent GIF, retaining frame-by-frame GIF export.
+
+- Expand Unicode scripts, mathematical alphabets, accents and standard symbols; handle spaced invisible delimiters and report unsupported scripts and lost delimiter sizing accurately.
+
+- Continue long formulas beyond the default 256-token budget up to the existing 512-token ceiling, without reloading models or extending the original deadline.
+- Classify local recognition failures, retain bounded diagnostic tails and cap process output before loading it into memory; process completion now wakes its waiter directly.
+- Coalesce concurrent thumbnail reads while retaining the six-image cache and cancelling obsolete reads on cache clear or storage changes.
+
+- Offer login startup once and add a General setting that reflects macOS registration and approval status.
+
 ## 0.0.2 — 2026-10-17
 
 - Render formula previews offline with bundled KaTeX and mhchem, covering accents, limits, aligned equations and chemical notation; retain source for unsupported input.
