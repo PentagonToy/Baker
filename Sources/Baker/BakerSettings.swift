@@ -72,6 +72,7 @@ struct BakerSettings: View {
         switch state.page {
         case .general:
             card("Startup") { LaunchAtLoginSettings(controller: model.launchAtLogin) }
+            card("Updates") { AppUpdatesSettings(updates: model.updates) }
             card("Clipboard") {
                 toggle("Copy captured images", value: $model.copyCapturedImages)
                 Divider()

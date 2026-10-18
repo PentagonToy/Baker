@@ -2,7 +2,7 @@
 
 | Category | Controls |
 | --- | --- |
-| General | Login startup, clipboard, appearance, save folder, history and presets |
+| General | Login startup, update checks, clipboard, appearance, save folder, history and presets |
 | Capture | Screen Recording access, desktop icons, sounds, visible previews and OCR languages |
 | Formula | Model preparation and repair, Unicode maths font and preview cache |
 | PDF | Optional engine download, progress and removal |
@@ -39,3 +39,9 @@ With a Baker window focused, **⌘Q** quits, **⌘W** closes the window and **�
 Baker offers a one-time choice on the first launch after this feature becomes available. **Not Now** leaves startup disabled; **Enable Launch at Login** registers Baker with macOS. Already registered apps skip the offer.
 
 Change the choice in **General → Startup**. If macOS requires approval, use **Open Login Items…**. The control reflects actual registration status and reports failures beside it. This preference stays on the Mac and is excluded from presets.
+
+## Updates
+
+Use **General → Updates → Check for Updates…** to check stable Baker releases. A newer release offers notes, **Download DMG** and **Later**. Open the downloaded disk image and replace Baker in Applications when ready; Baker never installs an update automatically.
+
+Automatic checks are off initially. When enabled, Baker checks GitHub at most once a day while running and shows an available version in Settings and the menu. Background checks show no pop-up and failures stay quiet. Manual checks work regardless of this option. Offline capture and OCR remain available; update preferences stay on this Mac and are excluded from presets.

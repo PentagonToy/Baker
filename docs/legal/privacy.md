@@ -22,6 +22,10 @@ PDF conversion downloads its optional engine from Baker’s GitHub Releases over
 
 Download providers receive ordinary connection information, including the requesting IP address. These requests contain no captures, documents, recognised text or OCR account tokens.
 
+## Update checks
+
+A manual check, or an optional daily automatic check, requests public release metadata from GitHub over HTTPS. Automatic checks are off initially. GitHub receives ordinary connection information; the request includes no captures, recognised text, device identifier or account token. Check preferences and timestamps stay on this Mac. Choosing Download DMG opens the release asset in the default browser; Baker does not replace itself.
+
 ## Synchronisation
 
 Baker uses the selected local or Finder-accessible folder and has no cloud-account login. Changing the save folder leaves previous files in place.

@@ -37,6 +37,7 @@ final class Workbench: ObservableObject {
     @Published var documentProgress = DocumentProgress()
     let screenRecordingPermission = ScreenRecordingPermission()
     var onReopen: (() -> Void)?
+    let updates: AppUpdates
     let launchAtLogin: LaunchAtLogin
     let formulaSetup = FormulaSetup()
     let pdfEngineSetup = PDFEngineSetup()
@@ -114,6 +115,7 @@ final class Workbench: ObservableObject {
         let preferences = BakerPreferences(defaults: defaults)
         preferences.migrate()
         self.preferences = preferences
+        updates = AppUpdates(defaults: defaults)
         launchAtLogin = LaunchAtLogin(defaults: defaults)
         captureFlow = CaptureCoordinator(preferences: preferences)
         previousArea = RepeatCaptureArea.load(defaults: defaults)
@@ -184,6 +186,7 @@ final class Workbench: ObservableObject {
     var selectedMathFont: MathFont { MathFont(rawValue: mathFont) ?? .latinModern }
 
     func shutdown() async {
+        updates.stop()
         formulaSetup.cancel(); pdfEngineSetup.cancel(); shuttingDown = true
         await filesInbox.close(); await pdfEngineSetup.close()
         library.cancelThumbnails(); clipboardFlow.invalidate(); initialLoadTask?.cancel(); importTask?.cancel(); historyRefreshTask?.cancel()

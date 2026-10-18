@@ -108,6 +108,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.model.problem = nil
         }.store(in: &subscriptions)
         rebuildMenu(menu)
+        model.updates.start()
         model.warmCaptureSelection()
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.terminating, !self.model.busy else { return }
@@ -195,8 +196,13 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for entry in commands + activeControls { menu.addItem(entry) }
         }
         if !menu.items.isEmpty { menu.addItem(.separator()) }
+        if let release = model.updates.available {
+            menu.addItem(item("Baker \(release.version.description) Available…", #selector(showUpdateSettings), symbol: "arrow.down.circle"))
+        }
         for entry in pinned { menu.addItem(entry) }
     }
+
+    @objc private func showUpdateSettings() { openSettings(.general) }
 
     private func item(_ title: String, _ action: Selector, symbol: String, custom: String? = nil, enabled: Bool = true, key: String = "", shortcut: String? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)

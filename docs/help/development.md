@@ -80,6 +80,7 @@ Run each tool with `--output /absolute/path/outside/the/repository`. Checks inte
 | `tools/test_history_retention.py` | Retention, missing-file reconciliation and recoverable removal |
 | `tools/test_image_tools.py` | Tracing, transparency, Undo, PNG/SVG replacement and SVG clipboard |
 | `tools/test_background_removal.py` | Smooth light/dark backgrounds, filled figures and foreground preservation |
+| `tools/test_updates.py` | Stable app release selection, daily opt-in scheduling, offline failures and cancellation |
 | `tools/test_permissions.py` | Permission refresh and safe reopen arguments without modifying macOS settings |
 
 `tools/test_recording_history.py` additionally needs `--fixtures` containing authored `synthetic.mp4` and `synthetic.gif`. Source checks supplement installed-app tests for recording, window focus, cancellation and clean-machine compatibility.

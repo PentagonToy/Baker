@@ -9,6 +9,9 @@ struct PreferenceKey<Value> {
 }
 
 enum PreferenceKeys {
+    static let automaticUpdates = PreferenceKey("automaticUpdates", false)
+    static let updateLastAttempt = PreferenceKey("updateLastAttempt", 0.0)
+    static let updateLastSuccess = PreferenceKey("updateLastSuccess", 0.0)
     static let appearance = PreferenceKey("appearance", "system")
     static let developerRuntimeOverrides = PreferenceKey("developerRuntimeOverrides", false)
     static let python = PreferenceKey("formulaPython", "")
