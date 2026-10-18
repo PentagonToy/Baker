@@ -34,6 +34,14 @@ See the [0.0.3 release notes](others/release/0.0.3.md) for changes and validatio
 
 If macOS blocks the first launch, see [opening a downloaded app](docs/help/troubleshooting.md#opening-a-downloaded-app). Set shortcuts and your save folder in Settings.
 
+Already use Homebrew? Install the same app from [our tap](https://github.com/PentagonToy/homebrew-tap):
+
+```sh
+brew install --cask pentagontoy/tap/baker
+```
+
+This is a developer-maintained tap, separate from Homebrew’s official cask collection. Use `brew upgrade --cask baker` for later releases. See the tap’s instructions if Baker is already in Applications.
+
 Captures, recordings and formula history use one folder, initially `~/Documents/Baker`. A Finder-accessible synced folder also works with iCloud Drive, Dropbox or Google Drive. See [storage](docs/help/storage.md).
 
 ## Local recognition
@@ -50,4 +58,4 @@ Text, formula recognition and previews work offline with the included runtime. P
 
 ## Licence
 
-Copyright © 2026 Hanseul Kang. Baker’s source uses [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).
+Copyright © 2026 PentagonToy. Baker’s source uses [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).

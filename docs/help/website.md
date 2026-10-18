@@ -20,4 +20,4 @@ The documentation workflow builds and deploys after relevant changes reach `main
 python tools/docs/build.py --workspace /path/to/fresh-staging --site-dir /path/to/site
 ```
 
-The app's six OCR languages are independent of website language. The documentation and privacy policy are currently written in English.
+The app’s OCR language choices are independent of website language. The documentation and privacy policy are currently written in English.

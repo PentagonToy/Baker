@@ -2,7 +2,7 @@
 
 Effective date: 18 October 2026.
 
-This policy covers Baker, developed by Hanseul Kang, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
+This policy covers Baker, developed by PentagonToy, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
 
 ## Local processing and storage
 

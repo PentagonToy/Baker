@@ -10,6 +10,8 @@ Capture the detail. Serve the result fresh from Baker.
 
 Capture a screen region, recognise text or equations, and paste the result into your work. Baker is a macOS menu-bar app for Apple Silicon, with local OCR, image editing, scrolling captures, video with optional system audio and silent GIF recording.
 
+Install with the DMG above, or use `brew install --cask pentagontoy/tap/baker`. See [getting started](help/getting-started.md) for first-launch guidance.
+
 ## Capture, then continue
 
 - Capture an area or scroll down a page for one long image.
@@ -18,7 +20,7 @@ Capture a screen region, recognise text or equations, and paste the result into 
 - Open images and PDFs through a file workspace, with drag-and-drop and multiple files.
 - Convert PDFs to structured Markdown or LaTeX with local layout, equation and table recognition.
 
-Choose up to three text languages from English, German, Korean, Swedish, Danish and Finnish. Finnish selection uses local Tesseract; other selections use Apple Vision. The complete app prepares its included formula model automatically. Baker is a source preview: review OCR and complex PDF output before relying on it.
+Choose up to five of thirteen text OCR languages. Apple Vision handles supported selections; bundled Tesseract handles selections unavailable in Vision. The app prepares its included formula model automatically. Review recognised equations and complex PDF layouts against the original.
 
 Read [models and references](help/recognition.md) for the engines Baker includes, its small-model adaptation and the repositories that informed the design.
 
@@ -30,4 +32,4 @@ Read the [privacy policy](legal/privacy.md) for the data handled by the app, loc
 
 [Get started](help/getting-started.md) · [User guide](README.md) · [Source code](https://github.com/PentagonToy/Baker) · [Privacy](legal/privacy.md)
 
-Baker is developed by Hanseul Kang. Contact: [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com).
+Baker is developed by PentagonToy. Contact: [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com).

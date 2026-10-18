@@ -4,6 +4,16 @@ Move a packaged **Baker.app** to Applications and double-click it. If supplied a
 
 The capture app supports Apple Silicon and macOS 26.0 or later; the optional PDF engine requires macOS 26.2 or later. Baker is distributed outside the Mac App Store. A source archive needs a [development build](development.md) before it can run.
 
+## Install with Homebrew
+
+If you already use Homebrew, install from [Baker’s tap](https://github.com/PentagonToy/homebrew-tap):
+
+```sh
+brew install --cask pentagontoy/tap/baker
+```
+
+This installs the same app as the DMG. Open Baker from Applications, then allow screen capture. Use `brew upgrade --cask baker` for updates. See the tap’s instructions for adopting an identical app already in Applications. Removing the cask keeps your captures, models and preferences.
+
 ## Allow screen capture
 
 The first capture needs permission in **System Settings → Privacy & Security → Screen Recording**. Enable Baker and reopen it if macOS requests a restart. Imported images and clipboard images do not need screen capture permission.
