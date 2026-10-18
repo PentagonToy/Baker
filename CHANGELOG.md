@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Strengthen thin preview rules so fraction bars remain clearer when long equations are reduced; label token confidence as Model score.
+
 ## 0.0.3 — 2026-10-18
 - Add manual update checks and optional daily GitHub release checks, with release notes and browser-based DMG downloads; exclude PDF engine releases and leave app replacement to the user.
 - Handle smoothly shaded slide backgrounds while preserving text, thin axes and filled figures; retain the exact uniform-background path and reversible editing.

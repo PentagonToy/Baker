@@ -10,7 +10,8 @@ window.bakerPreview = async function (source) {
     katex.render(source, target, {
         displayMode: true, output: 'htmlAndMathml', throwOnError: true,
         trust: () => { throw new Error('Links, external images and HTML are disabled in formula previews.'); },
-        strict: 'error', maxExpand: 1000, maxSize: 20, macros: {}
+        // Keep fraction/radical rules visible when a long snapshot is fitted to a narrow workspace.
+        strict: 'error', minRuleThickness: 0.06, maxExpand: 1000, maxSize: 20, macros: {}
     });
     // Trigger style/layout first so WebKit starts fetching the selected local fonts.
     target.getBoundingClientRect();

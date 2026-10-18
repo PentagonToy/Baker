@@ -48,6 +48,6 @@ The capture palette follows Masataka Okabe and Kei Ito’s [Color Universal Desi
 
 On a 16 GB M1 Pro, the selected document pipeline converted an 11-page research PDF in about 122 seconds with a measured peak process-tree footprint of 2.73 GiB. Four PDF fixtures covering 15 pages passed structure and LaTeX-compilation checks. A complex table page took about 33 seconds and remained slower than the previous engine. These are development measurements, not a general speed or accuracy guarantee.
 
-Review names, correspondence markers, mathematical symbols, table spans and reading order against the source. Multilingual scans need further validation. Formula confidence is a model token score, not a verified probability of correctness; the generative PDF model has no calibrated confidence score.
+Review names, correspondence markers, mathematical symbols, table spans and reading order against the source. Multilingual scans need further validation. The formula model score measures token probabilities, not a verified probability of correctness; the generative PDF model has no calibrated confidence score.
 
 See [limits](limits.md), [development builds](development.md) and [third-party notices](../legal/third-party.md).

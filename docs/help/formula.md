@@ -4,7 +4,7 @@ Crop one equation clearly. Compare the original and rendered result, especially 
 
 ## Formula Workspace
 
-Choose **Formula Workspace**, drop an image or edited capture thumbnail, or choose **Image…**. The preview, confidence and copy fields remain empty until recognition.
+Choose **Formula Workspace**, drop an image or edited capture thumbnail, or choose **Image…**. The preview, model score and copy fields remain empty until recognition.
 
 **New** opens an empty input without deleting history. **History** lists saved equations across sessions; arrows move between results. From New, the left arrow returns to the last selected equation. Saved results reopen without rerunning OCR.
 
@@ -14,7 +14,7 @@ Original fits the saved capture without enlargement and shows its pixel dimensio
 
 ## Confidence and correction
 
-Confidence is the geometric mean of emitted LaTeX token probabilities. **Recognition details** shows the model, original score, lowest token score and count below 80%. Tokens are model fragments; this count is not an error count.
+**Model score** is the geometric mean of emitted LaTeX token probabilities, not the probability that the whole equation is correct. A high score can accompany an extra bracket, a missing term or another confident mistake. **Recognition details** shows the model, original score, lowest token score and count below 80%. Tokens are model fragments; this count is not an error count.
 
 Editing removes the current score while retaining original diagnostics. **Edit → Apply & Copy** saves a correction. **Recognise Again** explicitly reruns OCR.
 

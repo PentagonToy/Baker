@@ -104,17 +104,17 @@ struct FormulaWorkspace: View {
                         if result.phase == .ready {
                             if let confidence = result.confidence {
                                 HStack(spacing: 10) {
-                                    Text("OCR confidence").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                                    Text("Model score").font(BakerTypography.supporting).foregroundStyle(.secondary)
                                     GeometryReader { geometry in
                                         ZStack(alignment: .leading) {
                                             Capsule().fill(Color.secondary.opacity(0.2))
                                             Capsule().fill(confidenceColor(confidence)).frame(width: geometry.size.width * min(1, max(0, confidence)))
                                         }
-                                    }.frame(maxWidth: .infinity).frame(height: 7).accessibilityLabel("OCR confidence").accessibilityValue(Text(confidence, format: .percent))
+                                    }.frame(maxWidth: .infinity).frame(height: 7).accessibilityLabel("Model score").accessibilityValue(Text(confidence, format: .percent))
                                     Text(confidence, format: .percent.precision(.fractionLength(0))).font(BakerTypography.supporting.monospacedDigit())
                                 }.help("Model token confidence, not a verified probability that the entire equation is correct. Compare the original before using it.")
                             } else {
-                                Text(result.wasEdited ? "Edited · OCR confidence no longer applies" : "OCR confidence unavailable").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                                Text(result.wasEdited ? "Edited · model score no longer applies" : "Model score unavailable").font(BakerTypography.supporting).foregroundStyle(.secondary)
                             }
                             DisclosureGroup("Recognition details") {
                                 VStack(alignment: .leading, spacing: 5) {
