@@ -119,20 +119,21 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         guard urls.count == 1, let url = urls.first, FormulaHandoff.pasteboardName(url) != nil else { return }
         guard formulaHandoffTask == nil else {
-            if let name = FormulaHandoff.pasteboardName(url) { NSPasteboard(name: name).releaseGlobally() }
-            model.problem = "Baker is preparing another formula. Try again when it finishes."
+            if let name = FormulaHandoff.pasteboardName(url) {
+                FormulaHandoff.respond(on: NSPasteboard(name: name), error: "Formula recognition is busy. Try again shortly.")
+            }
             return
         }
         formulaHandoffTask = Task { [weak self] in
             guard let self else { return }
             defer { self.formulaHandoffTask = nil }
-            // A cold launch verifies the installed model asynchronously before use.
+            // Let cold-launch model/history checks finish without presenting UI.
             for _ in 0..<300 {
-                if !self.model.formulaSetup.working || self.model.shuttingDown { break }
-                try? await Task.sleep(for: .milliseconds(100))
+                if self.model.shuttingDown || Task.isCancelled { return }
+                if !self.model.formulaSetup.working && self.model.initialLoadTask == nil && self.model.historyRefreshTask == nil { break }
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
             }
-            self.model.receiveFormulaHandoff(url)
-            if !self.model.shuttingDown { self.showFormulaWorkspace() }
+            await self.model.receiveFormulaHandoff(url)
         }
     }
 
@@ -144,7 +145,9 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateLater }
         terminating = true
-        Task { [model] in
+        formulaHandoffTask?.cancel()
+        Task { [model, formulaHandoffTask] in
+            _ = await formulaHandoffTask?.result
             await model.shutdown()
             sender.reply(toApplicationShouldTerminate: true)
         }
