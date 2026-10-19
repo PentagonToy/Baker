@@ -28,7 +28,6 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let settingsState = SettingsState()
     private var subscriptions: Set<AnyCancellable> = []
     private var terminating = false
-    private var formulaHandoffTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.onReopen = { [weak self] in self?.reopen() }
@@ -116,27 +115,6 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.model.launchAtLogin.presentFirstLaunchOffer()
         }
     }
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard urls.count == 1, let url = urls.first, FormulaHandoff.pasteboardName(url) != nil else { return }
-        guard formulaHandoffTask == nil else {
-            if let name = FormulaHandoff.pasteboardName(url) {
-                FormulaHandoff.respond(on: NSPasteboard(name: name), error: "Formula recognition is busy. Try again shortly.")
-            }
-            return
-        }
-        formulaHandoffTask = Task { [weak self] in
-            guard let self else { return }
-            defer { self.formulaHandoffTask = nil }
-            // Let cold-launch model/history checks finish without presenting UI.
-            for _ in 0..<300 {
-                if self.model.shuttingDown || Task.isCancelled { return }
-                if !self.model.formulaSetup.working && self.model.initialLoadTask == nil && self.model.historyRefreshTask == nil { break }
-                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
-            }
-            await self.model.receiveFormulaHandoff(url)
-        }
-    }
-
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // Reopening a menu-bar utility must not create an unrelated result window.
         return false
@@ -145,9 +123,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateLater }
         terminating = true
-        formulaHandoffTask?.cancel()
-        Task { [model, formulaHandoffTask] in
-            _ = await formulaHandoffTask?.result
+        Task { [model] in
             await model.shutdown()
             sender.reply(toApplicationShouldTerminate: true)
         }

@@ -177,15 +177,6 @@ struct FormulaWorkspace: View {
         .background(BakerTheme.background)
         .animation(BakerMotion.selection(reduced: reduceMotion), value: state.previewMode)
         .frame(minWidth: 660, minHeight: result == nil ? 340 : 520)
-        .safeAreaInset(edge: .bottom) {
-            if let problem = model.problem {
-                HStack {
-                    Text(problem).font(BakerTypography.supporting).textSelection(.enabled)
-                    Spacer()
-                    Button("Dismiss") { model.problem = nil }
-                }.padding(12).background(BakerTheme.background)
-            }
-        }
         .task(id: model.focusedFormulaID) {
             state.original = nil; state.originalID = nil; state.originalError = nil
             guard let record else { return }

@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Recognise selected equations from Deerstalker through an optional quiet local handoff, returning LaTeX without opening Baker windows, playing sounds, showing handoff alerts or saving capture history.
 - Strengthen thin preview rules so fraction bars remain clearer when long equations are reduced; label token confidence as Model score.
 
 ## 0.0.3 — 2026-10-18

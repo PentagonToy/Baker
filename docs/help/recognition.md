@@ -14,20 +14,6 @@ Baker combines small task-specific engines with native macOS recognition. Captur
 
 The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the smaller MFR model.
 
-## Deerstalker formula selection
-
-The local integration build supports quiet equation recognition for Deerstalker. Enable integration in Deerstalker Settings, then choose **Copy Equation as LaTeX** for an equation selection or use the equation-region tool. Ordinary Copy remains text. Baker runs its existing MFR recogniser in the background and returns bare LaTeX to Deerstalker; it does not open a Formula window, play capture sounds, show a handoff alert, write capture history or change the general clipboard. Baker's own capture/recognition workflows retain their normal preferences and feedback.
-
-Protocol version 2 uses a UUID-named private macOS pasteboard for a bounded PNG request and a JSON result/error, plus a `baker://formula` URL explicitly addressed to Baker. It never accepts arbitrary input paths or reads the general clipboard. Temporary crop files live in a private directory and are removed after recognition. Cold launches wait for model and history checks. Busy/setup/recognition errors return to the reader, without a Baker popup. The client waits up to 90 seconds and releases cancelled requests; in-flight model work may finish within its normal bounded timeout, but its discarded response cannot change the clipboard.
-
-A conservative formula-shape check rejects obvious prose results; it is not a perfect mathematical-content classifier, and can refuse ambiguous short expressions. Select only the equation rather than a mixed paragraph. Deerstalker updates the clipboard only after success, while the request is active and its clipboard revision is unchanged. It leaves ordinary copied text intact on errors, cancellation or intervening clipboard changes.
-
-The packaging marker is `BakerFormulaHandoffVersion = 2`. Released Baker 0.0.3 lacks this protocol; the local integration build retains the review version number until a separate release is prepared. No model or runtime download is required for the handoff when formula recognition is already prepared.
-
-Validation is incomplete: the installed quiet integration timed out waiting for its result. A subsequent private-pasteboard ownership fix passes an independent two-process protocol test and is built locally, but has not been reinstalled and checked through the two application interfaces. Reinstallation and cold/warm equation, prose, cancellation, clipboard and silent-UI checks remain follow-up work; do not present this as a verified end-user integration yet.
-
-## Document runtime
-
 The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
 
 ## What the Baker adaptation changes
