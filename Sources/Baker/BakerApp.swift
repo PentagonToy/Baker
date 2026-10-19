@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 struct BakerApp {
     static func main() {
+        if let status = FormulaAdapter.run(arguments: Array(CommandLine.arguments.dropFirst())) { exit(status) }
         let application = NSApplication.shared
         if let identifier = Bundle.main.bundleIdentifier,
            let existing = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {

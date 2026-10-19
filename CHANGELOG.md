@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep an app-neutral headless JSON formula adapter for future local clients, without reader-specific IPC, UI, clipboard or history side effects.
+
 - Strengthen thin preview rules so fraction bars remain clearer when long equations are reduced; label token confidence as Model score.
 
 ## 0.0.3 — 2026-10-18

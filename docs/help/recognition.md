@@ -2,6 +2,8 @@
 
 Baker combines small task-specific engines with native macOS recognition. Captures and PDFs are processed locally. No OCR API or server is required.
 
+For app-neutral local clients, see the [headless recognition adapter](adapter.md). It is independent of any reader integration.
+
 ## Current engines
 
 | Task | Engine | Baker configuration |
