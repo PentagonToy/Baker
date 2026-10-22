@@ -152,7 +152,7 @@ extension Workbench {
         captureFlow.warmSelection()
         recognitionFlow.warmText(languages: selectedOCRLanguages)
     }
-    func capture(scrolling: Bool, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false) {
+    func capture(scrolling: Bool, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false, window: Bool = false) {
         if (action == .formula || action == .unicode), !developerRuntimeOverrides, !formulaSetup.ready {
             if formulaSetup.working { status = "Preparing formula recognition. Try again in a moment."; return }
             status = "Prepare formula recognition in Settings → Formula."
@@ -165,8 +165,8 @@ extension Workbench {
         formulaCapturePending = action == .formula || action == .unicode
         busy = true
         onCaptureVisibility?(false)
-        status = reuseArea ? "Capturing the saved area…" : fullScreen ? "Capturing the display…" : (scrolling ? "Select scrolling content only, excluding fixed headers and scrollbars." : "Drag to select a region. Press Esc to cancel.")
-        captureFlow.capture(region: displayRegion, scrolling: scrolling, hideDesktopIcons: hideDesktopIcons) { [weak self] result in
+        status = window ? "Choose a window to capture." : reuseArea ? "Capturing the saved area…" : fullScreen ? "Capturing the display…" : (scrolling ? "Select scrolling content only, excluding fixed headers and scrollbars." : "Drag to select a region. Press Esc to cancel.")
+        captureFlow.capture(region: displayRegion, scrolling: scrolling, hideDesktopIcons: hideDesktopIcons, window: window) { [weak self] result in
             guard let self else { return }
             self.onCaptureVisibility?(true)
             guard !self.shuttingDown else { return }
@@ -177,7 +177,7 @@ extension Workbench {
                     defer { self.importTask = nil }
                     do {
                         try await self.importImage(frame.image, notify: action == .image)
-                        if !scrolling && !fullScreen && !reuseArea, let area = RepeatCaptureArea(region: frame.region) {
+                        if !window && !scrolling && !fullScreen && !reuseArea, let area = RepeatCaptureArea(region: frame.region) {
                             area.save(defaults: self.preferences.defaults); self.previousArea = area
                         }
                         self.busy = false; await self.finishCapture(action: action)

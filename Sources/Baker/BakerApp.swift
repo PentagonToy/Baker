@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 struct BakerApp {
     static func main() {
+        if let status = BakerCLI.run(Array(CommandLine.arguments.dropFirst())) { exit(status) }
         if let status = FormulaAdapter.run(arguments: Array(CommandLine.arguments.dropFirst())) { exit(status) }
         let application = NSApplication.shared
         if let identifier = Bundle.main.bundleIdentifier,
@@ -20,22 +21,27 @@ struct BakerApp {
 }
 
 @MainActor
-final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private let model = Workbench()
+    private let automation = BakerAutomationServer()
     private let shortcuts = CaptureShortcuts()
     private var statusItem: NSStatusItem!
     private lazy var overlays = CaptureOverlayController(model: model)
     private let windows = WorkspaceWindows()
     private let settingsState = SettingsState()
+    private lazy var quickStart = QuickStartProgress(preferences: model.preferences)
     private var subscriptions: Set<AnyCancellable> = []
     private var terminating = false
+    private var formulaPopover: NSPopover?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        do { try automation.start(model) } catch { NSLog("Baker automation could not start: %@", error.localizedDescription) }
         model.onReopen = { [weak self] in self?.reopen() }
         BakerAppearance.apply()
         LegacyCloudCleanup.run()
         model.canChangeStorage = { [weak self] in self?.overlays.hasOpenEditors != true }
         model.onStorageChanged = { [weak self] in
+            self?.formulaPopover?.close()
             self?.overlays.resetStorage()
             self?.windows.hide(.formula, .result)
         }
@@ -43,6 +49,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self, !self.model.busy else { return }
             switch action {
             case "area": self.captureRegion()
+            case "window": self.captureWindow()
             case "all": self.captureAll()
             case "repeat": self.repeatCaptureArea()
             case "scroll": self.captureScroll()
@@ -72,23 +79,22 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.onEditResult = { [weak self] in self?.showResult() }
         model.onFormulaReady = { [weak self] id in
             guard let self, let record = self.model.captures.first(where: { $0.id == id }) else { return }
+            self.quickStart.track(id)
             self.overlays.dismiss(record.id)
             self.model.focusedFormulaID = id
             self.model.formulaInputPending = false
-            self.showFormulaWorkspace()
+            if self.model.formulaCapturePending { self.showFormulaPopover() }
+            else { self.showFormulaWorkspace() }
         }
         model.onResultReady = { [weak self] in
             if self?.model.showResults == true { self?.showResult() }
         }
         model.onCaptureVisibility = { [weak self] visible in
             guard let self else { return }
+            if !visible { self.formulaPopover?.close() }
             self.overlays.setVisible(visible)
         }
         model.onExportReady = { [weak self] in self?.showExport() }
-        if !model.preferences[PreferenceKeys.hasShownRecognitionSetup] {
-            model.preferences[PreferenceKeys.hasShownRecognitionSetup] = true
-            openSettings(.formula)
-        }
         model.$problem.compactMap { $0 }.receive(on: RunLoop.main).sink { [weak self] message in
             self?.model.playCaptureFeedback(success: false)
             let alert = NSAlert(); alert.messageText = "Baker"; alert.informativeText = message
@@ -113,7 +119,9 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.warmCaptureSelection()
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.terminating, !self.model.busy else { return }
-            self.model.launchAtLogin.presentFirstLaunchOffer()
+            if !self.model.preferences[PreferenceKeys.hasOfferedQuickStart] || self.model.preferences[PreferenceKeys.resumeQuickStart] {
+                self.showQuickStart()
+            } else { self.model.launchAtLogin.presentFirstLaunchOffer() }
         }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -124,13 +132,14 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateLater }
         terminating = true
+        automation.stop()
         Task { [model] in
             await model.shutdown()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
     }
-    func applicationWillTerminate(_ notification: Notification) { windows.closeAll(); model.cleanup() }
+    func applicationWillTerminate(_ notification: Notification) { formulaPopover?.close(); windows.closeAll(); model.cleanup() }
     func menuNeedsUpdate(_ menu: NSMenu) { rebuildMenu(menu) }
 
     private func installApplicationMenu() {
@@ -146,6 +155,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             entry.target = target; entry.keyEquivalentModifierMask = modifiers; menu.addItem(entry)
         }
         let application = submenu("Baker")
+        command(application, "Quick Start…", #selector(showQuickStart), "", target: self)
         command(application, "Settings…", #selector(showSettings), ",", target: self)
         application.addItem(.separator())
         command(application, "Hide Baker", #selector(NSApplication.hide(_:)), "h", target: NSApp)
@@ -229,6 +239,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(heading("CAPTURE"))
         menu.addItem(item("All", #selector(captureAll), symbol: "display", custom: "capture-all", enabled: !model.busy, shortcut: "all"))
         menu.addItem(item("Area", #selector(captureRegion), symbol: "viewfinder", custom: "capture-area", enabled: !model.busy, shortcut: "area"))
+        menu.addItem(item("Window…", #selector(captureWindow), symbol: "macwindow", enabled: !model.busy, shortcut: "window"))
         menu.addItem(item("Repeat Area", #selector(repeatCaptureArea), symbol: "arrow.clockwise", custom: "capture-repeat", enabled: !model.busy && model.canRepeatArea, shortcut: "repeat"))
         menu.addItem(item("Scrolling", #selector(captureScroll), symbol: "scroll", custom: "capture-scroll", enabled: !model.busy, shortcut: "scroll"))
         menu.addItem(item("Text", #selector(captureText), symbol: "text.viewfinder", custom: "capture-text", enabled: !model.busy, shortcut: "text"))
@@ -253,18 +264,20 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Last Result", #selector(showResult), symbol: "doc.text", enabled: !model.output.isEmpty && !model.busy))
         menu.addItem(item("Last Export", #selector(showExport), symbol: "doc", enabled: model.exportURL != nil || model.isConvertingPDF))
         menu.addItem(.separator())
+        menu.addItem(item("Quick Start…", #selector(showQuickStart), symbol: "sparkles"))
         menu.addItem(item("Settings…", #selector(showSettings), symbol: "gearshape", custom: "settings", key: ","))
         menu.addItem(item("Quit Baker", #selector(quit), symbol: "power", key: "q"))
         applyMenuLayout(menu)
     }
     // Start in the normal run-loop mode after AppKit finishes menu tracking.
     // Global shortcuts use the same path; other applications' menus are untouched.
-    private func startCapture(scrolling: Bool = false, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false) {
+    private func startCapture(scrolling: Bool = false, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false, window: Bool = false) {
         statusItem.menu?.cancelTracking()
         RunLoop.main.perform(inModes: [.default]) { [weak self] in
-            MainActor.assumeIsolated { self?.model.capture(scrolling: scrolling, action: action, fullScreen: fullScreen, reuseArea: reuseArea) }
+            MainActor.assumeIsolated { self?.model.capture(scrolling: scrolling, action: action, fullScreen: fullScreen, reuseArea: reuseArea, window: window) }
         }
     }
+    @objc private func captureWindow() { startCapture(window: true) }
     @objc private func captureRegion() { startCapture() }
     @objc private func repeatCaptureArea() { startCapture(reuseArea: true) }
     @objc private func captureAll() { startCapture(fullScreen: true) }
@@ -332,6 +345,19 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.formulaInputPending = true
         showFormulaWorkspace()
     }
+    private func showFormulaPopover() {
+        guard let button = statusItem.button else { return }
+        windows.hide(.formula)
+        let popover = formulaPopover ?? NSPopover()
+        popover.behavior = .transient
+        popover.contentSize = NSSize(width: 500, height: 380)
+        popover.contentViewController = NSHostingController(rootView: FormulaCapturePopover(model: model, openWorkspace: { [weak self] in
+            self?.formulaPopover?.close()
+            self?.showFormulaWorkspace()
+        }))
+        formulaPopover = popover
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
     @objc private func showFormulaWorkspace() {
         let hasResult = model.focusedFormulaID.flatMap { model.formulaResults[$0] } != nil
         let panel = windows.resolve(.formula) {
@@ -359,6 +385,60 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         windows.show(.result)
     }
+    @objc private func showQuickStart() {
+        guard !terminating else { return }
+        model.preferences[PreferenceKeys.hasOfferedQuickStart] = true
+        model.preferences[PreferenceKeys.hasShownRecognitionSetup] = true
+        model.preferences[PreferenceKeys.resumeQuickStart] = false
+        quickStart.presented = true
+        _ = windows.resolve(.guide) {
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 800, height: 650),
+                styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.title = "Baker · Quick Start"
+            window.contentMinSize = NSSize(width: 760, height: 610)
+            window.delegate = self
+            let actions = QuickStartActions(
+                capture: { [weak self] in self?.startGuidedCapture { self?.captureFormula() } },
+                workspace: { [weak self] in self?.openGuidedWorkspace() },
+                scrolling: { [weak self] in self?.startGuidedCapture { self?.captureScroll() } },
+                recording: { [weak self] in self?.startGuidedCapture { self?.recordScreen() } },
+                history: { [weak self] in self?.showHistory() },
+                settings: { [weak self] page in self?.openSettings(page) },
+                close: { [weak self] in self?.windows.existing(.guide)?.performClose(nil) })
+            window.contentView = NSHostingView(rootView: QuickStartView(progress: quickStart, model: model, permission: model.screenRecordingPermission, formulaSetup: model.formulaSetup, actions: actions))
+            return window
+        }
+        windows.show(.guide)
+    }
+    private func startGuidedCapture(_ action: () -> Void) {
+        model.screenRecordingPermission.refresh()
+        guard model.screenRecordingPermission.allowed else { quickStart.step = .formula; return }
+        action()
+    }
+    private func openGuidedWorkspace() {
+        formulaPopover?.close()
+        showFormulaWorkspace()
+        windows.show(.formula)
+        // Keep the actual controls and their guide visible together on wide displays.
+        if let guide = windows.existing(.guide), let workspace = windows.existing(.formula),
+           let screen = guide.screen, screen.visibleFrame.width >= guide.frame.width + workspace.frame.width + 36 {
+            let frame = screen.visibleFrame
+            guide.setFrameOrigin(CGPoint(x: frame.minX + 12, y: min(guide.frame.minY, frame.maxY - guide.frame.height)))
+            workspace.setFrameOrigin(CGPoint(x: frame.maxX - workspace.frame.width - 12, y: guide.frame.minY))
+            windows.fit(.guide, on: screen)
+            windows.fit(.formula, on: screen)
+        }
+    }
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === windows.existing(.guide) else { return }
+        quickStart.dismiss()
+        if !terminating { model.preferences[PreferenceKeys.resumeQuickStart] = false }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.terminating, !self.model.busy else { return }
+            self.model.launchAtLogin.presentFirstLaunchOffer()
+        }
+    }
+
     @objc private func showSettings() { openSettings() }
     private func openSettings(_ page: SettingsPage? = nil) {
         if let page { settingsState.page = page }
@@ -367,7 +447,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             window.contentMinSize = NSSize(width: 780, height: 560)
             window.title = "Baker · Settings"
-            window.contentView = NSHostingView(rootView: BakerSettings(model: model, shortcuts: shortcuts, state: settingsState))
+            window.contentView = NSHostingView(rootView: BakerSettings(model: model, shortcuts: shortcuts, showQuickStart: { [weak self] in self?.showQuickStart() }, state: settingsState))
             return window
         }
         windows.show(.settings)

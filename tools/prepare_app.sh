@@ -32,7 +32,7 @@ cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resour
 cp "$source_dir/Sources/Baker/Resources/image_tools_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
-cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$app/Contents/Resources/"
+cp "${BAKER_FORMULA_MODEL_MANIFEST:-$source_dir/Sources/Baker/Resources/formula-model.json}" "$app/Contents/Resources/formula-model.json"
 cp "$source_dir/Sources/Baker/Resources/pdf_engine_install.py" "$app/Contents/Resources/"
 cp "${BAKER_PDF_ENGINE_MANIFEST:-$source_dir/Sources/Baker/Resources/pdf-engine.json}" "$app/Contents/Resources/pdf-engine.json"
 # A release contains a relocatable interpreter, OCR libraries and Tesseract.
@@ -63,6 +63,16 @@ if [[ -n "${BAKER_FORMULA_MODELS_DIRECTORY:-}" ]]; then
     cp -R "$BAKER_FORMULA_MODELS_DIRECTORY/mfr" "$app/Contents/Resources/Runtime/mfr"
     cp "$BAKER_FORMULA_MODELS_DIRECTORY/formula-model.json" "$app/Contents/Resources/formula-model.json"
 fi
+# A reused runtime must keep its model variant and download descriptor paired.
+model_metadata="$app/Contents/Resources/Runtime/mfr/baker-model.json"
+if [[ -f "$model_metadata" ]]; then
+    payload_variant="$(plutil -extract variant raw -o - "$model_metadata")"
+    descriptor_variant="$(plutil -extract variant raw -o - "$app/Contents/Resources/formula-model.json" 2>/dev/null || true)"
+    if [[ "$payload_variant" != "$descriptor_variant" ]]; then
+        print -u2 "Formula model variant mismatch. Set BAKER_FORMULA_MODEL_MANIFEST to the matching descriptor."
+        exit 1
+    fi
+fi
 mkdir -p "$app/Contents/Resources/BakerIcons" "$app/Contents/Resources/BakerSymbols"
 for asset in "$source_dir"/others/assests/icons/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerIcons/"; done
 for asset in "$source_dir"/others/assests/symbols/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerSymbols/"; done
@@ -73,6 +83,9 @@ if [[ ! -f "$output_root/Baker.icns" || "$icon_source" -nt "$output_root/Baker.i
     iconutil -c icns "$icon_output" -o "$output_root/Baker.icns"
 fi
 cp "$output_root/Baker.icns" "$app/Contents/Resources/Baker.icns"
+mkdir -p "$app/Contents/Resources/CLI"
+cp "$source_dir/tools/bundled_cli" "$app/Contents/Resources/CLI/baker"
+chmod +x "$app/Contents/Resources/CLI/baker"
 mkdir -p "$app/Contents/Resources/Legal"
 cp "$source_dir/LICENSE" "$app/Contents/Resources/Legal/LICENSE"
 cp "$source_dir/docs/legal/third-party.md" "$app/Contents/Resources/Legal/THIRD-PARTY.md"
@@ -109,7 +122,15 @@ if [[ -f "$app/Contents/Resources/DocumentEngine/manifest.json" ]]; then
 fi
 # A persistent signing identity gives privacy permissions a stable app identity.
 # Ad-hoc signing is local-build fallback; rebuilding can require renewed consent.
-signing_identity="${BAKER_SIGN_IDENTITY:--}"
+signing_identity="${BAKER_SIGN_IDENTITY:-}"
+if [[ -z "$signing_identity" && -f "$source_dir/others/builder/builder.local.json" ]]; then
+    signing_identity="$(plutil -extract signing_identity raw -o - "$source_dir/others/builder/builder.local.json" 2>/dev/null || true)"
+fi
+local_identity="$HOME/Library/Application Support/PentagonToy/Development/signing-identity"
+if [[ -z "$signing_identity" && -f "$local_identity" ]]; then
+    signing_identity="$(<"$local_identity")"
+fi
+signing_identity="${signing_identity:--}"
 for runtime_folder in "$app/Contents/Resources/Runtime" "$app/Contents/Resources/DocumentEngine" "$app/Contents/Resources/ImageTools"; do
     [[ -d "$runtime_folder" ]] || continue
     while IFS= read -r -d '' native_file; do

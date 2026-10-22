@@ -19,11 +19,15 @@ source = '\n'.join((ROOT / p).read_text().replace('import BakerCore\n', '') for 
 menu = (ROOT / 'Sources/Baker/MenuLayout.swift').read_text()
 source += menu[menu.index('struct BakerMenuGroup'):menu.index('@MainActor private final class MenuLayoutDraft')]
 source += r'''
+let oldCaptureLayout = BakerMenuLayout(version: 3, groups: [], entries: ["capture": ["captureAll", "captureRegion"]], hidden: ["captureText"])
+let captureGroup = BakerMenuGroup.all.first { $0.id == "capture" }!
+check(oldCaptureLayout.orderedEntries(captureGroup).filter { $0 == "captureWindow" }.count == 1, "Existing menu layouts gain Window exactly once")
+check(oldCaptureLayout.hidden.contains("captureText"), "New Window command preserves hidden commands")
 var layout = BakerMenuLayout()
 let capture = BakerMenuGroup.all.first { $0.id == "capture" }!
 check(layout.move("captureAll", to: "captureFormula", group: "capture"), "Move down")
 check(layout.orderedEntries(capture).last == "recordScreen", "Neighbour retained")
-check(layout.orderedEntries(capture)[5] == "captureAll", "Dropped at destination")
+check(layout.orderedEntries(capture).firstIndex(of: "captureAll") == layout.orderedEntries(capture).firstIndex(of: "captureFormula").map { $0 + 1 }, "Dropped at destination")
 check(layout.move("captureAll", to: "captureRegion", group: "capture"), "Move up")
 check(layout.orderedEntries(capture).first == "captureAll", "Move to first")
 let before = layout

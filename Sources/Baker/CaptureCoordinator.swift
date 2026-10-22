@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import BakerCore
 
 struct CapturedFrame {
@@ -21,16 +22,24 @@ final class CaptureCoordinator {
     init(preferences: BakerPreferences) { setup = RecordingSetup(preferences: preferences) }
     func warmSelection() { service.warmSelection() }
 
-    func capture(region: CaptureRegion?, scrolling scroll: Bool, hideDesktopIcons: Bool,
+    func capture(region: CaptureRegion?, scrolling scroll: Bool, hideDesktopIcons: Bool, window: Bool = false,
                  complete: @escaping (Result<CapturedFrame?, Error>) -> Void) {
         guard task == nil, self.scrolling == nil, recording == nil else {
             complete(.failure(BakerError(message: "A screen capture is already running.", code: .invalidState))); return
         }
         let previousApp = NSWorkspace.shared.frontmostApplication
-        if region == nil { service.beginSelection(freeze: !scroll, hideDesktopIcons: hideDesktopIcons) }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            complete(.failure(BakerError(message: "Allow Baker in Screen & System Audio Recording before selecting a region.", code: .permissionDenied))); return
+        }
+        if region == nil && !window { service.beginSelection(freeze: !scroll, hideDesktopIcons: hideDesktopIcons) }
         task = Task {
             defer { task = nil; service.cancelSelection() }
             guard !Task.isCancelled else { complete(.failure(CancellationError())); return }
+            if window {
+                do { complete(.success(try await service.captureWindow())) }
+                catch { complete(.failure(error)) }
+                return
+            }
             let selected = region == nil ? await service.selectRegion() : region
             guard let selected else { complete(.success(nil)); return }
             do {
@@ -56,6 +65,9 @@ final class CaptureCoordinator {
                 complete: @escaping (Result<RecordedClip?, Error>) -> Void) {
         guard task == nil, scrolling == nil, recording == nil else {
             complete(.failure(BakerError(message: "A screen capture is already running.", code: .invalidState))); return
+        }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            complete(.failure(BakerError(message: "Allow Baker in Screen & System Audio Recording before selecting a region.", code: .permissionDenied))); return
         }
         service.beginSelection(freeze: false)
         task = Task {

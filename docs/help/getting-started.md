@@ -4,6 +4,12 @@ Move a packaged **Baker.app** to Applications and double-click it. If supplied a
 
 The capture app supports Apple Silicon and macOS 26.0 or later; the optional PDF engine requires macOS 26.2 or later. Baker is distributed outside the Mac App Store. A source archive needs a [development build](development.md) before it can run.
 
+## Try the essentials
+
+Quick Start introduces formulas, the workspace, copy formats, scrolling, recording and history. Allow Screen Recording before practising, or continue without capturing. The guide resumes after a requested reopen.
+
+Use the step list, Back and Next to move around. Skip Tour closes the guide. Reopen it from **Baker → Quick Start…** or **Settings → General**. Practice saves and copies a normal capture. Recording starts only after you choose a region and press Record.
+
 ## Install with Homebrew
 
 If you already use Homebrew, install from [Baker’s tap](https://github.com/PentagonToy/homebrew-tap):
@@ -32,4 +38,4 @@ Use the menu to capture, record or open files. Set global shortcuts in **Setting
 
 ## Appearance and storage
 
-In **Settings → General**, choose **System**, **Light** or **Dark**. Light appearance uses warm cream surfaces. Save location, History and Presets appear below the clipboard and appearance controls. The sidebar shows Baker’s version.
+In **Settings → General**, choose **System**, **Light** or **Dark**. Light appearance uses neutral surfaces. Save location, History and Presets appear below the clipboard and appearance controls. The sidebar shows Baker’s version.

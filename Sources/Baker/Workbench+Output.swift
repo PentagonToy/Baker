@@ -95,7 +95,7 @@ extension Workbench {
     func convertPDF(format: PDFExportFormat) {
         if let onOpenFiles { onOpenFiles(format); return }
         guard !busy, !shuttingDown else { return }
-        guard preparedDocumentEngine != nil else { report(BakerError(message: "Prepare the optional PDF engine in Settings → PDF first.", code: .modelNotReady, recovery: .pdfSettings)); return }
+        guard preparedDocumentEngine != nil else { report(BakerError(message: "Prepare the optional PDF engine in Settings → Advanced → Offline Model first.", code: .modelNotReady, recovery: .pdfSettings)); return }
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]; panel.allowsMultipleSelection = false

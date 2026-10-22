@@ -25,7 +25,7 @@ To remove surrounding text before recognition, double-click a capture thumbnail,
 
 ## PDF conversion
 
-The first PDF conversion requests a one-time engine download and continues after verification. The installed engine works offline; captures and formula recognition need no PDF download. Manage it in **Settings → PDF**.
+The first PDF conversion requests a one-time engine download and continues after verification. The installed engine works offline; captures and formula recognition need no PDF download. Manage it in **Settings → Advanced → Offline Model**.
 
 The prepared PDF engine recognises layout, text, equations and tables locally, using available PDF characters to recover text and scripts. Figure files are saved in a companion folder; keep it beside the document when moving the export. No quality switch or online OCR account is needed.
 

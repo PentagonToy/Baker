@@ -167,9 +167,10 @@ final class PDFEngineSetup: ObservableObject {
 struct PDFEngineSetupView: View {
     @ObservedObject var setup: PDFEngineSetup
     var inUse = false
+    var embedded = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(setup.ready ? "PDF engine installed" : "Optional PDF engine", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(BakerTypography.section)
+            Label(setup.ready ? "Ready on this Mac" : "Download for PDF conversion", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(BakerTypography.section)
             Text(setup.message).font(BakerTypography.body).fixedSize(horizontal: false, vertical: true)
             if setup.working {
                 ProgressView(value: setup.progress)
@@ -186,7 +187,7 @@ struct PDFEngineSetupView: View {
                 }
                 Text("Download: \(setup.downloadSize) · Installed: \(setup.installedSize)").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
-            Text("Only needed for PDF conversion. Images and documents stay on this Mac; downloads come from Baker’s GitHub releases.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 13))
+            Text("Loaded only during PDF conversion. Your documents stay on this Mac.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+        }.padding(embedded ? 0 : 18).frame(maxWidth: .infinity, alignment: .leading).background(embedded ? Color.clear : BakerTheme.surface, in: RoundedRectangle(cornerRadius: 13))
     }
 }

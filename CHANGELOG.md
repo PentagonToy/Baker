@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.0.4 — 2026-10-22
 
-- Keep an app-neutral headless JSON formula adapter for future local clients, without reader-specific IPC, UI, clipboard or history side effects.
-
-- Strengthen thin preview rules so fraction bars remain clearer when long equations are reduced; label token confidence as Model score.
+- Add Window capture, an arranged drag-to-install DMG and a permission-first Quick Start covering formulas, scrolling, recording and history.
+- Show captured formulas in a menu-bar popover. Refine Workspace and Settings cards, align menu icons and slow thumbnail movement between displays.
+- Simplify Unicode styling and leave unsupported conversions empty. Show a warning only when Unicode is unavailable, strengthen thin preview rules and keep model scores distinct from verified accuracy.
+- Release idle formula WebKit resources, bound preview retention and disable ONNX thread spinning.
+- Manage the optional offline PDF model in Advanced and refine file-conversion actions. Captures and formula recognition remain independent of the PDF download.
+- Add a bundled JSON CLI with fixed live-app commands and event-driven local IPC. Retain the app-neutral headless formula adapter.
+- Reuse configured local signing identities across builds to preserve app identity and reduce repeated privacy approval.
 
 ## 0.0.3 — 2026-10-18
 - Add manual update checks and optional daily GitHub release checks, with release notes and browser-based DMG downloads; exclude PDF engine releases and leave app replacement to the user.
@@ -92,4 +96,3 @@ First preview for Apple Silicon Macs.
 ### Limits
 
 Scrolling is manual and downward only. Recording has no audio. The complete build requires Apple Silicon and macOS 26.2 or later. Recognition remains approximate; review mathematical symbols and complex document layouts against the source.
-

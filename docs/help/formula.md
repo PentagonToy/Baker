@@ -2,11 +2,15 @@
 
 Crop one equation clearly. Compare the original and rendered result, especially signs, scripts and matrix entries.
 
+Captured formulas appear in a popover below the Baker menu-bar icon and copy automatically. Choose **Workspace** for detailed review.
+
 ## Formula Workspace
 
 Choose **Formula Workspace**, drop an image or edited capture thumbnail, or choose **Image…**. The preview, model score and copy fields remain empty until recognition.
 
 **New** opens an empty input without deleting history. **History** lists saved equations across sessions; arrows move between results. From New, the left arrow returns to the last selected equation. Saved results reopen without rerunning OCR.
+
+The workspace opens with the rendered equation. Choose **Original** or **Both** to compare it with the capture.
 
 ## Original image
 
@@ -20,7 +24,7 @@ Editing removes the current score while retaining original diagnostics. **Edit �
 
 ## Copy formats
 
-Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview.
+Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview. The warning icon appears only when Unicode is unavailable.
 
 Copying removes ordinary token spacing, such as `v _ { x }` → `v_{x}`, while preserving text groups and explicit spacing. Known standard operators such as `\operatorname{ e x p }` become `\exp`; custom and starred operators retain their structure. The catalogue follows [AMS operator definitions](https://github.com/latex3/latex2e/blob/develop/required/amsmath/amsopn.dtx).
 

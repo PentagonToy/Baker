@@ -20,6 +20,8 @@ struct FormulaResult {
     var keynote = ""
     var keynoteWarning = ""
     var warning = ""
+    // Layout and font approximations are informational, not conversion failures.
+    var unicodeUnavailable: Bool { phase == .ready && unicode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !latex.isEmpty }
     var format: OutputFormat = .latex
     var style: LatexCopyStyle = .bare
     var preview: NSImage?

@@ -1,6 +1,6 @@
 # Baker
 
-Version **0.0.3** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.3/Baker-0.0.3-arm64.dmg) · [Changelog](../CHANGELOG.md).
+Version **0.0.4** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.4/Baker-0.0.4-arm64.dmg) · [Changelog](../CHANGELOG.md).
 
 **A keen eye. A fresh result.**
 
@@ -14,7 +14,7 @@ Install with the DMG above, or use `brew install --cask pentagontoy/tap/baker`. 
 
 ## Capture, then continue
 
-- Capture an area or scroll down a page for one long image.
+- Capture an area, select a window or scroll down a page for one long image.
 - Copy text, or recognise a formula and choose LaTeX, Markdown, Keynote or editable Unicode.
 - Double-click a thumbnail to crop or annotate. Done overwrites that capture and returns it to the stack.
 - Open images and PDFs through a file workspace, with drag-and-drop and multiple files.

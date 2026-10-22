@@ -47,7 +47,7 @@ final class CaptureShortcuts: ObservableObject {
     static let actions = [("area", "Area", "capture-area"), ("scroll", "Scrolling", "capture-scroll"),
                           ("text", "Text", "capture-text"), ("formula", "Formula", "capture-formula"),
                           ("video", "Video", "record-video"), ("gif", "GIF", "record-gif"),
-                          ("all", "All", "capture-all"), ("repeat", "Repeat Area", "capture-repeat")]
+                          ("all", "All", "capture-all"), ("repeat", "Repeat Area", "capture-repeat"), ("window", "Window", "macwindow")]
     @Published private(set) var bindings: [String: CaptureShortcut] = [:]
     @Published var message: String?
     private var registrations: [String: EventHotKeyRef] = [:]

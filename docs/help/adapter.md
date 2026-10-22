@@ -23,8 +23,11 @@ A request requires `version` (1), a non-empty `id` up to 128 UTF-8 bytes, `opera
 
 An error response contains `version`, the caller's `id` when available and an `error` string, without `result`. Process exit status is 0 for success/capability information, 1 for recognition/request errors and 2 for invalid adapter command-line usage. `modelScore` is optional model token confidence, not a verified probability of correctness. Callers own review, presentation, output formatting, clipboard policy and history. The adapter does not attempt to classify prose as equations.
 
-The original menu-bar application path is unchanged when no adapter flag is supplied. No persistent adapter server or additional resident model is created. Multiple clients should serialise expensive requests themselves; an external process cancellation/retry policy and packaged cold/warm inference smoke test remain follow-up work.
+The original menu-bar application path is unchanged when no adapter flag is supplied. No persistent adapter server or additional resident model is created. Multiple clients should serialise expensive requests themselves; caller-owned process cancellation and retry remain follow-up work.
 
 ## Validation status
 
-Pure request/response checks cover success, caller identity, rejected paths, versions/operations, malformed and oversized input, and engine-call isolation. The complete Baker source typechecks. A new packaged app has not been built or installed for this entry point yet; the existing installed Baker will not recognise these flags until updated.
+Pure request/response checks cover success, caller identity, rejected paths, versions/operations, malformed and oversized input, and engine-call isolation. The complete Baker source typechecks. A release package was rebuilt and installed on the M1 Pro on 19 October 2026. Capability probing passed, and a synthetic E = mc² image returned equivalent LaTeX through the packaged adapter in approximately 1.12 seconds with an empty error stream. This is a single functional smoke check, not a general accuracy or cold/warm performance benchmark.
+
+
+When rebuilding with an existing runtime that contains a quantised formula model, pass its matching descriptor through `BAKER_FORMULA_MODEL_MANIFEST`. Packaging rejects a bundled model/descriptor variant mismatch instead of silently selecting an unprepared model directory. This setting affects packaging only and does not download models.

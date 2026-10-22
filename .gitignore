@@ -9,5 +9,9 @@ __pycache__/
 /agent/
 /agents/
 
+# Bad ocr
+/error/
+/errors/
+
 # Machine-specific builder paths
 /others/builder/builder.local.json

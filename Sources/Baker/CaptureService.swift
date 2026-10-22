@@ -17,6 +17,7 @@ struct CaptureRegion {
 @MainActor
 final class CaptureService {
     private let selector = RegionSelector()
+    private let windowSelector = CaptureWindowSelector()
     private var armed = false
     private var captureAccessKnown = false
     private var contentTask: Task<SCShareableContent, Error>?
@@ -34,7 +35,7 @@ final class CaptureService {
         selector.prepare()
         captureAccessKnown = CGPreflightScreenCaptureAccess()
     }
-    func cancelSelection() { selector.cancel(); contentTask?.cancel(); contentTask = nil; frozenTask?.cancel(); frozenTask = nil; frozenScreen = nil }
+    func cancelSelection() { selector.cancel(); windowSelector.cancel(); contentTask?.cancel(); contentTask = nil; frozenTask?.cancel(); frozenTask = nil; frozenScreen = nil }
 
     /// Arm the input shield synchronously, before launching any asynchronous work.
     func beginSelection(freeze: Bool = true, hideDesktopIcons: Bool = false) {
@@ -77,6 +78,52 @@ final class CaptureService {
         }
         let prepared = try await prepare(region, hideDesktopIcons: hideDesktopIcons)
         return try await prepared.image()
+    }
+
+    func captureWindow() async throws -> CapturedFrame? {
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            throw BakerError(message: "Allow Baker in System Settings → Privacy & Security → Screen Recording.", code: .permissionDenied)
+        }
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        try Task.checkCancellation()
+        guard let window = await windowSelector.choose(content.windows) else { return nil }
+        try Task.checkCancellation()
+        // Resolve again after the picker closes; window IDs may disappear during selection.
+        let current = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        guard let selected = current.windows.first(where: { $0.windowID == window.windowID }),
+              let screen = NSScreen.screens.max(by: { Self.overlap($0, selected.frame) < Self.overlap($1, selected.frame) }) else {
+            throw BakerError(message: "The selected window is no longer available.", code: .captureFailed)
+        }
+        let filter = SCContentFilter(desktopIndependentWindow: selected)
+        let configuration = SCStreamConfiguration()
+        let scale = CGFloat(filter.pointPixelScale)
+        let width = (filter.contentRect.width * scale).rounded()
+        let height = (filter.contentRect.height * scale).rounded()
+        guard width.isFinite, height.isFinite, (2...8192).contains(width), (2...8192).contains(height) else {
+            throw BakerError(message: "The window exceeds the capture size limit.", code: .invalidInput)
+        }
+        configuration.width = Int(width)
+        configuration.height = Int(height)
+        guard configuration.width >= 2, configuration.height >= 2,
+              configuration.width <= 8192, configuration.height <= 8192,
+              configuration.width <= ScrollStitcher.pixelLimit / configuration.height else {
+            throw BakerError(message: "The window exceeds the capture size limit.", code: .invalidInput)
+        }
+        configuration.showsCursor = false
+        configuration.captureResolution = .best
+        configuration.ignoreShadowsSingleWindow = true
+        let image = try await PreparedCapture(filter: filter, configuration: configuration).image()
+        try Task.checkCancellation()
+        let top = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
+        let frame = selected.frame
+        let local = CGRect(x: frame.minX - screen.frame.minX, y: frame.minY - (top - screen.frame.maxY), width: frame.width, height: frame.height)
+        return CapturedFrame(image: image, region: CaptureRegion(screen: screen, rect: local))
+    }
+    private static func overlap(_ screen: NSScreen, _ rect: CGRect) -> CGFloat {
+        let top = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
+        let global = CGRect(x: screen.frame.minX, y: top - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height)
+        let overlap = global.intersection(rect)
+        return overlap.isNull ? 0 : overlap.width * overlap.height
     }
 
     static func cropSnapshot(_ image: CGImage, region: CaptureRegion) -> CGImage? {

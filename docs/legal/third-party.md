@@ -35,3 +35,7 @@ Document-enabled builds include MLX, a quantised GLM-OCR checkpoint with a Baker
 Model cards retained in [`tools/recognition/notices`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition/notices) identify upstream declarations. New document-engine packages include these cards and corrected checkpoint provenance. Baker’s AGPL source and the corresponding build scripts must accompany the binary distribution alongside dependency notices.
 
 Capture image-tool inputs and provenance are documented in [Local capture image tools](https://github.com/PentagonToy/Baker/tree/main/others/image-tools). App builds retain their notices, corresponding source archives and build recipe under `Contents/Resources/ImageTools`. VTracer handles colour outlines; Potrace handles monochrome outlines. SVGcode and AutoTrace are research references, not bundled applications.
+
+## Installer helpers
+
+The DMG alias and layout helpers derive from remile. by PentagonToy under the MIT licence. Their notice is retained in [tools/remile-LICENSE.txt](../../tools/remile-LICENSE.txt).

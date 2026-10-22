@@ -8,14 +8,17 @@ final class ScreenRecordingPermission: ObservableObject {
     @Published private(set) var allowed = false
     private let check: () -> Bool
     private let open: () -> Bool
+    private let requestAccess: () -> Bool
     init(check: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+         request: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
          open: @escaping () -> Bool = {
              NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
                  || NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
          }) {
-        self.check = check; self.open = open; refresh()
+        self.check = check; self.open = open; self.requestAccess = request; refresh()
     }
     func refresh() { allowed = check() }
+    func request() { if !check() { _ = requestAccess() }; refresh() }
     @discardableResult func openSettings() -> Bool { open() }
 }
 

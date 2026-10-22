@@ -1,6 +1,6 @@
 # Privacy policy
 
-Effective date: 18 October 2026.
+Effective date: 22 October 2026.
 
 This policy covers Baker, developed by PentagonToy, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
 
@@ -10,6 +10,8 @@ Baker processes screen regions, images, PDFs and clipboard content selected by t
 
 The save folder, normally `~/Documents/Baker`, contains captures, recordings and hidden history indexes. Records include dates, dimensions and filenames. Formula records can also contain original and edited LaTeX, Unicode, copy preferences, model identifiers, confidence and token diagnostics. Exported settings presets occupy the `Presets` subfolder and exclude captures, credentials, models and the save path.
 
+Retired online connections are removed from Baker’s local Keychain item and preferences on launch, without reading credentials or contacting the provider. If Keychain is unavailable, Baker retries on a later launch.
+
 Settings stay in local macOS preferences. Repeat Area stores the display identifier, display size and selection rectangle there; these values are excluded from presets. Selected copy actions place content on the macOS clipboard, where other apps and clipboard managers may access it.
 
 Closing a thumbnail retains its file. Done in the editor replaces the capture and removes its old OCR metadata. Vectorisation replaces the previous image with one SVG; subsequent image editing can replace that SVG with PNG. Previously exported or backed-up copies remain unchanged. Temporary outputs can remain while a job or workspace is open; failed operations may retain an original for recovery.
@@ -18,7 +20,7 @@ Closing a thumbnail retains its file. Done in the editor replaces the capture an
 
 The complete app prepares and repairs its included formula model locally. Builds without that model download pinned files from Hugging Face over HTTPS. Baker verifies sizes and SHA-256 hashes before installation under `~/Library/Application Support/Baker/Models`. Remove Model deletes the prepared cache while preserving captures and any bundled model.
 
-PDF conversion downloads its optional engine from Baker’s GitHub Releases over HTTPS. Baker verifies the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → PDF removes the engine while preserving user files.
+PDF conversion downloads its optional engine from Baker’s GitHub Releases over HTTPS. Baker verifies the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → Advanced → Offline Model removes the engine while preserving user files.
 
 Download providers receive ordinary connection information, including the requesting IP address. These requests contain no captures, documents, recognised text or OCR account tokens.
 

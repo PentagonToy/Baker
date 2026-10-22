@@ -21,7 +21,7 @@ public struct BakerError: LocalizedError, Sendable {
             case .reopenHistory: return "Reopen Baker before saving more results."
             case .wait: return "Wait for the current operation to finish."
             case .formulaSettings: return "Check recognition in Settings → Formula."
-            case .pdfSettings: return "Check the engine in Settings → PDF."
+            case .pdfSettings: return "Check the engine in Settings → Advanced → Offline Model."
             case .captureSettings: return "Check text languages in Settings → Capture."
             case .advancedSettings: return "Check runtime overrides in Settings → Advanced."
             case .systemPermissions: return "Check Baker’s Screen Recording access in macOS System Settings."

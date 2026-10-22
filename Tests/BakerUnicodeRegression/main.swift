@@ -97,3 +97,8 @@ if CommandLine.arguments.count > 1 {
     }
 }
 print("Passed \(checks) Unicode regression checks")
+
+for (source, expected) in [(#"{\bf x}+\mathbf{y}"#, "x+y"), (#"\mathcal{A}+\alpha"#, "A+α"), (#"x^{\prime}=a x+b"#, "x′=a x+b"), (#"\unknown{x}"#, ""), (#"\begin{unsupported}x\end{unsupported}"#, ""), (#"\frac{1}{2}"#, "½")] {
+    precondition(UnicodeMath.approximate(source).text == expected, "Plain approximation: " + source)
+}
+print("Plain Unicode approximation: 6 checks passed")

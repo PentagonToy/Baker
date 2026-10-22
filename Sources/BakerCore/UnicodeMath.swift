@@ -3,14 +3,26 @@ import Foundation
 public struct MathConversion {
     public let text: String
     public let warnings: [String]
+    public let isComplete: Bool
+    public init(text: String, warnings: [String], isComplete: Bool = true) {
+        self.text = text; self.warnings = warnings; self.isComplete = isComplete
+    }
 }
 
 /// Internal representation of recognised formulae as editable Unicode maths.
 /// No third-party replacement tables or conversion implementation are embedded.
 public enum UnicodeMath {
-    public static func convert(_ source: String, italicVariables: Bool = false) -> MathConversion {
+    /// Plain-text approximation for the clipboard. Never expose unconverted TeX commands.
+    public static func approximate(_ source: String, italicVariables: Bool = false) -> MathConversion {
+        let result = convert(source, italicVariables: italicVariables, simplifyStyles: true)
+        guard result.isComplete, !result.text.contains("\\") else {
+            return MathConversion(text: "", warnings: ["Unicode is unavailable for this notation. Use LaTeX instead."], isComplete: false)
+        }
+        return result
+    }
+    public static func convert(_ source: String, italicVariables: Bool = false, simplifyStyles: Bool = false) -> MathConversion {
         guard source.count <= 100_000 else {
-            return MathConversion(text: source, warnings: ["Input exceeds 100,000 characters; conversion was skipped."])
+            return MathConversion(text: source, warnings: ["Input exceeds 100,000 characters; conversion was skipped."], isComplete: false)
         }
         var text = source.trimmingCharacters(in: .whitespacesAndNewlines)
         for (open, close) in [("$$", "$$"), (#"\["#, #"\]"#), (#"\("#, #"\)"#), ("$", "$")] {
@@ -19,12 +31,13 @@ public enum UnicodeMath {
             }
         }
         var parser = MathParser(text, italicVariables: italicVariables)
+        parser.simplifyStyles = simplifyStyles
         let output = parser.sequence(depth: 0, grouped: false)
         let warnings = Array(Set(parser.warnings)).sorted()
         if parser.preserveSource || parser.warnings.contains("Unclosed group; check the LaTeX source.") {
-            return MathConversion(text: source, warnings: warnings)
+            return MathConversion(text: source, warnings: warnings, isComplete: false)
         }
-        return MathConversion(text: output.precomposedStringWithCanonicalMapping, warnings: warnings)
+        return MathConversion(text: output.precomposedStringWithCanonicalMapping, warnings: warnings, isComplete: !parser.incomplete)
     }
 }
 
@@ -33,8 +46,10 @@ private struct MathParser {
     var position = 0
     var warnings: [String] = []
     var italicVariables: Bool
+    var simplifyStyles = false
     var compactWhitespace = false
     var fontCommand: String?
+    var incomplete = false
     var preserveSource = false
     var textMode = false
     init(_ source: String, italicVariables: Bool) {
@@ -52,14 +67,14 @@ private struct MathParser {
         let previousFont = fontCommand
         defer { fontCommand = previousFont }
         guard depth < 64 else {
-            warnings.append("Nesting limit reached; remaining source was preserved.")
+            incomplete = true; warnings.append("Nesting limit reached; remaining source was preserved.")
             let rest = String(characters[position...]); position = characters.count; return rest
         }
         var output = ""
         while position < characters.count {
             if characters[position] == "}" {
                 if grouped { position += 1; return output }
-                preserveSource = true; warnings.append("Unexpected closing group; the LaTeX source was preserved.")
+                preserveSource = true; incomplete = true; warnings.append("Unexpected closing group; the LaTeX source was preserved.")
             }
             if characters[position] == "^" || characters[position] == "_" {
                 output = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,7 +91,7 @@ private struct MathParser {
                 output += "(" + value + ")"
             } else { output += value }
         }
-        if grouped { warnings.append("Unclosed group; check the LaTeX source.") }
+        if grouped { incomplete = true; warnings.append("Unclosed group; check the LaTeX source.") }
         return output
     }
 
@@ -96,7 +111,7 @@ private struct MathParser {
     mutating func atom(depth: Int) -> String {
         guard position < characters.count else { return "" }
         guard depth < 64 else {
-            warnings.append("Nesting limit reached; remaining source was preserved.")
+            incomplete = true; warnings.append("Nesting limit reached; remaining source was preserved.")
             let rest = String(characters[position...]); position = characters.count; return rest
         }
         let start = position, character = characters[position]; position += 1
@@ -113,7 +128,7 @@ private struct MathParser {
         }
         if character == "^" || character == "_" {
             guard let body = unstyledArgument(depth: depth) else {
-                preserveSource = true; warnings.append("Missing script argument; the LaTeX source was preserved.")
+                preserveSource = true; incomplete = true; warnings.append("Missing script argument; the LaTeX source was preserved.")
                 return String(character)
             }
             // Prime glyphs already occupy the superscript position; do not superscript them again.
@@ -122,7 +137,7 @@ private struct MathParser {
             }
             let table = character == "^" ? Self.superscripts : Self.subscripts
             if body.allSatisfy({ table[$0] != nil }) { return body.map { table[$0]! }.joined() }
-            warnings.append("This script is not supported by the Unicode converter; its LaTeX was preserved.")
+            incomplete = true; warnings.append("This script is not supported by the Unicode converter; its LaTeX was preserved.")
             return String(characters[start..<position])
         }
         guard character == "\\" else {
@@ -147,12 +162,12 @@ private struct MathParser {
                     if characters[position] == "}" { level -= 1 }
                     position += 1
                 } while position < characters.count && level > 0
-                if level != 0 { warnings.append("Unclosed group; check the LaTeX source.") }
+                if level != 0 { incomplete = true; warnings.append("Unclosed group; check the LaTeX source.") }
             }
             return String(characters[start..<position])
         }
         if let declaration = ["bf": "mathbf", "it": "mathit", "rm": "mathrm", "sf": "mathsf", "tt": "mathtt", "cal": "mathcal"][name] {
-            fontCommand = declaration
+            fontCommand = simplifyStyles ? nil : declaration
             while position < characters.count && characters[position].isWhitespace { position += 1 }
             return ""
         }
@@ -164,7 +179,7 @@ private struct MathParser {
         if let symbol = Self.symbols[name] {
             if let fontCommand, symbol.count == 1, let character = symbol.first {
                 if Self.isGreek(character), !["mathrm", "mathit", "mathbf"].contains(fontCommand) {
-                    preserveSource = true; warnings.append("This Greek mathematical alphabet is not supported; the LaTeX source was preserved.")
+                    preserveSource = true; incomplete = true; warnings.append("This Greek mathematical alphabet is not supported; the LaTeX source was preserved.")
                 }
                 return Self.styled(character, command: fontCommand)
             }
@@ -180,7 +195,7 @@ private struct MathParser {
             }
             while position < characters.count && characters[position].isWhitespace { position += 1 }
             guard validDelimiter(at: position) else {
-                preserveSource = true; warnings.append("Invalid or missing delimiter; the LaTeX source was preserved.")
+                preserveSource = true; incomplete = true; warnings.append("Invalid or missing delimiter; the LaTeX source was preserved.")
                 return String(characters[start..<position])
             }
             if characters[position] == "." { position += 1 }
@@ -188,7 +203,7 @@ private struct MathParser {
         }
         if ["mathop", "mathord", "mathbin", "mathrel", "mathopen", "mathclose", "mathpunct", "mathinner"].contains(name) {
             guard let body = argument(depth: depth, compact: true) else {
-                preserveSource = true; warnings.append("Missing mathematical argument; the LaTeX source was preserved.")
+                preserveSource = true; incomplete = true; warnings.append("Missing mathematical argument; the LaTeX source was preserved.")
                 return String(characters[start..<position])
             }
             return body
@@ -202,7 +217,7 @@ private struct MathParser {
                     while position < characters.count && characters[position] != "]" { position += 1 }
                     let alignment = String(characters[alignmentStart..<position]).trimmingCharacters(in: .whitespacesAndNewlines)
                     guard position < characters.count, ["l", "r"].contains(alignment) else {
-                        preserveSource = true; warnings.append("Unsupported fraction alignment; the LaTeX source was preserved.")
+                        preserveSource = true; incomplete = true; warnings.append("Unsupported fraction alignment; the LaTeX source was preserved.")
                         return String(characters[start..<position])
                     }
                     position += 1
@@ -210,7 +225,7 @@ private struct MathParser {
                 }
             }
             guard let numerator = argument(depth: depth, compact: true), let denominator = argument(depth: depth, compact: true) else {
-                preserveSource = true; warnings.append("Incomplete fraction was preserved."); return String(characters[start..<position])
+                preserveSource = true; incomplete = true; warnings.append("Incomplete fraction was preserved."); return String(characters[start..<position])
             }
             let simple = numerator + "/" + denominator
             if let fraction = Self.fractions[simple] { return fraction }
@@ -226,33 +241,33 @@ private struct MathParser {
                     position += 1
                 }
                 guard position < characters.count else {
-                    warnings.append("Incomplete root index was preserved."); return String(characters[start..<position])
+                    incomplete = true; warnings.append("Incomplete root index was preserved."); return String(characters[start..<position])
                 }
                 position += 1
             }
             guard let body = argument(depth: depth, compact: true) else {
-                preserveSource = true; warnings.append("Incomplete root was preserved."); return #"\sqrt"#
+                preserveSource = true; incomplete = true; warnings.append("Incomplete root was preserved."); return #"\sqrt"#
             }
             let prefix: String
             switch index { case "", "2": prefix = "√"; case "3": prefix = "∛"; case "4": prefix = "∜"
             default:
                 if index.allSatisfy({ Self.superscripts[$0] != nil }) { prefix = index.map { Self.superscripts[$0]! }.joined() + "√" }
-                else { warnings.append("Unsupported root index was preserved."); return String(characters[start..<position]) }
+                else { incomplete = true; warnings.append("Unsupported root index was preserved."); return String(characters[start..<position]) }
             }
             return prefix + "(" + body + ")"
         }
         if let accent = Self.accents[name] {
             guard let body = argument(depth: depth, compact: true), body.count == 1 else {
-                warnings.append("Multi-character or incomplete accent was preserved.")
+                incomplete = true; warnings.append("Multi-character or incomplete accent was preserved.")
                 return String(characters[start..<position])
             }
             return body + accent
         }
         if name == "not" {
-            guard let body = argument(depth: depth, compact: true) else { preserveSource = true; warnings.append("Incomplete negation was preserved."); return #"\not"# }
+            guard let body = argument(depth: depth, compact: true) else { preserveSource = true; incomplete = true; warnings.append("Incomplete negation was preserved."); return #"\not"# }
             if let negated = Self.negations[body] { return negated }
             if body.count == 1 { return body + "\u{0338}" }
-            warnings.append("Unsupported negation was preserved."); return String(characters[start..<position])
+            incomplete = true; warnings.append("Unsupported negation was preserved."); return String(characters[start..<position])
         }
         if ["text", "textrm", "textnormal", "mbox", "hbox", "mathrm", "operatorname", "mathit", "mathbf", "mathbb", "mathcal", "mathsf", "mathtt", "mathfrak", "mathscr", "mathbfit", "boldsymbol"].contains(name) {
             if name == "operatorname" {
@@ -263,10 +278,10 @@ private struct MathParser {
             let previousTextMode = textMode
             textMode = textCommands.contains(name) || name == "operatorname"
             defer { textMode = previousTextMode }
-            guard let body = unstyledArgument(depth: depth, compact: !textCommands.contains(name)) else { preserveSource = true; warnings.append("Missing text or style argument; the LaTeX source was preserved."); return String(characters[start..<position]) }
-            if textCommands.contains(name) || ["mathrm", "operatorname"].contains(name) { return body }
+            guard let body = unstyledArgument(depth: depth, compact: !textCommands.contains(name)) else { preserveSource = true; incomplete = true; warnings.append("Missing text or style argument; the LaTeX source was preserved."); return String(characters[start..<position]) }
+            if simplifyStyles || textCommands.contains(name) || ["mathrm", "operatorname"].contains(name) { return body }
             if !["mathit", "mathbf", "mathbfit", "boldsymbol"].contains(name), body.contains(where: Self.isGreek) {
-                preserveSource = true; warnings.append("This Greek mathematical alphabet is not supported; the LaTeX source was preserved.")
+                preserveSource = true; incomplete = true; warnings.append("This Greek mathematical alphabet is not supported; the LaTeX source was preserved.")
             }
             return body.map { Self.styled($0, command: name) }.joined()
         }

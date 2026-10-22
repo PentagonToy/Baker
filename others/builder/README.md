@@ -37,7 +37,7 @@ python others/builder/build.py --build-only
 python others/builder/test_builder.py
 ```
 
-`--check` checks preparation without building. `--build-only` builds and tests without replacing or opening the installed app. The local build uses ad-hoc signing unless `signing_identity` is configured. macOS may request screen-recording permission again after replacement.
+`--check` checks preparation without building. `--build-only` builds and tests without replacing or opening the installed app. The local build uses the configured certificate when available. See [signing](../../docs/help/development.md#signing) for selection order and shared local setup. macOS may request screen-recording permission again after replacement.
 
 The bundled document dependencies include components with their own licences. Their installed licence files and version manifest are retained. Review [third-party notices](../../docs/legal/third-party.md) before distributing a build.
 

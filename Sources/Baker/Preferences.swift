@@ -37,11 +37,16 @@ enum PreferenceKeys {
     static let captureShortcuts = PreferenceKey("captureShortcuts", Data())
     static let menuLayout = PreferenceKey("bakerMenuLayout", Data())
     static let repeatCaptureArea = PreferenceKey("repeatCaptureArea", Data())
+    static let hasOfferedQuickStart = PreferenceKey("hasOfferedQuickStart", false)
+    static let resumeQuickStart = PreferenceKey("resumeQuickStart", false)
+    static let quickStartStep = PreferenceKey("quickStartStep", 0)
     static let hasShownRecognitionSetup = PreferenceKey("hasShownRecognitionSetup", false)
     static let hasOfferedLaunchAtLogin = PreferenceKey("hasOfferedLaunchAtLogin", false)
     static let retiredCloudCredentialsRemoved = PreferenceKey("retiredCloudCredentialsRemoved", false)
+    static let retiredOnlineConnectionRemoved = PreferenceKey("retiredOnlineConnectionRemoved", false)
     enum Legacy {
         static let finnishTextMode = "finnishTextMode"
+        static let onlineConnection = ["chatgpt.connected", "chatgpt.accountName", "chatgpt.model", "chatgpt.host", "chatgpt.pendingClient", "chatgpt.lunaDefault", "chatgpt.usage"]
         static let cloud = ["googleDriveClientID", "googleDriveImports", "dropboxAppKey", "dropboxImports"]
     }
 }

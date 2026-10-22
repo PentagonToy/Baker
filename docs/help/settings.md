@@ -2,13 +2,12 @@
 
 | Category | Controls |
 | --- | --- |
-| General | Login startup, update checks, clipboard, appearance, save folder, history and presets |
+| General | Quick Start, login startup, update checks, clipboard, appearance, save folder, history and presets |
 | Capture | Screen Recording access, desktop icons, sounds, visible previews and OCR languages |
 | Formula | Model preparation and repair, Unicode maths font and preview cache |
-| PDF | Optional engine download, progress and removal |
 | Shortcuts | Capture and recording shortcuts |
 | Menu | Menu group order, command order and visibility |
-| Advanced | Developer runtime overrides |
+| Advanced | Offline PDF model and developer runtime overrides |
 
 Settings remembers its selected page and window position during the session. Closing it leaves Baker running in the menu bar. See [storage and history](storage.md) for retention and presets.
 
@@ -32,7 +31,7 @@ With a Baker window focused, **⌘Q** quits, **⌘W** closes the window and **�
 
 ## PDF engine
 
-**Settings → PDF** shows download and installed sizes, progress, cancellation and removal. The engine stays under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`. Removing it preserves captures, history and exports. See [PDF conversion](../guide/clipboard-and-files.md#pdf-conversion).
+**Settings → Advanced → Offline Model** shows download and installed sizes, progress, cancellation and removal. The engine stays under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`. Removing it preserves captures, history and exports. See [PDF conversion](../guide/clipboard-and-files.md#pdf-conversion).
 
 ## Launch at Login
 

@@ -3,16 +3,16 @@ import BakerCore
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable {
-    case general = "General", capture = "Capture", formula = "Formula", pdf = "PDF", shortcuts = "Shortcuts", menu = "Menu", advanced = "Advanced"
+    case general = "General", capture = "Capture", formula = "Formula", shortcuts = "Shortcuts", menu = "Menu", advanced = "Advanced"
     var symbol: String {
-        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "sum"; case .pdf: return "doc.richtext"; case .advanced: return "slider.horizontal.3" }
+        switch self { case .general: return "gearshape"; case .capture: return "viewfinder"; case .shortcuts: return "command"; case .menu: return "list.bullet"; case .formula: return "sum"; case .advanced: return "slider.horizontal.3" }
     }
 }
 extension BakerError.Recovery {
     var settingsPage: SettingsPage? {
         switch self {
         case .formulaSettings: return .formula
-        case .pdfSettings: return .pdf
+        case .pdfSettings: return .advanced
         case .captureSettings: return .capture
         case .advancedSettings: return .advanced
         case .chooseLocation: return .general
@@ -30,8 +30,9 @@ extension BakerError.Recovery {
 struct BakerSettings: View {
     @ObservedObject var model: Workbench
     @ObservedObject var shortcuts: CaptureShortcuts
+    let showQuickStart: () -> Void
     @StateObject private var state: SettingsState
-    init(model: Workbench, shortcuts: CaptureShortcuts, page: SettingsPage = .general, state: SettingsState? = nil) { self.model = model; self.shortcuts = shortcuts; _state = StateObject(wrappedValue: state ?? SettingsState(page: page)); _appearance = AppStorage(PreferenceKeys.appearance, store: model.preferences.defaults) }
+    init(model: Workbench, shortcuts: CaptureShortcuts, showQuickStart: @escaping () -> Void, page: SettingsPage = .general, state: SettingsState? = nil) { self.model = model; self.shortcuts = shortcuts; self.showQuickStart = showQuickStart; _state = StateObject(wrappedValue: state ?? SettingsState(page: page)); _appearance = AppStorage(PreferenceKeys.appearance, store: model.preferences.defaults) }
     @AppStorage(PreferenceKeys.appearance) private var appearance
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
@@ -40,12 +41,12 @@ struct BakerSettings: View {
                 ForEach(SettingsPage.allCases, id: \.self) { page in
                     Button { state.page = page } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: page.symbol).frame(width: 18)
+                            Image(systemName: page.symbol).font(.system(size: 15, weight: .regular)).frame(width: 20, height: 20)
                             Text(page.rawValue).lineLimit(1)
                         }.font(BakerTypography.sidebar)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
-                            .foregroundStyle(state.page == page ? BakerTheme.selectionForeground : Color.primary)
-                            .background(state.page == page ? BakerTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 9))
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).frame(height: 42)
+                            .foregroundStyle(state.page == page ? BakerTheme.accent : Color.primary)
+                            .background(state.page == page ? BakerTheme.accent.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
                     }.buttonStyle(.plain)
                 }
                 Spacer()
@@ -61,8 +62,8 @@ struct BakerSettings: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(state.page.rawValue).font(.title2.weight(.semibold))
-                    content
+                    Text(state.page.rawValue).font(.system(size: 22, weight: .semibold)).padding(.bottom, 2)
+                    content.id(state.page)
                     Spacer(minLength: 0)
                 }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(minWidth: 0, maxWidth: .infinity)
@@ -71,6 +72,13 @@ struct BakerSettings: View {
     @ViewBuilder private var content: some View {
         switch state.page {
         case .general:
+            card("Getting started") {
+                HStack {
+                    Text("Practise capture, formulas and recording.").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Quick Start…", action: showQuickStart)
+                }
+            }
             card("Startup") { LaunchAtLoginSettings(controller: model.launchAtLogin) }
             card("Updates") { AppUpdatesSettings(updates: model.updates) }
             card("Clipboard") {
@@ -80,7 +88,7 @@ struct BakerSettings: View {
                 Divider()
                 toggle("Open text editor after recognition", value: $model.showResults)
             }
-            Text("Formula results always copy the selected format and open in the Formula Workspace.").font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Captured formulas copy the selected format and appear below the Baker menu-bar icon.").font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             card("Appearance") {
                 HStack {
                     Text("Theme"); Spacer()
@@ -138,9 +146,11 @@ struct BakerSettings: View {
             card("Preview cache") {
                 Button("Clear Preview Cache", action: model.clearPreviewCache).disabled(model.busy)
             }
-        case .pdf:
-            PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
         case .advanced:
+            card("Offline Model") {
+                Text("PDF conversion").font(.headline)
+                PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy, embedded: true)
+            }
             DisclosureGroup("Developer overrides") {
                 toggle("Use external OCR runtimes", value: $model.developerRuntimeOverrides)
                 if model.developerRuntimeOverrides {
@@ -153,11 +163,12 @@ struct BakerSettings: View {
         }
     }
     private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(BakerTypography.section).foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 14, content: content).padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                .background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 13))
-        }
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title).font(BakerTypography.section)
+            content()
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.border))
     }
     private func toggle(_ title: String, value: Binding<Bool>) -> some View {
         HStack { Text(title).fixedSize(horizontal: false, vertical: true); Spacer(minLength: 16); Toggle(title, isOn: value).labelsHidden().toggleStyle(.switch).controlSize(.small) }

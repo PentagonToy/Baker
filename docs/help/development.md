@@ -25,9 +25,18 @@ Use `BAKER_SIGN_IDENTITY` for a distribution signing identity. Ad-hoc signing su
 
 ## Signing
 
-The builder accepts a `signing_identity` in its ignored local configuration and passes it to nested native files and the app. Without one it uses ad-hoc signing, whose designated requirement changes with the binary and can invalidate privacy permission records across builds.
+The builder and `tools/prepare_app.sh` select signing in this order:
 
-Developer ID requires [Apple Developer Program membership](https://developer.apple.com/programs/whats-included/). A self-signed local code-signing certificate can provide a stable identity for development, but does not provide Developer ID distribution or notarisation; permission retention still needs testing. Creating or trusting a certificate changes the login keychain and requires the owner’s consent. Keep its private key out of the repository. See [Apple’s code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+1. `BAKER_SIGN_IDENTITY`.
+2. `signing_identity` in the ignored `others/builder/builder.local.json`.
+3. An opt-in certificate fingerprint in `~/Library/Application Support/PentagonToy/Development/signing-identity`, also supported by remile.
+4. Ad-hoc signing when none is configured.
+
+A configured identity that cannot sign fails the build. The fingerprint file contains no private key. Keep the certificate and private key in Keychain.
+
+Ad-hoc identity changes can invalidate privacy permissions after rebuilding. A fixed self-signed identity preserved Screen Recording permission across a tested rebuild and replacement on one development Mac. Other systems still require validation. Switching from an existing ad-hoc build can need one fresh approval.
+
+Local signing provides neither Developer ID nor notarisation. Public Developer ID distribution requires [Apple Developer Program membership](https://developer.apple.com/programs/whats-included/). Creating or trusting a certificate requires the owner’s consent. See [Apple’s code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
 
 ## Unbundled development
 

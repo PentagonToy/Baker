@@ -6,13 +6,14 @@ Choose a capture action from Baker’s menu-bar icon. Drag to select an area; Es
 | --- | --- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-all-dark.svg"><img src="../../others/assests/symbols/capture-all.svg" width="22" alt="All"></picture> All | Captures the monitor containing the pointer without dragging |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-area-dark.svg"><img src="../../others/assests/symbols/capture-area.svg" width="22" alt="Area"></picture> Area | Saves an image and shows a thumbnail at the bottom left |
+| Window… | Captures one selected application window without surrounding desktop content |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-scroll-dark.svg"><img src="../../others/assests/symbols/capture-scroll.svg" width="22" alt="Scrolling"></picture> Scrolling | Joins a page as you scroll down |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-text-dark.svg"><img src="../../others/assests/symbols/capture-text.svg" width="22" alt="Text"></picture> Text | Saves the source and recognises text without a thumbnail |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-formula-dark.svg"><img src="../../others/assests/symbols/capture-formula.svg" width="22" alt="Formula"></picture> Formula | Saves the source without a thumbnail, opens the equation and copies the selected format |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-formula-dark.svg"><img src="../../others/assests/symbols/capture-formula.svg" width="22" alt="Formula"></picture> Formula | Saves the source without a thumbnail, shows a menu-bar popover and copies the selected format |
 
-Text copies automatically when **General → Copy recognised text** is enabled. Formula always copies the selected format. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
+Text copies automatically when **General → Copy recognised text** is enabled. Formula always copies the selected format. Its result appears below the Baker icon. Choose **Workspace** for the original image, editing and history. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
 
-Image thumbnails fit without cropping and follow the pointer to the lower-left corner of the active monitor. The stack stays in place during a drag.
+Image thumbnails fit without cropping and follow the pointer to the lower-left corner of the active monitor. The stack moves gently between displays and stays in place during a drag.
 
 Hover over an image thumbnail to copy, save, pin or recognise it. **Save** confirms the file in the capture folder and closes the thumbnail without a location chooser. For another destination, use **Save a Copy As…** in the context menu.
 
@@ -43,7 +44,7 @@ Compare **Original**, **Rendered** or **Both** in the Formula Workspace. Choose 
 | Keynote | Keynote’s equation editor; compatible arrays become matrices |
 | Unicode | Ordinary text, including table cells |
 
-Use **Edit → Apply & Copy** to correct a result. Hover over or click a warning for its explanation. Confidence runs from red to green; it reflects the model’s certainty, not guaranteed correctness.
+Use **Edit → Apply & Copy** to correct a result. Unicode shows a warning only when conversion is unavailable. Click it for details. The model score reflects token confidence, not guaranteed correctness.
 
 Results and edits are saved. Find them in [Recent](recent.md) without repeating OCR. See [formula help](../help/formula.md), [Unicode pasting](../help/unicode-maths.md) or [setup](../help/getting-started.md#capture-a-formula).
 

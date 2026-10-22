@@ -79,7 +79,7 @@ let original = BakerError(message:"Missing engine",code:.modelNotReady,diagnosti
 let preserved = BakerError.wrapping(original,fallback:.downloadFailed)
 check(preserved.code == .modelNotReady && preserved.recovery == .pdfSettings && preserved.diagnostic == "cause", "Wrapping retains original type, recovery and diagnostic")
 check(original.userDescription == "Missing engine", "Technical diagnostic excluded from normal UI")
-check(original.recoverySuggestion?.contains("Settings → PDF") == true, "PDF recovery destination retained")
+check(original.recoverySuggestion?.contains("Settings → Advanced → Offline Model") == true, "PDF recovery destination retained")
 for code in BakerError.Code.allCases {
     let failure = BakerError(message:"Example",code:code)
     check(failure.recoverySuggestion != nil || [.cancelled,.operationFailed,.previewUnsupported].contains(code), "Each operational error has recovery guidance")
@@ -94,7 +94,7 @@ check(store[PreferenceKeys.appearance] == "dark", "UI binding writes supplied pr
 var copyImages = AppStorage(PreferenceKeys.copyCapturedImages, store: defaults)
 copyImages.wrappedValue = true
 check(store[PreferenceKeys.copyCapturedImages], "Boolean UI binding uses the same store")
-check(BakerError.Recovery.pdfSettings.settingsPage == .pdf, "PDF recovery opens PDF category")
+check(BakerError.Recovery.pdfSettings.settingsPage == .advanced, "PDF recovery opens Advanced category")
 check(BakerError.Recovery.formulaSettings.settingsPage == .formula, "Formula recovery opens Formula category")
 check(BakerError.Recovery.captureSettings.settingsPage == .capture, "Language recovery opens Capture category")
 check(BakerError.Recovery.chooseLocation.settingsPage == .general, "Storage recovery opens General category")

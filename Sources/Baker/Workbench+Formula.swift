@@ -4,6 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension Workbench {
+    func retainFormulaPreview(_ image: NSImage, for id: UUID) {
+        for other in Array(formulaResults.keys) where other != id && other != focusedFormulaID {
+            formulaResults[other]?.preview = nil
+        }
+        formulaResults[id]?.preview = image
+    }
     func adoptFormulas(_ values: [UUID: SavedFormula]) {
         if savedFormulas != values { historyRevision &+= 1 }
         savedFormulas = values
@@ -72,11 +78,9 @@ extension Workbench {
                 guard !shuttingDown else { throw CancellationError() }
                 if formula {
                     latex = result; format = outputFormat
-                    let rendered = UnicodeMath.convert(result, italicVariables: true)
+                    let rendered = UnicodeMath.approximate(result, italicVariables: true)
                     unicode = rendered.text
-                    unicodeMessage = rendered.warnings.isEmpty
-                        ? "Unicode approximates two-dimensional maths; LaTeX retains its structure."
-                        : rendered.warnings.joined(separator: " ")
+                    unicodeMessage = rendered.warnings.joined(separator: " ")
                     if let captureID {
                         let keynote = KeynoteLatex.convert(result)
                        formulaResults[captureID] = FormulaResult(phase: .ready, confidence: recognition.confidence, originalConfidence: recognition.confidence, originalLatex: result, model: recognition.model, confidenceMethod: recognition.confidenceMethod, diagnostics: recognition.diagnostics, latex: result, unicode: unicode,
@@ -85,7 +89,7 @@ extension Workbench {
                         do {
                             let preview = try await recognitionFlow.render(result)
                             if Task.isCancelled || shuttingDown { throw CancellationError() }
-                           formulaResults[captureID]?.preview = preview
+                           retainFormulaPreview(preview, for: captureID)
                         } catch is CancellationError { throw CancellationError() }
                         catch { formulaResults[captureID]?.previewError = BakerError.wrapping(error).userDescription }
                     } else { copyOutput() }
@@ -98,7 +102,7 @@ extension Workbench {
                     status = copyRecognisedText ? "Text copied." : "Recognition complete."
                 }
                 playCaptureFeedback(success: true)
-                onResultReady?()
+                if !formula { onResultReady?() }
             } catch is CancellationError {
                 status = "Recognition cancelled."
                 if formula, let captureID {
@@ -141,13 +145,15 @@ extension Workbench {
         guard !busy, !shuttingDown, let value = savedFormulas[id] else { return }
         if formulaResults[id]?.phase != .ready {
             if formulaResults.count >= 8, let oldest = captures.reversed().first(where: { formulaResults[$0.id] != nil }) { formulaResults.removeValue(forKey: oldest.id) }
-            let converted = UnicodeMath.convert(value.latex, italicVariables: true), keynote = KeynoteLatex.convert(value.latex)
+            let converted = UnicodeMath.approximate(value.latex, italicVariables: true), keynote = KeynoteLatex.convert(value.latex)
            formulaResults[id] = FormulaResult(phase: .ready, confidence: value.confidence, originalConfidence: value.originalConfidence, wasEdited: value.originalLatex != value.latex,
                 originalLatex: value.originalLatex, model: value.model, confidenceMethod: value.confidenceMethod,
                 diagnostics: value.diagnostics, unicodeOverride: value.unicodeOverride, latex: value.latex,
                 unicode: value.unicodeOverride ?? converted.text, keynote: LatexWhitespace.compact(keynote.text),
                 keynoteWarning: keynote.warnings.joined(separator: " "), warning: converted.warnings.joined(separator: " "),
                 format: OutputFormat(rawValue: value.format) ?? .latex, style: LatexCopyStyle(rawValue: value.style) ?? .bare)
+        }
+        if formulaResults[id]?.preview == nil {
             busy = true
             recognitionFlow.editJob = Task {
                 defer { busy = false; recognitionFlow.editJob = nil }
@@ -155,7 +161,7 @@ extension Workbench {
                 do {
                     let rendered = try await recognitionFlow.render(value.latex)
                     guard !shuttingDown, !Task.isCancelled, formulaResults[id]?.latex == value.latex else { return }
-                   formulaResults[id]?.preview = rendered
+                   retainFormulaPreview(rendered, for: id)
                 } catch { formulaResults[id]?.previewError = BakerError.wrapping(error).userDescription }
             }
         }
@@ -197,7 +203,7 @@ extension Workbench {
         let keynote = KeynoteLatex.convert(latex)
         formulaResults[id]?.keynote = LatexWhitespace.compact(keynote.text)
         formulaResults[id]?.keynoteWarning = keynote.warnings.joined(separator: " ")
-        let converted = UnicodeMath.convert(latex, italicVariables: true)
+        let converted = UnicodeMath.approximate(latex, italicVariables: true)
         unicode = converted.text; unicodeMessage = converted.warnings.joined(separator: " ")
         formulaResults[id]?.unicode = unicode; formulaResults[id]?.warning = unicodeMessage
         formulaResults[id]?.format = format
@@ -211,13 +217,17 @@ extension Workbench {
             do {
                 let preview = try await recognitionFlow.render(source)
                 guard !Task.isCancelled, !shuttingDown else { throw CancellationError() }
-               formulaResults[id]?.preview = preview
+               retainFormulaPreview(preview, for: id)
             } catch { if !shuttingDown { formulaResults[id]?.previewError = BakerError.wrapping(error).userDescription } }
         }
     }
     func copyFormula(_ id: UUID) {
         persistFormula(id)
         guard let result = formulaResults[id], result.phase == .ready else { return }
+        if result.format == .unicode && result.unicode.isEmpty {
+            formulaResults[id]?.copyStatus = "Unicode unavailable. Use LaTeX instead."
+            return
+        }
         do {
             if result.format == .unicode {
                 try clipboardFlow.copyMath(result.unicode, font: selectedMathFont)

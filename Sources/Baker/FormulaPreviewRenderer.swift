@@ -19,6 +19,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
     private var queue: [Request] = []
     private var active: Request?
     private var timeout: Task<Void, Never>?
+    private var idleRelease: Task<Void, Never>?
 
     init(resourceURL: URL? = nil) {
         #if SWIFT_PACKAGE
@@ -28,8 +29,8 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
         #endif
         self.resourceURL = resourceURL ?? bundle.url(forResource: "FormulaPreview", withExtension: nil)
         super.init()
-        cache.countLimit = 24
-        cache.totalCostLimit = 24 * 1024 * 1024
+        cache.countLimit = 12
+        cache.totalCostLimit = 16 * 1024 * 1024
     }
 
     func render(_ latex: String) async throws -> NSImage {
@@ -56,10 +57,14 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
         }, onCancel: { Task { @MainActor in self.cancel(id) } })
     }
 
-    func clearCache() { cache.removeAllObjects() }
+    func clearCache() {
+        cache.removeAllObjects()
+        if active == nil && queue.isEmpty { idleRelease?.cancel(); idleRelease = nil; resetWebView() }
+    }
 
     private func startNext() {
         guard active == nil, !queue.isEmpty else { return }
+        idleRelease?.cancel(); idleRelease = nil
         let request = queue.removeFirst()
         active = request
         timeout = Task { [weak self] in
@@ -136,6 +141,14 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
         timeout?.cancel(); timeout = nil; active = nil
         request.continuation.resume(with: result)
         startNext()
+        if active == nil && queue.isEmpty {
+            idleRelease = Task { [weak self] in
+                do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch { return }
+                guard let self, self.active == nil, self.queue.isEmpty else { return }
+                self.resetWebView()
+                self.idleRelease = nil
+            }
+        }
     }
 
     private func resetWebView() {

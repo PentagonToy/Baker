@@ -160,12 +160,12 @@ final class CaptureOverlayController {
     private func followPointer() {
         guard visible, !cards.isEmpty, NSEvent.pressedMouseButtons == 0,
               let target = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }), target != screen else { return }
-        screen = target; layout()
+        screen = target; layout(screenTransition: true)
     }
     private func cardHeight(_ id: UUID) -> CGFloat {
         model.formulaResults[id] == nil ? previewHeight : 280
     }
-    private func layout() {
+    private func layout(screenTransition: Bool = false) {
         updatePointerMonitoring()
         guard let frame = (screen.flatMap { candidate in NSScreen.screens.first { $0 == candidate } } ?? NSScreen.main)?.visibleFrame else { return }
         let limit = max(1, min(5, model.visibleCaptures))
@@ -177,7 +177,8 @@ final class CaptureOverlayController {
         }
         while cards.count > max(1, capacity) { retire(cards.removeLast().panel, upwards: true) }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.3
+            // Longer travel between displays needs more time than rearranging a stack.
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : (screenTransition ? 0.45 : 0.3)
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             var y = frame.minY + 20
             for card in cards {
