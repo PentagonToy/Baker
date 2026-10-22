@@ -32,6 +32,10 @@ See the [0.0.4 release notes](others/release/0.0.4.md) for changes and validatio
 
 <a href="others/assests/videos/formula-formats.mp4"><img src="others/assests/videos/formula-formats.gif" alt="Baker’s formula popover switching between LaTeX, Markdown and Unicode, then copying the result" width="760"></a>
 
+**PDF to Markdown or LaTeX.** Convert headings, body text and equations locally.
+
+<a href="others/assests/videos/pdf-to-markdown.mp4"><img src="others/assests/videos/pdf-to-markdown.gif" alt="A PDF excerpt with a heading, body text and equation compared with Baker’s actual Markdown and LaTeX exports; waiting time is omitted" width="760"></a>
+
 **Remove the background.** Keep the equation, with Undo and Redo.
 
 <a href="others/assests/videos/remove-background.mp4"><img src="others/assests/videos/remove-background.gif" alt="Remove the background: Paper &amp; Slides, Undo and Redo" width="760"></a>
@@ -40,7 +44,7 @@ See the [0.0.4 release notes](others/release/0.0.4.md) for changes and validatio
 
 <a href="others/assests/videos/vectorise-svg.mp4"><img src="others/assests/videos/vectorise-svg.gif" alt="Turn a capture into SVG: colour tracing, Undo and Redo" width="760"></a>
 
-Each silent demo lasts 8.5 seconds. Select a preview for the MP4. [Synthetic examples, edited timings](others/assests/videos/README.md).
+Silent demos, under 10 seconds each. Select a preview for the MP4. [Demo sources and timing](others/assests/videos/README.md).
 
 ## Start
 
