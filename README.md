@@ -26,6 +26,22 @@ See the [0.0.4 release notes](others/release/0.0.4.md) for changes and validatio
 | PDF | Structured Markdown or LaTeX with equations, tables and figures |
 | Record | MP4 with optional system audio, or silent GIF |
 
+## In action
+
+**Your equation, ready to paste.** Switch between LaTeX, Markdown and Unicode.
+
+<a href="others/assests/videos/formula-formats.mp4"><img src="others/assests/videos/formula-formats.gif" alt="Baker’s formula popover switching between LaTeX, Markdown and Unicode, then copying the result" width="760"></a>
+
+**Remove the background.** Keep the equation, with Undo and Redo.
+
+<a href="others/assests/videos/remove-background.mp4"><img src="others/assests/videos/remove-background.gif" alt="Remove the background: Paper &amp; Slides, Undo and Redo" width="760"></a>
+
+**Turn a capture into SVG.** Trace a diagram and return to the image with Undo.
+
+<a href="others/assests/videos/vectorise-svg.mp4"><img src="others/assests/videos/vectorise-svg.gif" alt="Turn a capture into SVG: colour tracing, Undo and Redo" width="760"></a>
+
+Each silent demo lasts 8.5 seconds. Select a preview for the MP4. [Synthetic examples, edited timings](others/assests/videos/README.md).
+
 ## Start
 
 1. Download and open the DMG.
