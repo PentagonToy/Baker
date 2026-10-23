@@ -21,7 +21,7 @@ struct BakerApp {
 }
 
 @MainActor
-final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
+final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate, NSPopoverDelegate {
     private let model = Workbench()
     private let automation = BakerAutomationServer()
     private let shortcuts = CaptureShortcuts()
@@ -33,6 +33,8 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
     private var subscriptions: Set<AnyCancellable> = []
     private var terminating = false
     private var formulaPopover: NSPopover?
+    private var formulaGlobalClickMonitor: Any?
+    private var formulaLocalClickMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do { try automation.start(model) } catch { NSLog("Baker automation could not start: %@", error.localizedDescription) }
@@ -350,6 +352,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         windows.hide(.formula)
         let popover = formulaPopover ?? NSPopover()
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentSize = NSSize(width: 500, height: 380)
         popover.contentViewController = NSHostingController(rootView: FormulaCapturePopover(model: model, openWorkspace: { [weak self] in
             self?.formulaPopover?.close()
@@ -357,7 +360,30 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         }))
         formulaPopover = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        watchFormulaOutsideClicks()
     }
+    private func watchFormulaOutsideClicks() {
+        stopFormulaOutsideClicks()
+        guard formulaPopover?.isShown == true else { return }
+        let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        // A passive menu-bar popover can appear while another app remains active.
+        formulaGlobalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: clicks) { [weak self] _ in
+            self?.formulaPopover?.close()
+        }
+        formulaLocalClickMonitor = NSEvent.addLocalMonitorForEvents(matching: clicks) { [weak self] event in
+            if let popover = self?.formulaPopover, popover.isShown,
+               event.window !== popover.contentViewController?.view.window {
+                popover.close()
+            }
+            return event
+        }
+    }
+    private func stopFormulaOutsideClicks() {
+        if let formulaGlobalClickMonitor { NSEvent.removeMonitor(formulaGlobalClickMonitor) }
+        if let formulaLocalClickMonitor { NSEvent.removeMonitor(formulaLocalClickMonitor) }
+        formulaGlobalClickMonitor = nil; formulaLocalClickMonitor = nil
+    }
+    func popoverDidClose(_ notification: Notification) { stopFormulaOutsideClicks() }
     @objc private func showFormulaWorkspace() {
         let hasResult = model.focusedFormulaID.flatMap { model.formulaResults[$0] } != nil
         let panel = windows.resolve(.formula) {

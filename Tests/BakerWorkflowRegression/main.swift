@@ -15,6 +15,13 @@ final class Flag: @unchecked Sendable {
         while !flag.value { precondition(Date() < deadline, "Worker did not start"); await Task.yield() }
     }
     let root = URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("library-" + UUID().uuidString)
+    let previewStore = CaptureStore(directory: root.appendingPathComponent("preview-fixture"))
+    let large = CGContext(data:nil,width:4096,height:1024,bitsPerComponent:8,bytesPerRow:0,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue)!
+    let largeRecord = try await previewStore.add(image: large.makeImage()!).record
+    let displayPreview = try await previewStore.preview(largeRecord)
+    check(displayPreview.width == 2048 && displayPreview.height == 512, "Display preview bounds the decoded image and preserves aspect ratio")
+    let full = try await previewStore.original(largeRecord)
+    check(full.width == 4096 && full.height == 1024, "Display optimisation leaves original pixels intact")
     let library = CaptureLibrary(directory: root)
     let context = CGContext(data:nil,width:96,height:48,bitsPerComponent:8,bytesPerRow:0,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue)!
     context.setFillColor(CGColor(gray:0.9,alpha:1));context.fill(CGRect(x:0,y:0,width:96,height:48))

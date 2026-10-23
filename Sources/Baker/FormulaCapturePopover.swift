@@ -24,9 +24,9 @@ struct FormulaCapturePopover: View {
                 Label("Formula", systemImage: "sum").font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Button(action: openWorkspace) { Label("Workspace", systemImage: "arrow.up.right") }
-                    .buttonStyle(.bordered).controlSize(.regular)
+                    .buttonStyle(BakerButtonStyle())
                     .help("Review the original, edit LaTeX and browse saved formulas")
-            }.frame(height: 28)
+            }.frame(height: 32)
             preview.frame(maxWidth: .infinity).frame(height: 128)
                 .background(.white, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.black.opacity(0.08)))
@@ -48,22 +48,22 @@ struct FormulaCapturePopover: View {
                 Button {
                     guard let id = model.focusedFormulaID else { return }; model.copyFormula(id)
                 } label: { Label("Copy " + format.rawValue, systemImage: "doc.on.doc").frame(maxWidth: .infinity) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(BakerButtonStyle(prominent: true, expands: true))
                     .disabled(result?.phase != .ready || source.isEmpty)
                 Button { model.capture(scrolling: false, action: .formula) } label: {
                     Label("Capture", systemImage: "viewfinder").frame(maxWidth: .infinity)
-                }.buttonStyle(.bordered).disabled(model.busy)
+                }.buttonStyle(BakerButtonStyle(expands: true)).disabled(model.busy)
             }.controlSize(.large)
             HStack(spacing: 12) {
-                Text(result?.phase == .ready ? result?.copyStatus ?? "" : "").lineLimit(1)
+                Text(result?.phase == .ready ? result?.copyStatus ?? "" : "").lineLimit(1).foregroundStyle(BakerTheme.success)
                 Spacer(minLength: 0)
                 if let result, result.phase == .ready, let score = result.confidence, !result.wasEdited {
                     Text("Model score " + score.formatted(.percent.precision(.fractionLength(0))))
                         .help("Token confidence, not a verified probability that the equation is correct.")
                 } else if result?.wasEdited == true { Text("Edited") }
-            }.font(.system(size: 12)).foregroundStyle(.secondary).frame(height: 18)
+            }.font(BakerTypography.supporting).foregroundStyle(.secondary).frame(height: 18)
         }.padding(16).frame(width: 500, height: 380)
-            .font(.system(size: 13)).tint(BakerTheme.accent).background(BakerTheme.background)
+            .labelStyle(BakerToolbarLabelStyle()).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
     }
     @ViewBuilder private var preview: some View {
         if let result, result.phase == .ready, let image = result.preview {

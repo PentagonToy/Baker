@@ -9,12 +9,13 @@ For app-neutral local clients, see the [headless recognition adapter](adapter.md
 | Task | Engine | Baker configuration |
 | --- | --- | --- |
 | Screenshot text | Apple Vision; [Tesseract](https://github.com/tesseract-ocr/tesseract) with [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) when Finnish or a language unavailable in Apple Vision is selected | Up to five selected languages; native text OCR stays separate from the document model |
-| Screenshot or imported formula image | [Pix2Text MFR 1.5](https://huggingface.co/breezedeus/pix2text-mfr-1.5), from [Pix2Text](https://github.com/breezedeus/Pix2Text) | ONNX Runtime; INT8 encoder feed-forward matrices, FP32 attention and decoder; sequential encoder/decoder sessions |
+| Screenshot or imported formula image | [Pix2Text MFR 1.5](https://huggingface.co/breezedeus/pix2text-mfr-1.5), from [Pix2Text](https://github.com/breezedeus/Pix2Text) | ONNX Runtime; downloadable model with INT8 encoder feed-forward matrices and FP32 attention/decoder; sequential encoder/decoder sessions |
+| Formula images, optional development preview | [Texo](https://github.com/alephpi/Texo), [FormulaNet weights](https://huggingface.co/alephpi/FormulaNet) | Pinned 687-token transfer model; CPU ONNX with incremental decoder cache |
 | PDF layout | [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO), [DocStructBench weights](https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench) | ONNX export with 1024-pixel square input |
 | PDF text, formula and table regions requiring recognition | [GLM-OCR](https://github.com/zai-org/GLM-OCR), [model weights](https://huggingface.co/zai-org/GLM-OCR) | MLX; 4-bit language weights, 8-bit vision linear layers and a small Baker LoRA adapter |
 | PDF text and export | [PyMuPDF](https://github.com/pymupdf/PyMuPDF), Baker reconstruction and exporters | Reuse reliable PDF characters; reconstruct reading order, authors, equation labels, table spans and figure references |
 
-The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the smaller MFR model.
+The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the smaller MFR model, or the optional Texo preview in development builds.
 
 The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
 
@@ -24,7 +25,7 @@ The document checkpoint derives from GLM-OCR through quantisation and a rank-4 L
 
 The adapter was trained for 40 updates on 54 checked, authored examples. Validation and test examples have separate content. PaddleOCR, Apple Vision, Tesseract and GLM-OCR supplied candidate teacher outputs that were checked against authored targets. User captures and research PDFs were excluded from training. The small dataset does not establish broad accuracy gains over the base model.
 
-Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) of Z.ai GLM-OCR, then applies its own mixed precision and adapter. The pinned source revisions are `24f15402e83baa0a80eeeaecf5480e172abc6f2e` for that MLX conversion and `1cef9f0bdcd6a4c63df7de1311fb0894593340cc` for MFR. The optional engine retains provenance under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`; bundled capture models stay in `Contents/Resources/Runtime/mfr`. Both retain hashes, package versions and upstream notices. The checked inference code, evaluation and packaging tools are in [`tools/recognition`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition).
+Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx-community/GLM-OCR-bf16) of Z.ai GLM-OCR, then applies its own mixed precision and adapter. The pinned source revisions are `24f15402e83baa0a80eeeaecf5480e172abc6f2e` for that MLX conversion and `1cef9f0bdcd6a4c63df7de1311fb0894593340cc` for MFR. The optional engine retains provenance under `~/Library/Application Support/Baker/Engines/pdf-engine-v1.0.0`; downloaded formula models stay under `~/Library/Application Support/Baker/Models`. Both retain hashes, package versions and upstream notices. The checked inference code, evaluation and packaging tools are in [`tools/recognition`](https://github.com/PentagonToy/Baker/tree/main/tools/recognition).
 
 ## Repositories studied
 
@@ -53,3 +54,11 @@ On a 16 GB M1 Pro, the selected document pipeline converted an 11-page research 
 Review names, correspondence markers, mathematical symbols, table spans and reading order against the source. Multilingual scans need further validation. The formula model score measures token probabilities, not a verified probability of correctness; the generative PDF model has no calibrated confidence score.
 
 See [limits](limits.md), [development builds](development.md) and [third-party notices](../legal/third-party.md).
+
+## Texo preview evaluation
+
+On an M1 Pro with 16 GB RAM, a 16-image development comparison measured new-process median wall time of 0.99 seconds for the installed partially INT8 MFR and 0.41 seconds for Texo CPU. Median per-request peak RSS was 171 MiB and 222 MiB respectively. The sample contains 15 authored formula renders or variants and one historical Navier–Stokes re-render, not its original screenshot. This is a small convenience sample, not a general accuracy or whole-app benchmark.
+
+The pinned Texo revision is `b2668efe5112082846fde4d446b9bfaab3989533`. Its 687-token vocabulary matches the transfer configuration; the highest distill results in the upstream README are not results for this exact deployment. The preview contains approximately 100 MB of encoder, initial-decoder and cached-decoder graphs, metadata and the model card, distributed as a compressed GitHub Release asset with notices and source. It uses the existing NumPy, Pillow, tokenizers and ONNX Runtime dependencies; no Torch, Transformers or OpenCV is required at runtime.
+
+The CoreML encoder experiment did not improve end-to-end latency on two repeated examples and used more memory, so it is not enabled in the app. The preview uses no further quantisation or resident model process. Its original pixel preprocessing matched the inspected upstream processor on four fixtures, and the integrated worker reproduced all 16 prototype results. Baker additionally inverts predominantly dark captures before Texo margin detection; mixed panels retain their original polarity. In two small dark captures, this recovered the main equation but both models still misread the single-character fraction `½`. Upscaling, thresholding and sharpening did not resolve that symbol in the tested capture. Model scores remain uncalibrated token probabilities.

@@ -9,6 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True, help='Evidence directory outside the repository')
+parser.add_argument('--keynote-fixtures', type=Path, help='BakerFormulaRegression validation.json with converted Keynote examples')
 args = parser.parse_args()
 output = args.output.resolve()
 if output == ROOT or ROOT in output.parents:
@@ -25,6 +26,9 @@ source = '\n'.join((ROOT / p).read_text().replace('import BakerCore\n', '') for 
 script = output / 'preview-regression.swift'
 script.write_text(source)
 with (output / 'regression.log').open('w') as log:
-    result = subprocess.run(['swift', str(script), str(resources), str(output / 'images')], stdout=log, stderr=subprocess.STDOUT)
+    command = ['swift', str(script), str(resources), str(output / 'images')]
+    if args.keynote_fixtures:
+        command.append(str(args.keynote_fixtures.resolve()))
+    result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
 print((output / 'regression.log').read_text())
 raise SystemExit(result.returncode)

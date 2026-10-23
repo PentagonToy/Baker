@@ -9,6 +9,7 @@ final class DocumentCoordinator {
     private var worker: Task<PDFConversionReport, Error>?
     private var token: UUID?
     var job: Task<Void, Never>?
+    var isConverting: Bool { worker != nil }
     init(converter: @escaping Converter = { source, destination, format, options, progress in
         try PDFConverter.convert(source: source, destination: destination, format: format, options: options,
                                  isCancelled: { Task.isCancelled }, progress: progress)
@@ -19,7 +20,7 @@ final class DocumentCoordinator {
         guard worker == nil else { throw BakerError(message: "Another document is being converted.", code: .invalidState) }
         let id = UUID(), converter = converter
         token = id
-        let task = Task.detached {
+        let task = Task.detached { [weak self] in
             try Task.checkCancellation()
             return try converter(source, destination, format, options) { value in
                 Task { @MainActor [weak self] in if self?.token == id { progress(value) } }

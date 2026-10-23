@@ -54,6 +54,7 @@ nav:
       - Get started: help/getting-started.md
       - Settings: help/settings.md
       - Models and references: help/recognition.md
+      - Formula model downloads: models/README.md
       - Development builds: help/development.md
       - Agent CLI: help/cli.md
       - Formula: help/formula.md

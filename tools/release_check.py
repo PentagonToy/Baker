@@ -51,14 +51,13 @@ def audit(app, external_engine=None):
         if not descriptor.get('available'): blockers.append('Optional PDF engine asset is not published; keep this build local')
         if descriptor.get('schema') != 1 or len(descriptor.get('archive_sha256', '')) != 64: blockers.append('Invalid optional PDF descriptor')
     checked = 0
-    formula_root = resources / 'Runtime/mfr'
-    if formula_root.is_dir():
-        formula = json.loads((resources / 'formula-model.json').read_text())
-        for name, entry in formula['files'].items():
-            path = formula_root / name
-            if not path.is_file() or hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() != entry['sha256']:
-                blockers.append('Capture formula model integrity failed: ' + name)
-            checked += 1
+    for folder in ['Runtime/mfr', 'Runtime/texo']:
+        if (resources / folder).exists(): blockers.append('Remove bundled optional formula weights: ' + folder)
+    for name in ['formula-model.json', 'formula-model-canonical.json', 'texo-model.json', 'formula_worker.py', 'texo_worker.py', 'formula_model_install.py']:
+        source = ROOT / 'Sources/Baker/Resources' / name
+        target = resources / name
+        if not target.is_file() or target.read_bytes() != source.read_bytes():
+            blockers.append('Repackage the current formula resource: ' + name)
     if engine.is_dir():
         expected = json.loads((ROOT / 'tools/recognition/model-provenance.json').read_text())
         actual = json.loads((engine / 'PROVENANCE.json').read_text())

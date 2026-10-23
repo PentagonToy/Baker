@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Offer optimised Pix2Text and the Texo CPU preview as separate, verified GitHub Release downloads with licences, provenance and source. Keep formula weights out of the base app, reuse installed models and explain memory/speed tradeoffs without implying an accuracy ranking.
+- Let Quick Start download either formula model after screen-recording permission, then enable the capture exercise without leaving the tour.
+- Load display-sized original formula previews only when shown, cancel pending renders when clearing preview caches, and bound the render queue. Add read-only CLI diagnostics for app memory, caches and active work, and fix intermittent request-permission failures.
+- Fit capture previews to the active display’s usable height by default, closing the oldest preview when full while keeping saved captures. Retain optional limits of one to five previews.
+- Normalise predominantly dark formula captures before Texo margin detection so light equations are not mistaken for the background.
+- Unify warm surfaces, readable action buttons and toolbar icon alignment across Settings, Quick Start, formula views, files and history. Compact the formula toolbar in narrow windows and simplify model management.
+- Dismiss the formula menu-bar popover when clicking outside, including in another app or display; keep clicks inside the popover available.
+- Improve Keynote equation output for braced pseudobold text and centred multiline vectors while retaining underlines, grouping and supported bold notation. Warn on irregular matrix layouts and unsupported commands.
+- Give the Last Capture formula format selector its own row and move Copy below it to prevent overlapping controls.
+
 ## 0.0.4 — 2026-10-22
 
 - Add Window capture, an arranged drag-to-install DMG and a permission-first Quick Start covering formulas, scrolling, recording and history.

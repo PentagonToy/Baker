@@ -2,7 +2,13 @@
 
 Crop one equation clearly. Compare the original and rendered result, especially signs, scripts and matrix entries.
 
-Captured formulas appear in a popover below the Baker menu-bar icon and copy automatically. Choose **Workspace** for detailed review.
+Captured formulas appear in a popover below the Baker menu-bar icon and copy automatically. Click outside to dismiss it, or choose **Workspace** for detailed review.
+
+## Recognition engine
+
+Development builds offer **Settings → Formula → Recognition engine**. Pix2Text remains selected for existing users. Both models download separately: Pix2Text has about 77 MB of model files and Texo about 100 MB. Choose an engine, then **Download Model** once; later recognition runs offline. Previously installed optimised Pix2Text models remain usable. Switch back to Pix2Text at any time. Each engine keeps its own model files; removing one does not remove the other or captured formulas. The headless CLI uses the same selection unless developer runtime overrides are enabled.
+
+Texo was faster in a small comparison but used more typical request memory. Difficult derivatives and some array layouts still need review. Scores from different engines are not calibrated against each other. This preview does not change the PDF conversion engine.
 
 ## Formula Workspace
 
@@ -24,9 +30,11 @@ Editing removes the current score while retaining original diagnostics. **Edit �
 
 ## Copy formats
 
-Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview. The warning icon appears only when Unicode is unavailable.
+Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices, centred multiline groups to matrix rows and braced `\pmb{...}` to `\boldsymbol{...}`. Underlines, variable fonts and mathematical grouping remain intact. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview. The warning icon appears only when Unicode is unavailable.
 
 Copying removes ordinary token spacing, such as `v _ { x }` → `v_{x}`, while preserving text groups and explicit spacing. Known standard operators such as `\operatorname{ e x p }` become `\exp`; custom and starred operators retain their structure. The catalogue follows [AMS operator definitions](https://github.com/latex3/latex2e/blob/develop/required/amsmath/amsopn.dtx).
+
+Keynote has its own equation parser. [Apple documents](https://support.apple.com/en-gb/102138) support for `\boldsymbol` and limited `aligned` layouts. Baker preserves these rather than flattening every structure. Uneven matrix rows, custom row spacing and documented unsupported commands retain their source with a compatibility warning. This conversion does not use AI or rerun recognition. In Last Capture, the format selector has its own row above the copy action.
 
 ## Preview and chemistry
 

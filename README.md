@@ -66,9 +66,9 @@ Captures, recordings and formula history use one folder, initially `~/Documents/
 
 ## Local recognition
 
-Text uses Apple Vision or Tesseract; formula images use Pix2Text MFR 1.5. PDFs combine native text, DocLayout-YOLO and quantised GLM-OCR with a small Baker adapter. [Models and references](docs/help/recognition.md) documents sources, adaptations and measured limits.
+Text uses Apple Vision or Tesseract; formula images use Pix2Text MFR 1.5 or the experimental Texo engine. PDFs combine native text, DocLayout-YOLO and quantised GLM-OCR with a small Baker adapter. [Models and references](docs/help/recognition.md) documents sources, adaptations and measured limits.
 
-Text, formula recognition and previews work offline with the included runtime. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once, then works offline. Normal use needs no OCR account, Python path or model configuration.
+Text recognition and previews work offline with the included runtime. Download a [formula model](docs/models/README.md) once in Settings → Formula; subsequent recognition stays offline. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once, then works offline. Normal use needs no OCR account, Python path or model configuration.
 
 ## Requirements
 

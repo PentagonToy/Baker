@@ -20,6 +20,10 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
     private var active: Request?
     private var timeout: Task<Void, Never>?
     private var idleRelease: Task<Void, Never>?
+    var resourceState: [String: Any] {
+        ["webViewRetained": webView != nil, "rendering": active != nil, "queuedRequests": queue.count,
+         "cacheEntryLimit": 12, "cacheCostLimitBytes": 16 * 1024 * 1024]
+    }
 
     init(resourceURL: URL? = nil) {
         #if SWIFT_PACKAGE
@@ -48,6 +52,9 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
             throw BakerError(message: "There is no formula to preview.", code: .invalidInput)
         }
         if let image = cache.object(forKey: source as NSString) { return image }
+        guard queue.count < 16 else {
+            throw BakerError(message: "Too many formula previews are waiting. Try again shortly.", code: .resourceLimit)
+        }
         let id = UUID()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -59,7 +66,12 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
 
     func clearCache() {
         cache.removeAllObjects()
-        if active == nil && queue.isEmpty { idleRelease?.cancel(); idleRelease = nil; resetWebView() }
+        timeout?.cancel(); timeout = nil
+        idleRelease?.cancel(); idleRelease = nil
+        let requests = (active.map { [$0] } ?? []) + queue
+        active = nil; queue = []
+        resetWebView()
+        requests.forEach { $0.continuation.resume(throwing: CancellationError()) }
     }
 
     private func startNext() {

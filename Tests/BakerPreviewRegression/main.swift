@@ -37,6 +37,16 @@ Task { @MainActor in
     fixtures += LatexWhitespace.standardOperators.sorted().map { ("operator-" + $0, "\\" + $0 + " x") }
     do {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        if CommandLine.arguments.count > 3 {
+            let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[3]))
+            let examples = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+            let names = examples.keys.filter { $0.hasPrefix("keynote-user-") }.sorted()
+            check(names.count == 3, "Three reported Keynote failures supplied")
+            for name in names {
+                if let value = examples[name] as? [String: String], let converted = value["converted"] { fixtures.append((name, converted)) }
+                else { check(false, "Missing converted fixture " + name) }
+            }
+        }
         for (label, source) in fixtures {
             do {
                 let start = Date()
@@ -80,6 +90,33 @@ Task { @MainActor in
         catch is CancellationError { check(true,"Active render cancellation") }
         _ = try await renderer.render(#"\ce{AgCl}"#)
         check(true,"Renderer recovers after cancellation")
+        let clearing = Task { try await renderer.render(#"\int_0^7 x\,dx"#) }
+        await Task.yield()
+        renderer.clearCache()
+        do { _ = try await clearing.value; check(false,"Cache clear cancels in-flight rendering") }
+        catch is CancellationError { check(true,"Cache clear cancels in-flight rendering") }
+        check(renderer.resourceState["queuedRequests"] as? Int == 0 && renderer.resourceState["webViewRetained"] as? Bool == false, "Cache clear releases renderer and queued requests")
+        _ = try await renderer.render("x+7")
+        check(true,"Renderer recovers after cache clear")
+        let blockedDirectory = output.appendingPathComponent("blocked-renderer")
+        try FileManager.default.createDirectory(at: blockedDirectory, withIntermediateDirectories: true)
+        try "<html><script>window.bakerPreview = () => new Promise(() => {});</script></html>".write(to: blockedDirectory.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        let blocked = FormulaPreviewRenderer(resourceURL: blockedDirectory)
+        var attempted = 0
+        let requests = (0..<24).map { index in Task { @MainActor in
+            attempted += 1
+            return try await blocked.render("x+\(index)")
+        } }
+        while attempted < requests.count { await Task.yield() }
+        check(blocked.resourceState["queuedRequests"] as? Int == 16, "Renderer bounds its waiting queue")
+        blocked.clearCache()
+        var cancelledCount = 0, limitedCount = 0
+        for request in requests {
+            do { _ = try await request.value; check(false, "Blocked renderer unexpectedly completed") }
+            catch is CancellationError { cancelledCount += 1 }
+            catch let error as BakerError where error.code == .resourceLimit { limitedCount += 1 }
+        }
+        check(cancelledCount == 17 && limitedCount == 7, "Cache clear resumes all accepted requests; excess work is rejected")
         let defined = try await renderer.render(#"\gdef\bakerprivate{q}\bakerprivate"#)
         check(defined.size.width > 0,"Per-equation macro definition")
         do { _ = try await renderer.render(#"\bakerprivate"#); check(false,"Macro isolation") }

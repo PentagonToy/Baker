@@ -47,10 +47,11 @@ struct DocumentProgress {
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : NSColor(red: red, green: green, blue: blue, alpha: 1)
         })
     }
-    static let background = colour(0.97, 0.97, 0.96, dark: .windowBackgroundColor)
-    static let sidebar = colour(0.94, 0.94, 0.93, dark: .windowBackgroundColor)
-    static let surface = colour(1, 1, 1, dark: NSColor(white: 0.16, alpha: 1))
-    static let border = Color.primary.opacity(0.07)
+    static let background = colour(0.975, 0.97, 0.955, dark: NSColor(red: 0.10, green: 0.13, blue: 0.14, alpha: 1))
+    static let sidebar = colour(0.94, 0.935, 0.915, dark: NSColor(red: 0.085, green: 0.11, blue: 0.12, alpha: 1))
+    static let surface = colour(0.995, 0.992, 0.98, dark: NSColor(red: 0.135, green: 0.165, blue: 0.175, alpha: 1))
+    static let border = Color.primary.opacity(0.09)
+    static let success = colour(0.25, 0.46, 0.36, dark: NSColor(red: 0.60, green: 0.77, blue: 0.66, alpha: 1))
     static let paper = colour(1, 1, 1, dark: .white)
     // Warm bread against the charcoal/slate palette of the authored Baker artwork.
     static let selectionForeground = Color(nsColor: NSColor(name: nil) { appearance in
@@ -58,8 +59,8 @@ struct DocumentProgress {
     })
     static let accent = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 0.93, green: 0.73, blue: 0.41, alpha: 1)
-            : NSColor(red: 0.58, green: 0.32, blue: 0.11, alpha: 1)
+            ? NSColor(red: 0.88, green: 0.73, blue: 0.48, alpha: 1)
+            : NSColor(red: 0.53, green: 0.35, blue: 0.15, alpha: 1)
     })
 }
 

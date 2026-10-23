@@ -22,7 +22,7 @@ The configured builder defaults to a separate engine when `small_ocr_payload` is
 
 While the descriptor has `available=false`, the builder refuses to replace the installed app with a separate-engine build. Use build-only checks or select the complete offline build until the download is published.
 
-For a direct base-app build, pass `BAKER_FORMULA_MODELS_DIRECTORY` pointing to the prepared directory containing `mfr` and `formula-model.json`, and `BAKER_PDF_ENGINE_MANIFEST` pointing to the generated descriptor. Omit `BAKER_DOCUMENT_ENGINE_DIRECTORY`. The app packager removes a stale bundled DocumentEngine from reused output folders, and retains the MFR model under Runtime.
+For a direct base-app build, pass `BAKER_PDF_ENGINE_MANIFEST` pointing to the generated descriptor and omit `BAKER_DOCUMENT_ENGINE_DIRECTORY`. The packager removes stale DocumentEngine and formula weights from reused output folders. Both formula models download separately in Settings; the PDF distribution retains its own required models.
 
 The installer runs from the base app’s Python runtime. It checks the entire archive before extraction, rejects escaping paths/links and special files, enforces the unpacked-size limit, then verifies every extracted file against the pinned inventory. The app stages installation beside the final engine directory and preserves an existing installation until verification succeeds. Cancellation removes the pending archive and staging directory. A completed installation receipt identifies the exact accepted archive.
 

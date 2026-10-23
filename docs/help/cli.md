@@ -6,6 +6,7 @@ Baker 0.0.4 and later include `/Applications/Baker.app/Contents/Resources/CLI/ba
 | --- | --- |
 | `version` | Installed app version |
 | `status` | Busy state, storage, capture count and last status |
+| `diagnostics` | App memory, thumbnail cache, preview queue and active OCR/PDF work; no captured content or paths |
 | `history --limit 20 --offset 0` | Capture metadata and saved formula source |
 | `result` | Current text, LaTeX, Unicode and export path |
 | `capture --format all` | Capture the pointer’s display |
@@ -26,6 +27,8 @@ Baker 0.0.4 and later include `/Applications/Baker.app/Contents/Resources/CLI/ba
 | `unicode --text '\mathbf{x}+1'` | Headless plain Unicode approximation |
 
 Live commands require Baker running. There is no extra worker or server port. Requests use an owner-only mailbox awakened by filesystem events. Capture and recording commands return acceptance rather than completed output. Poll `status` and `result` afterwards. The normal Screen Recording permission and interactive selection still apply. Model downloads remain explicit app actions.
+
+`diagnostics` is read-only and remains available during conversion. `process.residentBytes` and `physicalFootprintBytes` describe the app process, excluding OCR workers and WebKit services. Compare repeated samples under the same workload; one reading cannot establish a leak. Cache limits are budgets, not the total memory retained by visible views.
 
 For structured input, pipe a JSON object to `baker request`, for example `{"operation":"history","limit":5}`. The CLI supplies a fresh request identity and timestamp. Unhandled operations return `ok: false`. Nonzero exit status indicates failure. Output paths must be new absolute paths. No existing file is intentionally overwritten.
 

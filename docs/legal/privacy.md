@@ -18,7 +18,7 @@ Closing a thumbnail retains its file. Done in the editor replaces the capture an
 
 ## Downloads
 
-The complete app prepares and repairs its included formula model locally. Builds without that model download pinned files from Hugging Face over HTTPS. Baker verifies sizes and SHA-256 hashes before installation under `~/Library/Application Support/Baker/Models`. Remove Model deletes the prepared cache while preserving captures and any bundled model.
+Formula models download only when requested in Settings, using pinned archives from Baker’s GitHub releases over HTTPS. Baker verifies sizes and SHA-256 hashes before installation under `~/Library/Application Support/Baker/Models`. Remove Model deletes the selected model while preserving captures and the other model.
 
 PDF conversion downloads its optional engine from Baker’s GitHub Releases over HTTPS. Baker verifies the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → Advanced → Offline Model removes the engine while preserving user files.
 

@@ -22,6 +22,8 @@ final class RecognitionCoordinator {
     private var preview: Task<NSImage, Error>?
     var job: Task<Void, Never>?
     var editJob: Task<Void, Never>?
+    var isRecognising: Bool { worker != nil }
+    var isRendering: Bool { preview != nil }
     init(recogniser: @escaping Recogniser, renderer: @escaping @MainActor (String) async throws -> NSImage) {
         recogniseInput = recogniser; renderSource = renderer
     }
@@ -41,6 +43,7 @@ final class RecognitionCoordinator {
     func render(_ source: String) async throws -> NSImage {
         try Task.checkCancellation()
         guard preview == nil else { throw BakerError(message: "A preview is already being rendered.", code: .invalidState) }
+        let renderSource = renderSource
         let task = Task { try await renderSource(source) }
         preview = task
         defer { preview = nil }

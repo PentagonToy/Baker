@@ -234,6 +234,12 @@ public final class CaptureArchive {
         return try decodedImage(for: record, maximumPixelSize: max(record.pixelWidth, record.pixelHeight))
     }
 
+    /// A display-sized decode; recognition and exports continue to use the saved file.
+    public func preview(for record: CaptureRecord) throws -> CGImage {
+        guard Self.valid(record) else { throw BakerError(message: "The saved capture record is invalid.", code: .storageFailed) }
+        return try decodedImage(for: record, maximumPixelSize: min(2048, max(record.pixelWidth, record.pixelHeight)))
+    }
+
     private func decodedImage(for record: CaptureRecord, maximumPixelSize: Int) throws -> CGImage {
         let url = fileURL(for: record)
         let info = try Self.inspect(url, allowSymbolicLink: false)

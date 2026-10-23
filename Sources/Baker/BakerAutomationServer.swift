@@ -64,6 +64,12 @@ import Darwin
             return URL(fileURLWithPath: path)
         }
         switch r.operation {
+        case "diagnostics":
+            return ["ok": true, "schemaVersion": 1, "process": RuntimeDiagnostics.process(),
+                    "thumbnails": ["cached": m.library.cachedThumbnailCount, "pending": m.library.pendingThumbnailCount, "cacheEntryLimit": 6],
+                    "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
+                    "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
+                    "document": ["running": m.documentFlow.isConverting], "otherCLIRequests": max(0, jobs.count - 1)]
         case "status": return ["ok": true,"busy": m.busy,"recording": m.isRecording,"convertingPDF": m.isConvertingPDF,"status": m.status,"error": m.failure?.userDescription ?? "","captures": m.captures.count,"storage": m.storageDirectory.path]
         case "history":
             let entries = m.captures.dropFirst(max(0,r.offset ?? 0)).prefix(min(100,max(1,r.limit ?? 20)))

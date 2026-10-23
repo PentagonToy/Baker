@@ -20,7 +20,7 @@ Install with the DMG above, or use `brew install --cask pentagontoy/tap/baker`. 
 - Open images and PDFs through a file workspace, with drag-and-drop and multiple files.
 - Convert PDFs to structured Markdown or LaTeX with local layout, equation and table recognition.
 
-Choose up to five of thirteen text OCR languages. Apple Vision handles supported selections; bundled Tesseract handles selections unavailable in Vision. The app prepares its included formula model automatically. Review recognised equations and complex PDF layouts against the original.
+Choose up to five of thirteen text OCR languages. Apple Vision handles supported selections; bundled Tesseract handles selections unavailable in Vision. Choose and download a formula model in Settings → Formula; installed models work offline. Review recognised equations and complex PDF layouts against the original.
 
 Read [models and references](help/recognition.md) for the engines Baker includes, its small-model adaptation and the repositories that informed the design.
 

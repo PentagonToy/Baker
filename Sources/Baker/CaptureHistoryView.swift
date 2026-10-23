@@ -48,7 +48,7 @@ struct CaptureHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Capture History").font(.title2.weight(.semibold))
+                Text("Capture History").font(BakerTypography.title)
                 Spacer()
                 Button(action: model.revealCaptures) { Label("Open Folder", systemImage: "folder") }
             }
@@ -65,7 +65,7 @@ struct CaptureHistoryView: View {
                 if state.searching { ProgressView().controlSize(.small) }
                 if !state.query.isEmpty {
                     Button { state.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).accessibilityLabel("Clear search")
+                        .buttonStyle(.plain).frame(width: 28, height: 28).accessibilityLabel("Clear search")
                 }
             }.padding(10).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 9))
             if items.isEmpty {
@@ -75,7 +75,7 @@ struct CaptureHistoryView: View {
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 16)], spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 16)], spacing: 16) {
                         ForEach(Array(items.prefix(state.limit))) { item in
                             switch item {
                             case .image(let record):
@@ -89,7 +89,7 @@ struct CaptureHistoryView: View {
                     if state.limit < items.count { Button("Show More") { state.limit += 100 }.padding(.top, 16) }
                 }
             }
-        }.padding(20).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
+        }.buttonStyle(BakerButtonStyle()).padding(20).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
             .frame(minWidth: 720, minHeight: 460)
             .onChange(of: state.query) { state.limit = 100 }
             .onChange(of: state.filter) { state.limit = 100 }
@@ -154,8 +154,8 @@ private struct CaptureHistoryCard: View {
                 Button {
                     Task { state.copied = await model.copyCapture(record) }
                 } label: { Label(state.copied ? "Copied" : "Copy", systemImage: state.copied ? "checkmark" : "doc.on.doc") }
-                    .help("Copy the capture image").accessibilityLabel("Copy Image")
-            }.controlSize(.small)
+                    .frame(width: 88).help("Copy the capture image").accessibilityLabel("Copy Image")
+            }.buttonStyle(BakerButtonStyle())
         }.padding(12).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? BakerTheme.accent : Color.secondary.opacity(0.18), lineWidth: selected ? 2 : 1))
             .animation(BakerMotion.selection(reduced: reduceMotion), value: selected)
@@ -205,8 +205,8 @@ private struct RecordingHistoryCard: View {
                 Spacer()
                 Button { state.copied = model.copyRecording(record) } label: {
                     Label(state.copied ? "Copied" : "Copy", systemImage: state.copied ? "checkmark" : "doc.on.doc")
-                }.help("Copy the recording file")
-            }.controlSize(.small)
+                }.frame(width: 88).help("Copy the recording file")
+            }.buttonStyle(BakerButtonStyle())
         }.padding(12).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.18)))
             .contextMenu {

@@ -181,7 +181,7 @@ struct FilesWorkspace: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Clipboard & Files").font(.system(size: 26, weight: .medium, design: .serif))
+                    Text("Clipboard & Files").font(BakerTypography.title)
                     Text("Turn captures and documents into editable text.").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -192,7 +192,7 @@ struct FilesWorkspace: View {
                 Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
                 Text("Drop images and PDFs here").font(.headline)
                 Text("Choose files, select an output, then convert. Originals stay in place.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                Button("Choose Files…", action: inbox.browse).buttonStyle(.borderedProminent).disabled(model.busy || inbox.running)
+                Button("Choose Files…", action: inbox.browse).buttonStyle(BakerButtonStyle(prominent: inbox.items.isEmpty)).disabled(model.busy || inbox.running)
             }.frame(maxWidth: .infinity).padding(24)
                 .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? BakerTheme.accent : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
@@ -214,7 +214,7 @@ struct FilesWorkspace: View {
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
-                else { Button("Convert Files", action: inbox.start).buttonStyle(.borderedProminent).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
+                else { Button("Convert Files", action: inbox.start).buttonStyle(BakerButtonStyle(prominent: true)).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
             }
             if model.preparedDocumentEngine == nil && inbox.items.contains(where: { $0.url.pathExtension.lowercased() == "pdf" }) {
                 PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
@@ -235,6 +235,6 @@ struct FilesWorkspace: View {
             }.scrollContentBackground(.hidden).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 10))
             Text(inbox.message.isEmpty ? "Images are archived. Save PDF outputs before clearing this list or quitting." : inbox.message).font(BakerTypography.supporting).foregroundStyle(.secondary)
         }.animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: inbox.targeted)
-        .font(BakerTypography.body).tint(BakerTheme.accent).padding(20).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
+        .buttonStyle(BakerButtonStyle()).font(BakerTypography.body).tint(BakerTheme.accent).padding(20).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
     }
 }

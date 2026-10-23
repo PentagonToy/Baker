@@ -14,7 +14,7 @@ enum BakerAutomation {
         var offset: Int?
     }
     static var directory: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Baker/Automation") }
-    static let commands = ["status", "history", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf"]
+    static let commands = ["status", "diagnostics", "history", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf"]
     static func emit(_ value: [String: Any]) -> Int32 {
         let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])) ?? Data("{}".utf8)
         FileHandle.standardOutput.write(data + Data("\n".utf8))
@@ -55,7 +55,12 @@ enum BakerCLI {
             guard !FileManager.default.fileExists(atPath: input.path), !FileManager.default.fileExists(atPath: output.path) else { throw FormulaAdapter.Failure(message: "Request ID is already in use.") }
             let bytes = try JSONEncoder().encode(request)
             guard bytes.count <= 65536 else { throw FormulaAdapter.Failure(message: "Request exceeds 64 KiB.") }
-            try bytes.write(to: input, options: [.atomic]); try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: input.path)
+            // The watcher must not consume the request before its permissions are set.
+            let staging = folder.appendingPathComponent("." + request.id.uuidString + ".request.tmp")
+            defer { try? FileManager.default.removeItem(at: staging) }
+            try bytes.write(to: staging, options: [.atomic])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: staging.path)
+            try FileManager.default.moveItem(at: staging, to: input)
             defer { try? FileManager.default.removeItem(at: input); try? FileManager.default.removeItem(at: output) }
             let deadline = Date().addingTimeInterval(min(7200, max(1, Double(option("--timeout") ?? "30") ?? 30)))
             while Date() < deadline {

@@ -120,6 +120,10 @@ actor CaptureStore {
         try Task.checkCancellation()
         return try opened().original(for: record)
     }
+    func preview(_ record: CaptureRecord) throws -> CGImage {
+        try Task.checkCancellation()
+        return try opened().preview(for: record)
+    }
     func thumbnail(_ record: CaptureRecord) throws -> CGImage {
         try Task.checkCancellation()
         return try opened().thumbnail(for: record)

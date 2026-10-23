@@ -131,7 +131,7 @@ def build(config, build_only):
             optimize_key = hashlib.sha256(optimizer.read_bytes() + Path(config['document_configuration']).read_bytes()).hexdigest()[:16]
             optimized = root / ('optimized-models-' + optimize_key)
             run([config['document_python'], optimizer, '--configuration', config['document_configuration'],
-                 '--manifest', ROOT / 'Sources/Baker/Resources/formula-model.json', '--destination', optimized])
+                 '--manifest', ROOT / 'Sources/Baker/Resources/formula-model-canonical.json', '--destination', optimized])
             document_configuration = optimized / 'document-engine.json'
             key = hashlib.sha256((BUILDER / 'pack_document_engine.py').read_bytes() + document_configuration.read_bytes() + environment).hexdigest()[:16]
             document = root / ('document-engine-' + key)
@@ -148,8 +148,10 @@ def build(config, build_only):
             if not build_only and not descriptor.get('available'):
                 raise ValueError('The optional PDF download is not published. Use --build-only to test, or include_pdf_engine=true to install a complete offline app. The installed app was not replaced.')
         env = dict(os.environ, BAKER_BUILD_DIRECTORY=str(root / 'native'), BAKER_BUILD_SYSTEM='native', BAKER_BUILD_CONFIGURATION='release',
-                   BAKER_RUNTIME_DIRECTORY=config['formula_runtime'], BAKER_FORMULA_MODELS_DIRECTORY=str(document))
+                   BAKER_RUNTIME_DIRECTORY=config['formula_runtime'])
         env.pop('BAKER_DOCUMENT_ENGINE_DIRECTORY', None)
+        env.pop('BAKER_FORMULA_MODELS_DIRECTORY', None)
+        env.pop('BAKER_FORMULA_MODEL_MANIFEST', None)
         if separate: env['BAKER_PDF_ENGINE_MANIFEST'] = str(distribution / 'pdf-engine.json')
         else: env['BAKER_DOCUMENT_ENGINE_DIRECTORY'] = str(document)
         if config.get('signing_identity'): env['BAKER_SIGN_IDENTITY'] = config['signing_identity']

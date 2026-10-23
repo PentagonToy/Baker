@@ -10,6 +10,8 @@ final class CaptureLibrary {
     private let requests = ThumbnailRequests()
     private var historyTask: Task<[UUID: SavedFormula], Error>?
     init(directory: URL) { store = CaptureStore(directory: directory) }
+    var cachedThumbnailCount: Int { cache.count }
+    var pendingThumbnailCount: Int { requests.pendingCount }
     func cachedThumbnail(_ id: UUID) -> NSImage? { cache[id] }
     func thumbnail(_ record: CaptureRecord, protecting protected: Set<UUID>) async throws -> NSImage {
         if let image = cache[record.id] { return image }

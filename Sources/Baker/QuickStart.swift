@@ -66,9 +66,9 @@ struct QuickStartView: View {
                         HStack(spacing: 9) {
                             Text("\(step.rawValue + 1)").font(.callout.monospacedDigit()).frame(width: 22, height: 22)
                                 .background(progress.step == step ? BakerTheme.accent.opacity(0.2) : Color.secondary.opacity(0.08), in: Circle())
-                            Text(step.title).font(.callout).multilineTextAlignment(.leading)
+                            Text(step.title).font(BakerTypography.sidebar).lineLimit(2).multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
-                        }.padding(9).frame(maxWidth: .infinity, minHeight: 48, maxHeight: 48, alignment: .leading)
+                        }.padding(9).frame(maxWidth: .infinity, minHeight: 54, maxHeight: 54, alignment: .leading)
                             .background(progress.step == step ? BakerTheme.accent.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 10))
                     }.buttonStyle(.plain).accessibilityAddTraits(progress.step == step ? .isSelected : [])
                 }
@@ -81,25 +81,25 @@ struct QuickStartView: View {
                     Spacer()
                     Button("Restart") { progress.step = .formula; progress.practising = false; progress.captured = false; progress.practiceID = nil }
                     Button("Skip Tour", action: actions.close).keyboardShortcut(.cancelAction)
-                }.font(.callout).padding(.bottom, 16)
+                }.font(BakerTypography.supporting).padding(.bottom, 16)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Label(progress.step.title, systemImage: progress.step.symbol).font(.title2.weight(.semibold))
+                        Label(progress.step.title, systemImage: progress.step.symbol).font(BakerTypography.title)
                         page
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 16)
                 }.id(progress.step).transition(.opacity)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: progress.step)
                 Divider().padding(.vertical, 16)
                 HStack {
-                    Button("Back") { progress.move(-1) }.disabled(progress.step == .formula)
+                    Button("Back") { progress.move(-1) }.frame(minWidth: 88).disabled(progress.step == .formula)
                     Spacer()
                     Button(progress.step == .everyday ? "Finish" : "Next") {
                         if progress.step == .everyday { actions.close() } else { progress.move(1) }
-                    }.buttonStyle(QuickStartButtonStyle(prominent: true)).keyboardShortcut(.defaultAction)
+                    }.buttonStyle(BakerButtonStyle(prominent: progress.step != .formula)).keyboardShortcut(.defaultAction)
                 }
             }.padding(26).frame(maxWidth: .infinity)
         }.frame(minWidth: 760, minHeight: 610).background(BakerTheme.background).tint(BakerTheme.accent)
-            .buttonStyle(QuickStartButtonStyle())
+            .font(BakerTypography.body).buttonStyle(BakerButtonStyle())
             .onReceive(model.$formulaResults) { progress.observe($0) }
             .onAppear(perform: permission.refresh)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in permission.refresh() }
@@ -109,6 +109,7 @@ struct QuickStartView: View {
         switch progress.step {
         case .formula:
             captureAccess
+            if permission.allowed { formulaPreparation }
             detail("Choose Formula in the menu bar. Drag around this equation or your own.")
             Text("x² + 2x + 1 = 0").font(.custom("Latin Modern Math", size: 34)).foregroundStyle(.black)
                 .frame(maxWidth: .infinity, minHeight: 90).background(.white, in: RoundedRectangle(cornerRadius: 14))
@@ -116,11 +117,7 @@ struct QuickStartView: View {
             if permission.allowed && formulaSetup.ready {
                 Button(progress.captured ? "Capture Another Formula" : "Try Formula Capture") {
                     progress.practising = true; progress.practiceID = nil; actions.capture()
-                }.buttonStyle(QuickStartButtonStyle(prominent: true, expands: true)).frame(width: 220).disabled(model.busy)
-            } else if !formulaSetup.ready {
-                Button("Prepare Formula Model…") { actions.settings(.formula) }
-                    .buttonStyle(QuickStartButtonStyle(expands: true)).frame(width: 220).disabled(model.busy)
-                detail("Prepare the included formula model, then return here.")
+                }.buttonStyle(BakerButtonStyle(prominent: true, expands: true)).frame(width: 220).disabled(model.busy)
             }
             if progress.captured {
                 Label("You captured a formula", systemImage: "checkmark.circle.fill").foregroundStyle(BakerTheme.accent)
@@ -132,14 +129,14 @@ struct QuickStartView: View {
             detail("Review the original, preview and source together. Select a button below to learn what it does.")
             HStack(spacing: 8) {
                 ForEach(Array(tools.enumerated()), id: \.offset) { index, title in
-                    Button(title) { draft.selectedTool = index }.buttonStyle(QuickStartButtonStyle(prominent: draft.selectedTool == index, expands: true))
+                    Button(title) { draft.selectedTool = index }.buttonStyle(BakerButtonStyle(prominent: draft.selectedTool == index, expands: true))
                         .accessibilityAddTraits(draft.selectedTool == index ? .isSelected : [])
                 }
             }
             Text(toolDescriptions[draft.selectedTool]).frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
             note("Original · Rendered · Both", "Compare the image and preview. Model score does not guarantee accuracy.")
             Button("Open Formula Workspace", action: actions.workspace)
-                .buttonStyle(QuickStartButtonStyle(expands: true)).frame(width: 220).disabled(model.busy)
+                .buttonStyle(BakerButtonStyle(expands: true)).frame(width: 220).disabled(model.busy)
             detail("Return to this guide when ready.")
         case .copy:
             detail("Choose a format your destination accepts.")
@@ -149,14 +146,14 @@ struct QuickStartView: View {
             detail(["Use LaTeX in a maths editor.", "Markdown wraps the formula in display-maths delimiters.", "In Keynote, paste through Insert → Equation.", "Plain text. Complex expressions may be simplified or empty."][draft.selectedFormat])
             Button(draft.copied ? "Sample Copied" : "Copy Sample") {
                 NSPasteboard.general.clearContents(); draft.copied = NSPasteboard.general.setString(sample, forType: .string)
-            }.buttonStyle(QuickStartButtonStyle(expands: true)).frame(width: 220)
+            }.buttonStyle(BakerButtonStyle(expands: true)).frame(width: 220)
             detail("Copy Sample changes only your clipboard.")
         case .scrolling:
             detail("Select moving content only. Leave fixed headers and scrollbars outside.")
             note("Scroll slowly yourself", "Scroll slowly, pause, then choose Finish. Cancel discards the capture.")
             captureReminder
             Button("Try Scrolling Capture", action: actions.scrolling)
-                .buttonStyle(QuickStartButtonStyle(expands: true)).frame(width: 220).disabled(model.busy || !permission.allowed)
+                .buttonStyle(BakerButtonStyle(expands: true)).frame(width: 220).disabled(model.busy || !permission.allowed)
             Divider()
             note("Area · All · Window", "Select a rectangle, capture a display or pick one window.")
             note("Repeat Area", "Capture the same region again. Select again after display changes.")
@@ -167,7 +164,7 @@ struct QuickStartView: View {
             note("You choose when to start", "Press Record to begin. Press the square Stop button to save.")
             captureReminder
             Button("Open Recording Setup", action: actions.recording)
-                .buttonStyle(QuickStartButtonStyle(expands: true)).frame(width: 220).disabled(model.busy || !permission.allowed)
+                .buttonStyle(BakerButtonStyle(expands: true)).frame(width: 220).disabled(model.busy || !permission.allowed)
             detail("Setup selects a region. It does not start recording.")
         case .everyday:
             note("Edit a capture", "Click a thumbnail for annotation, background removal or tracing. Undo before Done. Done replaces the file.")
@@ -178,9 +175,38 @@ struct QuickStartView: View {
                 Button("History", action: actions.history).disabled(model.busy)
                 Button("Offline Model") { actions.settings(.advanced) }
                 Button("Shortcuts") { actions.settings(.shortcuts) }
-            }.buttonStyle(QuickStartButtonStyle(expands: true))
+            }.buttonStyle(BakerButtonStyle(expands: true))
             detail("Reorder commands in Settings → Menu. Quick Start is always available from Baker’s menu.")
         }
+    }
+    private var formulaPreparation: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text("Formula model").font(.headline)
+                Spacer()
+                Picker("Formula model", selection: Binding(get: { formulaSetup.engine }, set: { formulaSetup.select($0) })) {
+                    ForEach(FormulaEngine.allCases, id: \.self) { Text($0.title).tag($0) }
+                }.labelsHidden().frame(width: 200).disabled(formulaSetup.working || model.busy)
+            }
+            if formulaSetup.ready {
+                Label("Ready for formula capture", systemImage: "checkmark.circle.fill")
+                    .font(.callout).foregroundStyle(BakerTheme.accent)
+            } else if formulaSetup.working {
+                ProgressView(value: formulaSetup.progress)
+                HStack {
+                    Text(formulaSetup.message).font(.callout).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Cancel", action: formulaSetup.cancel)
+                }
+            } else {
+                detail("Download one model. Recognition then works offline.")
+                Button("Download · " + formulaSetup.downloadSize, action: formulaSetup.prepare)
+                    .buttonStyle(BakerButtonStyle(prominent: true, expands: true))
+                    .frame(width: 220).disabled(model.busy || !formulaSetup.runtimeAvailable)
+                if formulaSetup.failure != nil { detail(formulaSetup.message) }
+            }
+        }.padding(16).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.border))
     }
     @ViewBuilder private var captureAccess: some View {
         if permission.allowed {
@@ -194,7 +220,7 @@ struct QuickStartView: View {
                     Button("Allow Access…") {
                         model.preferences[PreferenceKeys.resumeQuickStart] = true
                         permission.request()
-                    }
+                    }.buttonStyle(BakerButtonStyle(prominent: true, expands: true))
                     Button("System Settings") {
                         model.preferences[PreferenceKeys.resumeQuickStart] = true
                         permission.openSettings()
@@ -207,7 +233,7 @@ struct QuickStartView: View {
                         model.onReopen?()
                     }.disabled(model.busy)
                 }
-            }.buttonStyle(QuickStartButtonStyle(expands: true))
+            }.buttonStyle(BakerButtonStyle(expands: true))
                 .padding(16).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -226,22 +252,5 @@ struct QuickStartView: View {
     }
     private func note(_ title: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) { Text(title).font(.headline); detail(text) }
-    }
-}
-
-/// A consistent hit area for guide actions, with visible boundaries in both appearances.
-private struct QuickStartButtonStyle: ButtonStyle {
-    var prominent = false
-    var expands = false
-    @Environment(\.isEnabled) private var enabled
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 13, weight: .medium)).lineLimit(1)
-            .padding(.horizontal, 12)
-            .frame(minWidth: expands ? 0 : 88, maxWidth: expands ? .infinity : nil, minHeight: 32, maxHeight: 32)
-            .foregroundStyle(prominent ? BakerTheme.selectionForeground : Color.primary)
-            .background(prominent ? BakerTheme.accent : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(prominent ? 0 : 0.14), lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
-            .opacity(enabled ? (configuration.isPressed ? 0.72 : 1) : 0.4)
     }
 }

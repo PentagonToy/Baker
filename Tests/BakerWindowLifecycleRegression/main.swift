@@ -24,8 +24,8 @@ import SwiftUI
         check(state.page == .menu && state.confirmFormulaClear, "Settings state survives reuse")
     }
     check(creations == WorkspaceWindows.Role.allCases.count, "Exactly one window per role")
-    state.page = .pdf
-    check(state.page == .pdf, "Explicit settings recovery can change the destination")
+    state.page = .advanced
+    check(state.page == .advanced, "Explicit settings recovery can change the destination")
     windows.hide(.formula, .result)
     windows.closeAll()
     check(WorkspaceWindows.Role.allCases.allSatisfy { windows.existing($0) == nil }, "Shutdown releases all windows")

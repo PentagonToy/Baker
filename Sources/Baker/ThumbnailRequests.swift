@@ -10,6 +10,7 @@ final class ThumbnailRequests {
         let task: Task<CGImage, Error>
     }
     private var entries: [UUID: Entry] = [:]
+    var pendingCount: Int { entries.count }
     func load(_ id: UUID, store: AnyObject, operation: @escaping () async throws -> CGImage) async throws -> CGImage {
         try Task.checkCancellation()
         let storeID = ObjectIdentifier(store)

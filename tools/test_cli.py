@@ -10,7 +10,7 @@ o = p.parse_args().output.resolve()
 if o == r or r in o.parents:
     p.error('Keep evidence outside the repository')
 o.mkdir(parents=True, exist_ok=True)
-names = ['Sources/BakerCore/BakerError.swift', 'Sources/BakerCore/LocalProcess.swift', 'Sources/BakerCore/LatexWhitespace.swift', 'Sources/BakerCore/UnicodeMath.swift', 'Sources/Baker/BakerCLI.swift']
+names = ['Sources/BakerCore/BakerError.swift', 'Sources/BakerCore/LocalProcess.swift', 'Sources/BakerCore/LatexWhitespace.swift', 'Sources/BakerCore/UnicodeMath.swift', 'Sources/Baker/RuntimeDiagnostics.swift', 'Sources/Baker/BakerCLI.swift']
 s = '\n'.join((r/n).read_text().replace('import BakerCore\n', '') for n in names)
 s += '\nenum FormulaAdapter { struct Failure: LocalizedError { let message: String; var errorDescription: String? { message } } }\n'
 s += (r/'Tests/BakerCLIRegression/main.swift').read_text()

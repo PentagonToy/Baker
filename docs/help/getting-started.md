@@ -26,11 +26,13 @@ The first capture needs permission in **System Settings → Privacy & Security �
 
 ## Capture a formula
 
-The complete app prepares its included formula model automatically. Wait for **Settings → Formula** to report that it is ready. If your build does not include the model, choose **Download Model · 120 MB**; Baker checks the downloaded files and prepares them without a Python path.
+Choose Pix2Text or Texo in **Quick Start → Capture a formula** and download it there after allowing screen recording. You can also manage models in **Settings → Formula**. The model files occupy about 77 MB for Pix2Text and 100 MB for Texo; downloads are compressed. Baker verifies the files before recognition becomes ready. Existing installed models are reused.
+
+Capture previews fit the current display’s usable height. When the stack fills, the oldest preview closes and its saved capture remains in History. Choose **Settings → Capture → Visible captures** to use a fixed limit instead.
 
 Choose **Formula**, drag around one equation and release. Compare **Original** and **Rendered**, then select **LaTeX**, **Markdown**, **Keynote** or **Unicode**. Baker copies the selected format automatically.
 
-Formula models are prepared under `~/Library/Application Support/Baker/Models`. Recognition runs locally after preparation. **Repair Model** restores the included model or downloads a replacement when required; **Remove Model** removes the prepared cache without deleting captures. The bundled copy, when present, remains in the app.
+Formula models live under `~/Library/Application Support/Baker/Models` and work offline after download. **Repair Model** downloads a verified replacement; **Remove Model** removes the selected model without deleting captures. Existing optimised Pix2Text caches remain usable; repair downloads the verified optimised package.
 
 ## Daily use
 

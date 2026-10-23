@@ -32,7 +32,7 @@ def read_json(path):
 
 def read_settings(path):
     config = read_json(Path(path).resolve(strict=True))
-    allowed = {"model_dir", "threads", "max_new_tokens", "timeout_seconds", "max_image_pixels"}
+    allowed = {"model_dir", "engine", "threads", "max_new_tokens", "timeout_seconds", "max_image_pixels"}
     if set(config) - allowed:
         raise ValueError("Unknown formula configuration fields: " + ", ".join(sorted(set(config) - allowed)))
     location = config.get("model_dir")
@@ -41,11 +41,16 @@ def read_settings(path):
     directory = Path(location).resolve(strict=True)
     if not directory.is_dir():
         raise ValueError("model_dir must be a prepared local model directory.")
-    for name in ("encoder_model.onnx", "decoder_model.onnx", "tokenizer.json", "preprocessor_config.json", "config.json"):
+    engine = config.get("engine", "mfr")
+    if engine not in ("mfr", "texo"):
+        raise ValueError("Unsupported formula engine.")
+    required = ["encoder_model.onnx", "decoder_model.onnx", "tokenizer.json", "config.json"]
+    required += ["decoder_with_past_model.onnx"] if engine == "texo" else ["preprocessor_config.json"]
+    for name in required:
         if not (directory / name).is_file():
             raise ValueError(f"The local model is incomplete: missing {name}.")
-    settings = {"model_dir": directory}
-    bounds = {"threads": (2, 1, 2), "max_new_tokens": (256, 1, 512), "timeout_seconds": (45, 1, 120), "max_image_pixels": (12_000_000, 1, 32_000_000)}
+    settings = {"model_dir": directory, "engine": engine}
+    bounds = {"threads": (2, 1, 2), "max_new_tokens": ((512, 1, 512) if engine == "texo" else (256, 1, 512)), "timeout_seconds": (45, 1, 120), "max_image_pixels": (12_000_000, 1, 32_000_000)}
     for name, (default, lower, upper) in bounds.items():
         value = config.get(name, default)
         if type(value) is not int or not lower <= value <= upper:
@@ -132,6 +137,15 @@ def model_identity(directory):
 
 
 def recognise(image_path, settings):
+    if settings.get("engine", "mfr") == "texo":
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("baker_texo", Path(__file__).with_name("texo_worker.py"))
+        texo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(texo)
+        try:
+            return texo.recognise(image_path, settings)
+        except texo.TokenLimitError as error:
+            raise FormulaTokenLimitError(str(error)) from error
     directory = settings["model_dir"]
     deadline = time.monotonic() + settings["timeout_seconds"]
     processor, model = read_json(directory / "preprocessor_config.json"), read_json(directory / "config.json")

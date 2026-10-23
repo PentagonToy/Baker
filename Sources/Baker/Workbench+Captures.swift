@@ -5,9 +5,9 @@ import UniformTypeIdentifiers
 
 extension Workbench {
     func captureURL(_ record: CaptureRecord) -> URL { captureStore.directory.appendingPathComponent(record.fileName) }
-    func originalImage(_ record: CaptureRecord) async throws -> NSImage {
+    func originalPreview(_ record: CaptureRecord) async throws -> NSImage {
         let store = captureStore
-        let raster = try await store.original(record)
+        let raster = try await store.preview(record)
         guard captureStore === store, !Task.isCancelled else { throw CancellationError() }
         return NSImage(cgImage: raster, size: .zero)
     }

@@ -14,7 +14,7 @@ Prepare standalone arm64 CPython 3.12 with `tools/formula-requirements.txt` and 
 
 ```sh
 python tools/bundle_runtime.py --destination /external/build/runtime --tesseract /absolute/path/to/tesseract
-BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_FORMULA_MODELS_DIRECTORY=/external/build/prepared-engine BAKER_BUILD_DIRECTORY=/external/build/app ./tools/prepare_app.sh
+BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_BUILD_DIRECTORY=/external/build/app ./tools/prepare_app.sh
 ```
 
 The runtime tool copies the standalone interpreter and dependencies, retains notices, relocates non-system libraries and checks imports. The app build stages pinned image tools offline, relocates Potrace’s private library and signs nested native binaries. See [image-tool packaging](https://github.com/PentagonToy/Baker/tree/main/others/image-tools).
@@ -48,7 +48,7 @@ Enable developer overrides, select Python with the pinned formula requirements a
 
 ## Models and PDF distribution
 
-`tools/optimize_document_models.py` prepares MFR `mlp-int8-v1`: encoder feed-forward matrices use INT8; attention and decoder remain FP32. It checks pinned inputs and records the recipe and output hashes. Formula setup maintains a separate variant cache and repairs from the included model.
+`tools/optimize_document_models.py` prepares MFR `mlp-int8-v1`: encoder feed-forward matrices use INT8; attention and decoder remain FP32. It checks pinned inputs and records the recipe and output hashes. Existing variant caches remain usable. New installs and repairs download the verified optimised model from GitHub Releases. Base-app packaging strips formula weights from reused runtimes and retains only pinned descriptors and workers.
 
 The PDF engine lazily loads mixed-precision GLM-OCR and exits after each job. Recognition and reconstruction remain separate, allowing text and geometry changes to be checked against cached page results. [Models and references](recognition.md) records the selected engines, source revisions and validation.
 
@@ -74,6 +74,8 @@ Workbench forwards UI commands to capture, recognition, document, clipboard, sto
 
 CaptureStore serialises archive access. Imports preserve the source on failure. PNG/SVG format replacement retains capture identity and uses a recovery journal. Recordings use a separate index and bounded first-frame previews. Recognition workers run per job rather than remaining resident.
 
+Formula Workspace decodes the original only in Original or Both mode, limiting its display copy to 2,048 pixels on the longest side. Recognition, copying and exports retain the saved file. The formula renderer accepts up to 16 waiting requests; clearing its cache cancels pending work and releases the app’s WebKit view. Use the [CLI diagnostics](cli.md) to inspect app memory and work queues without loading models or clearing data.
+
 ProcessCompletion observes termination before launch and wakes waiting callers. A 100 ms watchdog checks cancellation and output limits; PDF progress reads occur at most every 250 ms and read up to 16 KiB. Monotonic deadlines allow two seconds for termination before killing and reaping a child. Failure diagnostics retain at most 500 characters from the final 2 KiB of a log.
 
 ## Focused checks
@@ -93,3 +95,9 @@ Run each tool with `--output /absolute/path/outside/the/repository`. Checks inte
 | `tools/test_permissions.py` | Permission refresh and safe reopen arguments without modifying macOS settings |
 
 `tools/test_recording_history.py` additionally needs `--fixtures` containing authored `synthetic.mp4` and `synthetic.gif`. Source checks supplement installed-app tests for recording, window focus, cancellation and clean-machine compatibility.
+
+## Interface conventions
+
+Keep Baker's warm accent for the current selection and primary action. Shared action buttons use 32-point hit areas, visible neutral borders and a keyboard-focus outline; menus and segmented controls retain native behaviour. Toolbar labels use equal icon slots and compact automatically when space is limited. Supporting text stays at least 13 points. Use the shared surfaces and short state transitions, and honour Reduce Motion.
+
+Check narrow windows, keyboard focus, light and dark appearances, empty states, downloads and failures before shipping an interface change. Type checks and colour calculations do not replace inspection of the running app.

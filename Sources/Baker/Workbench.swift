@@ -39,7 +39,7 @@ final class Workbench: ObservableObject {
     var onReopen: (() -> Void)?
     let updates: AppUpdates
     let launchAtLogin: LaunchAtLogin
-    let formulaSetup = FormulaSetup()
+    let formulaSetup: FormulaSetup
     let pdfEngineSetup = PDFEngineSetup()
     var onFormulaSetupNeeded: (() -> Void)?
     var onSettingsNeeded: ((SettingsPage) -> Void)?
@@ -115,6 +115,7 @@ final class Workbench: ObservableObject {
         let preferences = BakerPreferences(defaults: defaults)
         preferences.migrate()
         self.preferences = preferences
+        formulaSetup = FormulaSetup(preferences: preferences)
         updates = AppUpdates(defaults: defaults)
         launchAtLogin = LaunchAtLogin(defaults: defaults)
         captureFlow = CaptureCoordinator(preferences: preferences)
@@ -140,7 +141,7 @@ final class Workbench: ObservableObject {
         imageHistoryLimit = [0, 50, 100, 250, 500, 1000, 5000].contains(preferences[PreferenceKeys.imageHistoryLimit]) ? preferences[PreferenceKeys.imageHistoryLimit] : 0
         imageHistoryDays = [0, 7, 10, 30, 90].contains(preferences[PreferenceKeys.imageHistoryDays]) ? preferences[PreferenceKeys.imageHistoryDays] : 0
         mathFont = preferences[PreferenceKeys.mathFont]
-        visibleCaptures = max(1, min(5, preferences[PreferenceKeys.visibleCaptures]))
+        visibleCaptures = max(0, min(5, preferences[PreferenceKeys.visibleCaptures]))
         formulaHistoryLimit = max(1, min(500, preferences[PreferenceKeys.formulaHistoryLimit]))
         formulaHistoryDays = [0, 10, 30].contains(preferences[PreferenceKeys.formulaHistoryDays]) ? preferences[PreferenceKeys.formulaHistoryDays] : 0
         _tesseractExecutable = AppStorage(PreferenceKeys.tesseractExecutable, store: defaults)

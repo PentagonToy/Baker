@@ -47,7 +47,7 @@ struct BakerSettings: View {
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).frame(height: 42)
                             .foregroundStyle(state.page == page ? BakerTheme.accent : Color.primary)
                             .background(state.page == page ? BakerTheme.accent.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).accessibilityAddTraits(state.page == page ? .isSelected : [])
                 }
                 Spacer()
                 HStack(spacing: 10) {
@@ -62,12 +62,12 @@ struct BakerSettings: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(state.page.rawValue).font(.system(size: 22, weight: .semibold)).padding(.bottom, 2)
+                    Text(state.page.rawValue).font(BakerTypography.title).padding(.bottom, 2)
                     content.id(state.page)
                     Spacer(minLength: 0)
                 }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
             }.frame(minWidth: 0, maxWidth: .infinity)
-        }.onChange(of: appearance) { _ in BakerAppearance.apply(defaults: model.preferences.defaults) }.font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background).frame(minWidth: 780, minHeight: 560)
+        }.buttonStyle(BakerButtonStyle()).onChange(of: appearance) { _ in BakerAppearance.apply(defaults: model.preferences.defaults) }.font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background).frame(minWidth: 780, minHeight: 560)
     }
     @ViewBuilder private var content: some View {
         switch state.page {
@@ -120,9 +120,12 @@ struct BakerSettings: View {
             card("Appearance") { toggle("Hide desktop icons in captures and recordings", value: $model.hideDesktopIcons) }
             card("Feedback") { toggle("Capture sounds", value: $model.captureSounds) }
             card("Quick previews") {
-                HStack { Text("Visible captures"); Spacer(); Stepper("\(model.visibleCaptures)", value: $model.visibleCaptures, in: 1...5).frame(width: 95) }
+                Picker("Visible captures", selection: $model.visibleCaptures) {
+                    Text("Fit to Screen").tag(0)
+                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                }
             }
-            Text("Closing a preview keeps its saved image and formula result.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            Text("When the stack fills, the oldest preview closes. Captures stay saved in History.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             OCRLanguageSettings(selection: model.selectedOCRLanguages, setLanguage: model.setOCRLanguage)
         case .shortcuts:
             card("Capture and record") { CaptureShortcutSettings(shortcuts: shortcuts) }
@@ -139,9 +142,9 @@ struct BakerSettings: View {
                 Text("𝑥² + 𝛼𝑥 + ½ = 0").font(Font(model.selectedMathFont.resolvedFont)).padding(.vertical, 12)
                 if let url = model.selectedMathFont.bundledFontURL {
                     Button("Install for Other Apps…") { NSWorkspace.shared.open(url) }.help("Open Font Book to install this font for Keynote and other apps")
-                    Text("Included in Baker. Install through Font Book to retain this font in other apps.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                    Text("Install through Font Book to use this font in other apps.").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 }
-                Text(model.selectedMathFont.installedFont == nil ? "Font unavailable; using \(model.selectedMathFont.resolvedFont.familyName ?? "system font")." : "Ordinary Paste includes this font.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                Text(model.selectedMathFont.installedFont == nil ? "Font unavailable; using \(model.selectedMathFont.resolvedFont.familyName ?? "system font")." : "Pasted Unicode text includes this font.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
             card("Preview cache") {
                 Button("Clear Preview Cache", action: model.clearPreviewCache).disabled(model.busy)

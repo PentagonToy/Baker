@@ -18,7 +18,7 @@ struct SettingsPreset: Codable, Equatable {
     let latexStyle: String
 
     func validate() throws {
-        guard version == 1, (1...5).contains(visibleCaptures), (1...500).contains(formulaHistoryLimit),
+        guard version == 1, (0...5).contains(visibleCaptures), (1...500).contains(formulaHistoryLimit),
               [0, 10, 30].contains(formulaHistoryDays), MathFont(rawValue: mathFont) != nil,
               !languages.isEmpty, languages.count <= OCRLanguages.maximumActive,
               Set(languages).count == languages.count,

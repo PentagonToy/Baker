@@ -50,14 +50,14 @@ enum FormulaAdapter {
             if defaults[PreferenceKeys.developerRuntimeOverrides] {
                 python = defaults[PreferenceKeys.python]; config = defaults[PreferenceKeys.config]
             } else {
-                guard let resources = Bundle.main.resourceURL,
-                      let manifest = try? JSONDecoder().decode(FormulaModelManifest.self, from: Data(contentsOf: resources.appendingPathComponent("formula-model.json"))) else {
-                    throw Failure(message: "The formula runtime is unavailable. Prepare it in Baker Settings.")
-                }
-                guard manifest.variant == nil || manifest.variant == "mlp-int8-v1" else { throw Failure(message: "Unsupported formula model variant.") }
-                python = resources.appendingPathComponent("Runtime/python/bin/python3.12").path
+                guard let resources = Bundle.main.resourceURL else { throw Failure(message: "The formula runtime is unavailable. Prepare it in Baker Settings.") }
+                let engine = FormulaEngine(rawValue: defaults[PreferenceKeys.formulaEngine]) ?? .mfr
                 let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-                config = support.appendingPathComponent("Baker/Models/" + (manifest.variant == "mlp-int8-v1" ? "mfr-1.5-mlp-int8-v1" : "mfr-1.5") + "/baker-config.json").path
+                let root = support.appendingPathComponent("Baker/Models")
+                let variant = FormulaEngine.cachedMFRVariant(root: root)
+                let manifest = try engine.manifest(variant: variant)
+                python = resources.appendingPathComponent("Runtime/python/bin/python3.12").path
+                config = root.appendingPathComponent(engine.directoryName(variant: manifest.variant) + "/baker-config.json").path
             }
             return try recogniseFormulaResult(image, python: python, config: config)
         }

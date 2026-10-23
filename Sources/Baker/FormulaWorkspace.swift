@@ -27,35 +27,14 @@ struct FormulaWorkspace: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Button { model.capture(scrolling: false, action: .formula) } label: { Label("Capture", systemImage: "viewfinder") }.help("Capture another formula")
-                Button { model.openImage(asFormula: true) } label: { Label("Image…", systemImage: "photo.badge.plus") }
-                Button { model.formulaInputPending = true; state.previewMode = .both } label: { Label("New", systemImage: "plus") }.help("Drop or open another formula image")
-                if !formulaRecords.isEmpty {
-                Divider().frame(height: 20)
-                Button { navigate(1) } label: { Image(systemName: "chevron.left") }.disabled(!canNavigate(1))
-                Text(position).monospacedDigit().font(BakerTypography.supporting).foregroundStyle(.secondary)
-                Button { navigate(-1) } label: { Image(systemName: "chevron.right") }.disabled(!canNavigate(-1))
-                }
-                Spacer()
-                Menu {
-                    ForEach(formulaRecords) { entry in
-                        Button {
-                            select(entry)
-                        } label: {
-                            Text(historyTitle(entry))
-                        }
-                    }
-                    if !formulaRecords.isEmpty { Divider() }
-                    Button("Capture History…", action: showHistory)
-                } label: { Label("History", systemImage: "clock.arrow.circlepath") }
-                .menuStyle(.borderlessButton).fixedSize()
-                if !model.formulaInputPending, let id = model.focusedFormulaID { Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }.disabled(result?.phase != .ready) }
-            }.buttonStyle(.bordered).controlSize(.regular).foregroundStyle(.primary).disabled(model.busy).padding(.horizontal, 18).padding(.vertical, 12).background(BakerTheme.sidebar)
+            ViewThatFits(in: .horizontal) {
+                toolbar(compact: false)
+                toolbar(compact: true)
+            }
             Divider()
             if result != nil {
             HStack {
-                Text("Formula").font(.headline)
+                Text("Formula").font(BakerTypography.section)
                 Spacer()
                 Picker("Preview", selection: $state.previewMode) {
                     ForEach(FormulaPreviewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -177,11 +156,11 @@ struct FormulaWorkspace: View {
         .background(BakerTheme.background)
         .animation(BakerMotion.selection(reduced: reduceMotion), value: state.previewMode)
         .frame(minWidth: 660, minHeight: result == nil ? 340 : 520)
-        .task(id: model.focusedFormulaID) {
+        .task(id: (model.focusedFormulaID?.uuidString ?? "") + state.previewMode.rawValue) {
             state.original = nil; state.originalID = nil; state.originalError = nil
-            guard let record else { return }
+            guard state.previewMode != .rendered, let record else { return }
             do {
-                let image = try await model.originalImage(record)
+                let image = try await model.originalPreview(record)
                 guard !Task.isCancelled, model.focusedFormulaID == record.id else { return }
                 state.original = image; state.originalID = record.id
             } catch {
@@ -189,6 +168,34 @@ struct FormulaWorkspace: View {
                 state.originalError = "The original capture could not be opened."
             }
         }
+        .onDisappear { state.original = nil; state.originalID = nil }
+    }
+    private func toolbar(compact: Bool) -> some View {
+        HStack(spacing: 10) {
+                Button { model.capture(scrolling: false, action: .formula) } label: { Label("Capture", systemImage: "viewfinder") }.labelStyle(BakerToolbarLabelStyle()).help("Capture another formula")
+                Button { model.openImage(asFormula: true) } label: { Label("Image…", systemImage: "photo.badge.plus") }
+                Button { model.formulaInputPending = true; state.previewMode = .both } label: { Label("New", systemImage: "plus") }.help("Drop or open another formula image")
+                if !formulaRecords.isEmpty {
+                Divider().frame(height: 20)
+                Button { navigate(1) } label: { Image(systemName: "chevron.left") }.disabled(!canNavigate(1))
+                Text(position).monospacedDigit().font(BakerTypography.supporting).foregroundStyle(.secondary)
+                Button { navigate(-1) } label: { Image(systemName: "chevron.right") }.disabled(!canNavigate(-1))
+                }
+                Spacer()
+                Menu {
+                    ForEach(formulaRecords) { entry in
+                        Button {
+                            select(entry)
+                        } label: {
+                            Text(historyTitle(entry))
+                        }
+                    }
+                    if !formulaRecords.isEmpty { Divider() }
+                    Button("Capture History…", action: showHistory)
+                } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                .menuStyle(.borderlessButton).fixedSize()
+                if !model.formulaInputPending, let id = model.focusedFormulaID { Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }.disabled(result?.phase != .ready) }
+            }.labelStyle(BakerToolbarLabelStyle(compact: compact)).buttonStyle(BakerButtonStyle()).controlSize(.regular).foregroundStyle(.primary).disabled(model.busy).padding(.horizontal, 18).padding(.vertical, 12).background(BakerTheme.sidebar)
     }
     private func preview<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -214,12 +221,12 @@ struct FormulaWorkspace: View {
                     .popover(isPresented: $state.showUnicodeWarning, arrowEdge: .bottom) {
                         Text(result.warning).font(BakerTypography.body).padding(14).frame(width: 300).fixedSize(horizontal: false, vertical: true)
                     } }
-            Label("Copied", systemImage: "checkmark.circle.fill").font(BakerTypography.supporting).foregroundStyle(.green)
+            Label("Copied", systemImage: "checkmark.circle.fill").font(BakerTypography.supporting).foregroundStyle(BakerTheme.success)
                 .frame(width: 68).opacity(result.copiedFormat == format ? 1 : 0)
                 .accessibilityHidden(result.copiedFormat != format)
-            Button { model.chooseFormulaFormat(id, format) } label: { Image(systemName: "doc.on.doc").font(.system(size: 14)).frame(width: 30, height: 30) }
-                .buttonStyle(.bordered).disabled(format == .unicode && text.isEmpty).help("Select and copy \(format.rawValue)")
-        }.padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 52).background(result.format == format ? BakerTheme.accent.opacity(0.09) : Color.clear)
+            Button { model.chooseFormulaFormat(id, format) } label: { Image(systemName: "doc.on.doc").font(.system(size: 14)).frame(width: 16, height: 20) }
+                .buttonStyle(BakerButtonStyle()).accessibilityLabel("Copy \(format.rawValue)").disabled(format == .unicode && text.isEmpty).help("Select and copy \(format.rawValue)")
+        }.padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 52).background(result.format == format ? BakerTheme.accent.opacity(0.065) : Color.clear)
             .contentShape(Rectangle()).onTapGesture { model.chooseFormulaFormat(id, format) }
             .animation(BakerMotion.selection(reduced: reduceMotion), value: result.copiedFormat)
     }
@@ -227,7 +234,7 @@ struct FormulaWorkspace: View {
         preview("New formula") {
             VStack(spacing: 8) {
                 Image(systemName: "photo.badge.plus").font(.system(size: 23))
-                Text("Drop a formula image").font(.headline)
+                Text("Drop a formula image").font(BakerTypography.section)
                 Text("Drop a capture here, or choose Image… above.").font(BakerTypography.supporting)
             }.foregroundStyle(.black.opacity(0.75)).frame(maxWidth: .infinity, maxHeight: .infinity)
         }

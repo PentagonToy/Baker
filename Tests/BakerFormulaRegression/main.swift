@@ -170,6 +170,25 @@ func run() throws {
         let result = KeynoteLatex.convert(source)
         try check(result.text == source && !result.warnings.isEmpty, "Literal environments and macro definitions remain untouched")
     }
+    let keynoteExamples = [
+        #"\pmb{J(W)=}\frac{1}{n}{\sum_{i=1}^{n}}\underline{{\mathcal{L}\big(\underline{{f\big(\boldsymbol{x}^{(i)};\boldsymbol{W}}}\big)}},\underline{{\boldsymbol{y}^{(i)}}}\big)"#,
+        #"\pmb{J}(\pmb{W})=\frac{1}{n}{\sum_{i=1}^{n}\left(\pmb{y}^{(i)}-f\bigl(\pmb{x}^{(i)};\pmb{W}\bigr)\right)^{2}}"#,
+        #"\begin{gathered}y \\ {\left[\begin{array}{c}1 \\ 0 \\ 1 \\ \vdots\end{array}\right]}\end{gathered}"#
+    ]
+    for (index, source) in keynoteExamples.enumerated() {
+        let converted = KeynoteLatex.convert(source)
+        try check(converted.warnings.isEmpty && !converted.text.contains("\\pmb") && !converted.text.contains("\\begin{gathered}"), "User Keynote example has bounded compatible output \(index + 1)")
+        try check(KeynoteLatex.convert(converted.text).text == converted.text, "Keynote conversion is idempotent \(index + 1)")
+        summary["keynote-user-\(index + 1)"] = ["source": source, "converted": converted.text]
+    }
+    try check(KeynoteLatex.convert(keynoteExamples[0]).text.contains("\\underline{{\\mathcal{L}"), "Underlines and font groups retain their mathematical scope")
+    try check(KeynoteLatex.convert(keynoteExamples[2]).text == #"\begin{matrix}y \\ {\begin{bmatrix}1 \\ 0 \\ 1 \\ \vdots\end{bmatrix}}\end{matrix}"#, "Centred multiline label and bracketed vector retain their rows")
+    try check(KeynoteLatex.convert(#"\begin{aligned}x&=1\\y&=2\end{aligned}+\boldsymbol{\alpha}+\mathbf{J(W)=}"#).warnings.isEmpty, "Apple-supported alignment and bold notation are not rejected")
+    for source in [#"\begin{gathered}x&=1\\y&=2\end{gathered}"#, #"\begin{gathered}x\\[4pt]y\end{gathered}"#, #"\begin{bmatrix}a&b\\c\end{bmatrix}"#, #"\hspace{2em}x"#, #"\boldmath x"#] {
+        let converted = KeynoteLatex.convert(source)
+        try check(converted.text == source && !converted.warnings.isEmpty, "Ambiguous Keynote layout remains available with a warning: " + source)
+    }
+    try check(KeynoteLatex.convert(#"\text{literal \pmb{x}}+\pmb{\alpha_1}"#).text == #"\text{literal \pmb{x}}+\boldsymbol{\alpha_1}"#, "Compatibility rewrites preserve literal text and Greek symbols")
     let vector = try FormulaRenderer.render(#"\begin{matrix}0\\1\end{matrix}"#)
     try check(bands(rowInk(vector)).count == 2, "Matrix raster has distinct vertically separated entry bands")
     let arrayImage = try FormulaRenderer.render(userArray), matrixImage = try FormulaRenderer.render(keynoteMatrix)

@@ -5,6 +5,18 @@ import Combine
 import ImageIO
 import QuartzCore
 
+enum CaptureStackLayout {
+    static func capacity(heights: [CGFloat], availableHeight: CGFloat, limit: Int) -> Int {
+        var used: CGFloat = 0, count = 0
+        for height in heights.prefix(limit > 0 ? limit : heights.count) {
+            let next = used + (count == 0 ? 0 : 12) + height
+            guard next <= availableHeight else { break }
+            used = next; count += 1
+        }
+        return count
+    }
+}
+
 @MainActor
 final class CaptureOverlayController {
     private let model: Workbench
@@ -163,18 +175,12 @@ final class CaptureOverlayController {
         screen = target; layout(screenTransition: true)
     }
     private func cardHeight(_ id: UUID) -> CGFloat {
-        model.formulaResults[id] == nil ? previewHeight : 280
+        model.formulaResults[id] == nil ? previewHeight : FormulaCardLayout.size.height
     }
     private func layout(screenTransition: Bool = false) {
         updatePointerMonitoring()
         guard let frame = (screen.flatMap { candidate in NSScreen.screens.first { $0 == candidate } } ?? NSScreen.main)?.visibleFrame else { return }
-        let limit = max(1, min(5, model.visibleCaptures))
-        var available = frame.height - 40, capacity = 0
-        for card in cards.prefix(limit) {
-            let height: CGFloat = cardHeight(card.id)
-            if capacity > 0 && available < height { break }
-            available -= height + 12; capacity += 1
-        }
+        let capacity = CaptureStackLayout.capacity(heights: cards.map { cardHeight($0.id) }, availableHeight: frame.height - 40, limit: model.visibleCaptures)
         while cards.count > max(1, capacity) { retire(cards.removeLast().panel, upwards: true) }
         NSAnimationContext.runAnimationGroup { context in
             // Longer travel between displays needs more time than rearranging a stack.
@@ -184,7 +190,7 @@ final class CaptureOverlayController {
             for card in cards {
                 let formula = model.formulaResults[card.id] != nil
                 let height = cardHeight(card.id)
-                let width: CGFloat = formula ? 380 : previewWidth
+                let width: CGFloat = formula ? FormulaCardLayout.size.width : previewWidth
                 card.panel.animator().setFrame(CGRect(x: frame.minX + 20, y: y, width: min(width, frame.width - 40), height: height), display: true)
                 y += height + 12
             }

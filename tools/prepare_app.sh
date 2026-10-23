@@ -29,10 +29,11 @@ cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
 # Replace the complete pinned renderer to avoid retaining stale vendor files.
 if [[ -d "$app/Contents/Resources/FormulaPreview" ]]; then rm -rf -- "$app/Contents/Resources/FormulaPreview"; fi
 cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/formula_model_install.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/image_tools_worker.py" "$app/Contents/Resources/"
-cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$source_dir/Sources/Baker/Resources/texo_worker.py" "$source_dir/Sources/Baker/Resources/texo-model.json" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
-cp "${BAKER_FORMULA_MODEL_MANIFEST:-$source_dir/Sources/Baker/Resources/formula-model.json}" "$app/Contents/Resources/formula-model.json"
+cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$source_dir/Sources/Baker/Resources/formula-model-canonical.json" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/pdf_engine_install.py" "$app/Contents/Resources/"
 cp "${BAKER_PDF_ENGINE_MANIFEST:-$source_dir/Sources/Baker/Resources/pdf-engine.json}" "$app/Contents/Resources/pdf-engine.json"
 # A release contains a relocatable interpreter, OCR libraries and Tesseract.
@@ -58,21 +59,10 @@ elif [[ -d "$app/Contents/Resources/DocumentEngine" ]]; then
     # Reusing a build folder must not retain a previous full PDF engine.
     rm -rf -- "$app/Contents/Resources/DocumentEngine"
 fi
-if [[ -n "${BAKER_FORMULA_MODELS_DIRECTORY:-}" ]]; then
-    [[ -d "$app/Contents/Resources/Runtime/mfr" ]] && rm -rf -- "$app/Contents/Resources/Runtime/mfr"
-    cp -R "$BAKER_FORMULA_MODELS_DIRECTORY/mfr" "$app/Contents/Resources/Runtime/mfr"
-    cp "$BAKER_FORMULA_MODELS_DIRECTORY/formula-model.json" "$app/Contents/Resources/formula-model.json"
-fi
-# A reused runtime must keep its model variant and download descriptor paired.
-model_metadata="$app/Contents/Resources/Runtime/mfr/baker-model.json"
-if [[ -f "$model_metadata" ]]; then
-    payload_variant="$(plutil -extract variant raw -o - "$model_metadata")"
-    descriptor_variant="$(plutil -extract variant raw -o - "$app/Contents/Resources/formula-model.json" 2>/dev/null || true)"
-    if [[ "$payload_variant" != "$descriptor_variant" ]]; then
-        print -u2 "Formula model variant mismatch. Set BAKER_FORMULA_MODEL_MANIFEST to the matching descriptor."
-        exit 1
-    fi
-fi
+# Formula weights are optional downloads. Also strip them from reused runtimes.
+for model_folder in "$app/Contents/Resources/Runtime/mfr" "$app/Contents/Resources/Runtime/texo"; do
+    [[ ! -d "$model_folder" ]] || rm -rf -- "$model_folder"
+done
 mkdir -p "$app/Contents/Resources/BakerIcons" "$app/Contents/Resources/BakerSymbols"
 for asset in "$source_dir"/others/assests/icons/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerIcons/"; done
 for asset in "$source_dir"/others/assests/symbols/*.svg(N); do cp "$asset" "$app/Contents/Resources/BakerSymbols/"; done
@@ -90,9 +80,6 @@ mkdir -p "$app/Contents/Resources/Legal"
 cp "$source_dir/LICENSE" "$app/Contents/Resources/Legal/LICENSE"
 cp "$source_dir/docs/legal/third-party.md" "$app/Contents/Resources/Legal/THIRD-PARTY.md"
 
-if [[ -f "$app/Contents/Resources/DocumentEngine/formula-model.json" ]]; then
-    cp "$app/Contents/Resources/DocumentEngine/formula-model.json" "$app/Contents/Resources/formula-model.json"
-fi
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
