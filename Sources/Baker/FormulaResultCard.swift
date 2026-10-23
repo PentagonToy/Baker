@@ -2,6 +2,10 @@ import AppKit
 import BakerCore
 import SwiftUI
 
+enum FormulaCardLayout {
+    static let size = NSSize(width: 400, height: 340)
+}
+
 struct FormulaResultCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: Workbench
@@ -9,7 +13,7 @@ struct FormulaResultCard: View {
     let result: FormulaResult
     let dismiss: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Label("Formula", systemImage: "sum").font(BakerTypography.section)
                 Spacer()
@@ -42,18 +46,15 @@ struct FormulaResultCard: View {
                             .help(result.warning)
                     }
                 }
-            }
+            }.frame(minHeight: 72, maxHeight: .infinity)
             if result.phase == .ready {
-                HStack(spacing: 10) {
-                    Picker("Copy format", selection: Binding(get: { result.format }, set: { model.chooseFormulaFormat(record.id, $0) })) {
+                Picker("Copy format", selection: Binding(get: { result.format }, set: { model.chooseFormulaFormat(record.id, $0) })) {
                         Text("LaTeX").tag(OutputFormat.latex)
                         Text("Markdown").tag(OutputFormat.markdown)
                         Text("Keynote").tag(OutputFormat.keynote)
                         Text("Unicode").tag(OutputFormat.unicode)
-                    }.pickerStyle(.segmented).labelsHidden().frame(width: 250)
-                    Spacer(minLength: 0)
-                    Button("Copy") { model.copyFormula(record.id) }.buttonStyle(.borderedProminent).tint(.orange)
-                }
+                }.pickerStyle(.segmented).labelsHidden().controlSize(.small)
+                    .accessibilityLabel("Copy format").frame(maxWidth: .infinity)
                 HStack {
                     if result.format == .latex {
                         Picker("LaTeX style", selection: Binding(get: { result.style }, set: { model.chooseLatexStyle(record.id, $0) })) {
@@ -61,18 +62,20 @@ struct FormulaResultCard: View {
                         }.labelsHidden().frame(maxWidth: 220)
                     } else if result.format == .keynote {
                         Text(result.keynoteWarning.isEmpty ? "Keynote LaTeX · no delimiters" : "Check compatibility").font(BakerTypography.supporting).foregroundStyle(.secondary).help(result.keynoteWarning)
-                    } else {
+                    } else if result.format == .unicode {
                         Text("Editable Unicode · layout approximated").font(BakerTypography.supporting).foregroundStyle(.secondary).help(result.warning)
                     }
                     Spacer(minLength: 0)
                     Button("Edit…") { model.editFormula(record.id) }.buttonStyle(.plain).disabled(model.busy)
                 }
-                HStack(spacing: 4) {
-                    Image(systemName: result.copyStatus.contains("failed") ? "exclamationmark.circle" : "checkmark.circle.fill")
-                    Text(result.copyStatus.isEmpty ? "Ready" : result.copyStatus)
-                    Spacer()
-                    if result.previewError != nil { Text("Source preview").help(result.previewError ?? "") }
-                }.font(BakerTypography.supporting).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Label(result.copyStatus.isEmpty ? "Ready" : result.copyStatus,
+                          systemImage: result.copyStatus.contains("failed") ? "exclamationmark.circle" : "checkmark.circle.fill")
+                        .font(BakerTypography.supporting).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Button("Copy") { model.copyFormula(record.id) }
+                        .buttonStyle(.borderedProminent).tint(BakerTheme.accent).fixedSize()
+                }
             } else {
                 Text(result.phase == .recognising ? "The selected format will copy automatically." : "The original capture is saved in history.")
                     .font(BakerTypography.supporting).foregroundStyle(.secondary)

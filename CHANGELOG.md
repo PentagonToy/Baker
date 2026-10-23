@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Improve Keynote equation output for braced pseudobold text and centred multiline vectors while retaining underlines, grouping and supported bold notation. Warn on irregular matrix layouts and unsupported commands.
+- Give the Last Capture formula format selector its own row and move Copy below it to prevent overlapping controls.
+
 ## 0.0.4 — 2026-10-22
 
 - Add Window capture, an arranged drag-to-install DMG and a permission-first Quick Start covering formulas, scrolling, recording and history.

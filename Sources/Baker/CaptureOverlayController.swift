@@ -163,7 +163,7 @@ final class CaptureOverlayController {
         screen = target; layout(screenTransition: true)
     }
     private func cardHeight(_ id: UUID) -> CGFloat {
-        model.formulaResults[id] == nil ? previewHeight : 280
+        model.formulaResults[id] == nil ? previewHeight : FormulaCardLayout.size.height
     }
     private func layout(screenTransition: Bool = false) {
         updatePointerMonitoring()
@@ -184,7 +184,7 @@ final class CaptureOverlayController {
             for card in cards {
                 let formula = model.formulaResults[card.id] != nil
                 let height = cardHeight(card.id)
-                let width: CGFloat = formula ? 380 : previewWidth
+                let width: CGFloat = formula ? FormulaCardLayout.size.width : previewWidth
                 card.panel.animator().setFrame(CGRect(x: frame.minX + 20, y: y, width: min(width, frame.width - 40), height: height), display: true)
                 y += height + 12
             }

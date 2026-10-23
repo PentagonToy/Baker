@@ -37,6 +37,16 @@ Task { @MainActor in
     fixtures += LatexWhitespace.standardOperators.sorted().map { ("operator-" + $0, "\\" + $0 + " x") }
     do {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        if CommandLine.arguments.count > 3 {
+            let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[3]))
+            let examples = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+            let names = examples.keys.filter { $0.hasPrefix("keynote-user-") }.sorted()
+            check(names.count == 3, "Three reported Keynote failures supplied")
+            for name in names {
+                if let value = examples[name] as? [String: String], let converted = value["converted"] { fixtures.append((name, converted)) }
+                else { check(false, "Missing converted fixture " + name) }
+            }
+        }
         for (label, source) in fixtures {
             do {
                 let start = Date()

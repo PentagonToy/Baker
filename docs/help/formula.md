@@ -24,9 +24,11 @@ Editing removes the current score while retaining original diagnostics. **Edit â
 
 ## Copy formats
 
-Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview. The warning icon appears only when Unicode is unavailable.
+Choose LaTeX, Markdown, Keynote or Unicode. Keynote converts supported bracketed arrays to matrices, centred multiline groups to matrix rows and braced `\pmb{...}` to `\boldsymbol{...}`. Underlines, variable fonts and mathematical grouping remain intact. [Unicode maths](unicode-maths.md) approximates notation in ordinary text fields; its font setting affects clipboard output independently of the preview. The warning icon appears only when Unicode is unavailable.
 
 Copying removes ordinary token spacing, such as `v _ { x }` â†’ `v_{x}`, while preserving text groups and explicit spacing. Known standard operators such as `\operatorname{ e x p }` become `\exp`; custom and starred operators retain their structure. The catalogue follows [AMS operator definitions](https://github.com/latex3/latex2e/blob/develop/required/amsmath/amsopn.dtx).
+
+Keynote has its own equation parser. [Apple documents](https://support.apple.com/en-gb/102138) support for `\boldsymbol` and limited `aligned` layouts. Baker preserves these rather than flattening every structure. Uneven matrix rows, custom row spacing and documented unsupported commands retain their source with a compatibility warning. This conversion does not use AI or rerun recognition. In Last Capture, the format selector has its own row above the copy action.
 
 ## Preview and chemistry
 

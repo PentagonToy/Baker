@@ -1,6 +1,6 @@
 import Foundation
 
-/// Converts only structurally understood array layouts; all other source is kept.
+/// Convert bounded, understood Keynote syntax without discarding mathematical content.
 public enum KeynoteLatex {
     public static func convert(_ source: String) -> MathConversion {
         guard source.count <= 8000, source.utf8.count <= 32_000 else {
@@ -11,7 +11,7 @@ public enum KeynoteLatex {
             let text = try converter.rewrite(0..<converter.input.count, depth: 0)
             return MathConversion(text: text, warnings: Array(Set(converter.warnings)).sorted())
         } catch {
-            return MathConversion(text: source, warnings: ["The array structure is incomplete or exceeds conversion limits; the source was preserved."])
+            return MathConversion(text: source, warnings: ["The equation structure is incomplete or exceeds conversion limits. The source was preserved."])
         }
     }
 }
@@ -39,6 +39,7 @@ private struct KeynoteArrayConverter {
         guard start < limit, input[start] == "{" else { throw Invalid.structure }
         var index = start + 1, depth = 1
         while index < limit {
+            if input[index] == "%" { index = commentEnd(index, limit); continue }
             if input[index] == "\\" { index = command(index, limit).end; continue }
             if input[index] == "{" { depth += 1; guard depth <= 32 else { throw Invalid.structure } }
             if input[index] == "}" { depth -= 1; if depth == 0 { return ((start + 1)..<index, index + 1) } }
@@ -100,7 +101,7 @@ private struct KeynoteArrayConverter {
     }
     mutating func eligible(_ environment: Environment) throws -> Bool {
         let columns = (environment.columns ?? "").filter { !$0.isWhitespace }
-        guard !columns.isEmpty, columns.count <= 16, columns.allSatisfy({ "lcr".contains($0) }) else {
+        guard environment.name != "array" || (!columns.isEmpty && columns.count <= 16 && columns.allSatisfy({ "lcr".contains($0) })) else {
             warnings.append("An array has an unsupported column preamble; its original layout was preserved."); return false
         }
         var index = environment.body.lowerBound, cells = 1, rowCells: [Int] = [], lastWasRowSeparator = false
@@ -114,11 +115,11 @@ private struct KeynoteArrayConverter {
                 let token = command(index, environment.body.upperBound)
                 if token.name == "begin" { index = try self.environment(index, environment.body.upperBound).end; continue }
                 if ["hline", "cline", "vline", "hdashline", "multicolumn", "multirow", "noalign", "omit", "extracolsep", "arraystretch", "tabularnewline", "cr"].contains(token.name) {
-                    warnings.append("An array uses extra rules, spans or spacing; its original layout was preserved."); return false
+                    warnings.append("This layout uses extra rules, spans or spacing. Its source was preserved."); return false
                 }
                 if token.name == "\\" {
                     let next = skipSpace(token.end, environment.body.upperBound)
-                    if next < environment.body.upperBound && (input[next] == "[" || input[next] == "*") { warnings.append("An array has custom row spacing; its original layout was preserved."); return false }
+                    if next < environment.body.upperBound && (input[next] == "[" || input[next] == "*") { warnings.append("This layout has custom row spacing. Its source was preserved."); return false }
                     rowCells.append(cells); cells = 1
                     lastWasRowSeparator = true
                     if next == environment.body.upperBound { index = next; break }
@@ -128,8 +129,10 @@ private struct KeynoteArrayConverter {
             index += 1
         }
         if !lastWasRowSeparator || rowCells.isEmpty { rowCells.append(cells) }
-        guard rowCells.count <= 32, rowCells.count * columns.count <= 256, rowCells.allSatisfy({ $0 == columns.count }) else {
-            warnings.append("An array has irregular or excessive rows or columns; its original layout was preserved."); return false
+        let expected = environment.name == "array" ? columns.count : rowCells.first ?? 0
+        guard (1...16).contains(expected), rowCells.count <= 32, rowCells.count * expected <= 256, rowCells.allSatisfy({ $0 == expected }),
+              !["gathered", "gather", "gather*"].contains(environment.name) || expected == 1 else {
+            warnings.append("This layout has irregular or excessive rows or columns. Its source was preserved."); return false
         }
         if columns.count > 1 && columns.contains(where: { $0 != "c" }) { warnings.append("Keynote matrices use centred columns; explicit left/right array alignment was simplified.") }
         return true
@@ -163,6 +166,18 @@ private struct KeynoteArrayConverter {
             guard input[index] == "\\" else { output.append(input[index]); index += 1; continue }
             let token = command(index, range.upperBound)
             if ["def", "gdef", "edef", "xdef", "newcommand", "renewcommand", "providecommand", "newenvironment", "renewenvironment", "DeclareMathOperator", "let", "futurelet", "verb", "catcode", "csname", "endcsname"].contains(token.name) { throw Invalid.structure }
+            if token.name == "pmb" {
+                let start = skipSpace(token.end, range.upperBound)
+                if start < range.upperBound, input[start] == "{" {
+                    let argument = try group(start, range.upperBound)
+                    output += "\\boldsymbol{" + (try rewrite(argument.body, depth: depth + 1)) + "}"
+                    index = argument.end; continue
+                }
+                warnings.append("Use a braced argument for \\pmb. Its source was preserved.")
+            }
+            if ["mathring", "ae", "AE", "smallint", "idotsint", "varGamma", "cal", "mathml", "center", "fillin", "strut", "vphantom", "hphantom", "smash", "hspace", "mspace", "centernot", "buildrelover", "sideset", "boldmath", "unboldmath"].contains(token.name) {
+                warnings.append("Keynote does not support \\" + token.name + ". Its source was preserved.")
+            }
             if ["ce", "ch", "chemfig"].contains(token.name) { warnings.append("Chemistry notation was preserved; check the destination app's chemistry support.") }
             if ["text", "operatorname", "mbox", "ce", "ch", "chemfig"].contains(token.name), skipSpace(token.end, range.upperBound) < range.upperBound, input[skipSpace(token.end, range.upperBound)] == "{" {
                 let end = try group(token.end, range.upperBound).end; output += text(index..<end); index = end; continue
@@ -182,7 +197,12 @@ private struct KeynoteArrayConverter {
                 let environment = try self.environment(index, range.upperBound)
                 if environment.name == "array" {
                     output += try eligible(environment) ? matrix(environment, name: "matrix", depth: depth) : text(index..<environment.end)
-                } else if ["matrix", "bmatrix", "pmatrix", "vmatrix", "Vmatrix", "Bmatrix", "aligned", "gathered", "equation", "equation*", "align", "align*", "split", "gather", "gather*", "displaymath", "math"].contains(environment.name) {
+                } else if ["gathered", "gather", "gather*"].contains(environment.name) {
+                    output += try eligible(environment) ? matrix(environment, name: "matrix", depth: depth) : text(index..<environment.end)
+                } else if ["matrix", "bmatrix", "pmatrix", "vmatrix", "Vmatrix", "Bmatrix"].contains(environment.name) {
+                    if try eligible(environment) { output += try matrix(environment, name: environment.name, depth: depth) }
+                    else { output += text(index..<environment.end) }
+                } else if ["aligned", "equation", "equation*", "align", "align*", "split", "displaymath", "math"].contains(environment.name) {
                     output += text(index..<environment.body.lowerBound) + (try rewrite(environment.body, depth: depth + 1)) + text(environment.body.upperBound..<environment.end)
                 } else {
                     warnings.append("An unsupported environment was preserved without rewriting its contents.")
