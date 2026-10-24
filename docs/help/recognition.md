@@ -10,12 +10,13 @@ For app-neutral local clients, see the [headless recognition adapter](adapter.md
 | --- | --- | --- |
 | Screenshot text | Apple Vision; [Tesseract](https://github.com/tesseract-ocr/tesseract) with [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) when Finnish or a language unavailable in Apple Vision is selected | Up to five selected languages; native text OCR stays separate from the document model |
 | Screenshot or imported formula image | [Pix2Text MFR 1.5](https://huggingface.co/breezedeus/pix2text-mfr-1.5), from [Pix2Text](https://github.com/breezedeus/Pix2Text) | ONNX Runtime; downloadable model with INT8 encoder feed-forward matrices and FP32 attention/decoder; sequential encoder/decoder sessions |
-| Formula images, optional development preview | [Texo](https://github.com/alephpi/Texo), [FormulaNet weights](https://huggingface.co/alephpi/FormulaNet) | Pinned 687-token transfer model; CPU ONNX with incremental decoder cache |
+| Formula images, optional Texo model | [Texo](https://github.com/alephpi/Texo), [FormulaNet weights](https://huggingface.co/alephpi/FormulaNet) | Pinned 687-token transfer model; CPU ONNX with incremental decoder cache |
+| Formula images, optional plus-S model | [PP-FormulaNet plus-S](https://huggingface.co/PaddlePaddle/PP-FormulaNet_plus-S) | FP32 CPU ORT; bounded 1,024-token graph; no Paddle runtime or confidence score |
 | PDF layout | [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO), [DocStructBench weights](https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench) | ONNX export with 1024-pixel square input |
 | PDF text, formula and table regions requiring recognition | [GLM-OCR](https://github.com/zai-org/GLM-OCR), [model weights](https://huggingface.co/zai-org/GLM-OCR) | MLX; 4-bit language weights, 8-bit vision linear layers and a small Baker LoRA adapter |
 | PDF text and export | [PyMuPDF](https://github.com/pymupdf/PyMuPDF), Baker reconstruction and exporters | Reuse reliable PDF characters; reconstruct reading order, authors, equation labels, table spans and figure references |
 
-The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the smaller MFR model, or the optional Texo preview in development builds.
+The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the selected downloadable Pix2Text, Texo or plus-S model. They run per request and do not remain loaded while Baker is idle.
 
 The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
 
@@ -32,7 +33,7 @@ Baker starts from the [MLX community BF16 conversion](https://huggingface.co/mlx
 | Repository | What informed Baker | Use in the current app |
 | --- | --- | --- |
 | [MinerU](https://github.com/opendatalab/MinerU) | Native-text reuse, bounded document processing and equation-number recovery | Architecture reference and comparison engine; not bundled |
-| [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | Document/formula comparison and checked training targets | Research dependency; not bundled |
+| [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | Document/formula comparison and checked training targets | Optional converted plus-S weights and focused PaddleX preprocessing; Paddle itself is not bundled |
 | [Marker](https://github.com/datalab-to/marker) | Structured document blocks and separate output rendering | Design reference; not bundled |
 | [GOT-OCR 2.0](https://github.com/Ucas-HaoranWei/GOT-OCR2.0) | Region prompts and separate evaluation of prose, equations and tables | Source review; not bundled or used as a measured Baker baseline |
 | [unicodeit](https://github.com/svenkreiss/unicodeit) | Unicode mappings and unsupported-notation cases | Conversion reference; Baker uses its own bounded parser |
@@ -55,10 +56,12 @@ Review names, correspondence markers, mathematical symbols, table spans and read
 
 See [limits](limits.md), [development builds](development.md) and [third-party notices](../legal/third-party.md).
 
-## Texo preview evaluation
+## Formula model comparison
 
-On an M1 Pro with 16 GB RAM, a 16-image development comparison measured new-process median wall time of 0.99 seconds for the installed partially INT8 MFR and 0.41 seconds for Texo CPU. Median per-request peak RSS was 171 MiB and 222 MiB respectively. The sample contains 15 authored formula renders or variants and one historical Navier–Stokes re-render, not its original screenshot. This is a small convenience sample, not a general accuracy or whole-app benchmark.
+A three-model development comparison used 158 inputs, including 72 newly authored formula variants, earlier regression/stress cases and two private Navier–Stokes crops. Content review on the new 72 accepted 64 Pix2Text, 59 Texo and 60 plus-S results without notation changes. The reviewer was the coding agent, not an independent human panel. This deliberately varied sample does not estimate population accuracy or establish a universal winner.
 
-The pinned Texo revision is `b2668efe5112082846fde4d446b9bfaab3989533`. Its 687-token vocabulary matches the transfer configuration; the highest distill results in the upstream README are not results for this exact deployment. The preview contains approximately 100 MB of encoder, initial-decoder and cached-decoder graphs, metadata and the model card, distributed as a compressed GitHub Release asset with notices and source. It uses the existing NumPy, Pillow, tokenizers and ONNX Runtime dependencies; no Torch, Transformers or OpenCV is required at runtime.
+The distributed plus-S FP32 conversion and focused worker preserved all 158 native predictions. Mixed-INT8 plus-S was rejected after new symbol and bracket errors. The optional 236 MB model runs without Paddle, Torch or OpenCV. On the tested 16 GB M1 Pro, nine fresh worker processes peaked at 0.66 GiB physical footprint; median wall time was 0.87 seconds for a simple polynomial and 2.43 seconds for the title-free three-row Navier–Stokes crop. Whole-app memory, idle/concurrent workloads and other machines remain unmeasured. plus-S corrupted the heading when included, so review prose and equations separately.
 
-The CoreML encoder experiment did not improve end-to-end latency on two repeated examples and used more memory, so it is not enabled in the app. The preview uses no further quantisation or resident model process. Its original pixel preprocessing matched the inspected upstream processor on four fixtures, and the integrated worker reproduced all 16 prototype results. Baker additionally inverts predominantly dark captures before Texo margin detection; mixed panels retain their original polarity. In two small dark captures, this recovered the main equation but both models still misread the single-character fraction `½`. Upscaling, thresholding and sharpening did not resolve that symbol in the tested capture. Model scores remain uncalibrated token probabilities.
+Texo uses the pinned 687-token transfer model, not the upstream distill configuration with different published results. It uses no further quantisation. A CoreML encoder experiment failed to improve end-to-end latency on two repeated examples and used more memory, so it is not enabled. All formula workers run per request and terminate afterwards.
+
+Baker inverts predominantly dark captures before Texo and plus-S margin detection; mixed panels retain their original polarity. Small Unicode glyphs such as `½` remained unreliable in the tested captures, including after upscaling, thresholding and sharpening. Token-probability scores remain uncalibrated; plus-S supplies token IDs without a score. See [packaging, reproducibility and licences](../models/README.md).

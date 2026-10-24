@@ -50,6 +50,8 @@ Enable developer overrides, select Python with the pinned formula requirements a
 
 `tools/optimize_document_models.py` prepares MFR `mlp-int8-v1`: encoder feed-forward matrices use INT8; attention and decoder remain FP32. It checks pinned inputs and records the recipe and output hashes. Existing variant caches remain usable. New installs and repairs download the verified optimised model from GitHub Releases. Base-app packaging strips formula weights from reused runtimes and retains only pinned descriptors and workers.
 
+Use `tools/optimise_plus_s.py` and `tools/package_plus_s.py` for the optional plus-S FP32 CPU model. The [model package guide](../models/README.md) records export repairs, licence notices, validation and versioned release assets. Formula runtime requirements also include the small `ftfy` and `wcwidth` text-repair dependencies; regenerate the relocatable runtime when adding plus-S to an older build.
+
 The PDF engine lazily loads mixed-precision GLM-OCR and exits after each job. Recognition and reconstruction remain separate, allowing text and geometry changes to be checked against cached page results. [Models and references](recognition.md) records the selected engines, source revisions and validation.
 
 The builder creates an engine archive and pinned descriptor, tests extraction and compares PDF output. Follow the [PDF distribution procedure](https://github.com/PentagonToy/Baker/blob/main/others/builder/PDF-DISTRIBUTION.md) when changing its payload.

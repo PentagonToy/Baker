@@ -42,15 +42,17 @@ def read_settings(path):
     if not directory.is_dir():
         raise ValueError("model_dir must be a prepared local model directory.")
     engine = config.get("engine", "mfr")
-    if engine not in ("mfr", "texo"):
+    if engine not in ("mfr", "texo", "plus-s"):
         raise ValueError("Unsupported formula engine.")
     required = ["encoder_model.onnx", "decoder_model.onnx", "tokenizer.json", "config.json"]
     required += ["decoder_with_past_model.onnx"] if engine == "texo" else ["preprocessor_config.json"]
+    if engine == "plus-s":
+        required = ["formula_model.ort", "tokenizer.json", "config.json"]
     for name in required:
         if not (directory / name).is_file():
             raise ValueError(f"The local model is incomplete: missing {name}.")
     settings = {"model_dir": directory, "engine": engine}
-    bounds = {"threads": (2, 1, 2), "max_new_tokens": ((512, 1, 512) if engine == "texo" else (256, 1, 512)), "timeout_seconds": (45, 1, 120), "max_image_pixels": (12_000_000, 1, 32_000_000)}
+    bounds = {"threads": (2, 1, 2), "max_new_tokens": ((1024, 1, 1024) if engine == "plus-s" else (512, 1, 512) if engine == "texo" else (256, 1, 512)), "timeout_seconds": (45, 1, 120), "max_image_pixels": (12_000_000, 1, 32_000_000)}
     for name, (default, lower, upper) in bounds.items():
         value = config.get(name, default)
         if type(value) is not int or not lower <= value <= upper:
@@ -137,6 +139,15 @@ def model_identity(directory):
 
 
 def recognise(image_path, settings):
+    if settings.get("engine") == "plus-s":
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("baker_plus_s", Path(__file__).with_name("plus_s_worker.py"))
+        plus = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plus)
+        try:
+            return plus.recognise(image_path, settings)
+        except plus.TokenLimitError as error:
+            raise FormulaTokenLimitError(str(error)) from error
     if settings.get("engine", "mfr") == "texo":
         import importlib.util
         spec = importlib.util.spec_from_file_location("baker_texo", Path(__file__).with_name("texo_worker.py"))

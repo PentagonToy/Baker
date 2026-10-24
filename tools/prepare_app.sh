@@ -31,7 +31,8 @@ if [[ -d "$app/Contents/Resources/FormulaPreview" ]]; then rm -rf -- "$app/Conte
 cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_model_install.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/image_tools_worker.py" "$app/Contents/Resources/"
-cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$source_dir/Sources/Baker/Resources/texo_worker.py" "$source_dir/Sources/Baker/Resources/texo-model.json" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$source_dir/Sources/Baker/Resources/texo_worker.py" "$source_dir/Sources/Baker/Resources/texo-model.json" "$source_dir/Sources/Baker/Resources/plus_s_worker.py" "$source_dir/Sources/Baker/Resources/plus-s-model.json" "$app/Contents/Resources/"
+cp -R "$source_dir/Sources/Baker/Resources/FormulaNotices" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/document_worker.py" "$source_dir/Sources/Baker/Resources/document_reconstruction.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula-model.json" "$source_dir/Sources/Baker/Resources/formula-model-canonical.json" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/pdf_engine_install.py" "$app/Contents/Resources/"
@@ -45,6 +46,10 @@ if [[ -n "${BAKER_RUNTIME_DIRECTORY:-}" ]]; then
 elif [[ "$build_configuration" == release && ! -d "$app/Contents/Resources/Runtime" ]]; then
     print -u2 "A complete release needs BAKER_RUNTIME_DIRECTORY; see tools/bundle_runtime.py"
     exit 1
+fi
+# A reused runtime must contain plus-S's small text-repair dependencies.
+if [[ -x "$app/Contents/Resources/Runtime/python/bin/python3.12" ]]; then
+    "$app/Contents/Resources/Runtime/python/bin/python3.12" -I -B -c 'import ftfy, wcwidth' || { print -u2 "Regenerate Runtime with tools/formula-requirements.txt before building this app."; exit 1; }
 fi
 # Image tracing uses the existing interpreter and pinned local payloads, never a download.
 if [[ -x "$app/Contents/Resources/Runtime/python/bin/python3.12" ]]; then
@@ -60,7 +65,7 @@ elif [[ -d "$app/Contents/Resources/DocumentEngine" ]]; then
     rm -rf -- "$app/Contents/Resources/DocumentEngine"
 fi
 # Formula weights are optional downloads. Also strip them from reused runtimes.
-for model_folder in "$app/Contents/Resources/Runtime/mfr" "$app/Contents/Resources/Runtime/texo"; do
+for model_folder in "$app/Contents/Resources/Runtime/mfr" "$app/Contents/Resources/Runtime/texo" "$app/Contents/Resources/Runtime/plus-s"; do
     [[ ! -d "$model_folder" ]] || rm -rf -- "$model_folder"
 done
 mkdir -p "$app/Contents/Resources/BakerIcons" "$app/Contents/Resources/BakerSymbols"

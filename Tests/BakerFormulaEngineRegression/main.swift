@@ -33,6 +33,16 @@ Task { @MainActor in
         try files.removeItem(at: canonical)
         try files.removeItem(at: legacy)
         check(FormulaEngine.cachedMFRVariant(root: root) == nil, "Removing legacy model restores downloadable selection")
+        check(FormulaEngine.allCases.count == 3, "Three formula engines are selectable")
+        check(FormulaEngine.texo.title == "Texo", "Texo is a regular supported choice")
+        setup.select(.plusS)
+        while setup.working { await Task.yield() }
+        check(preferences[PreferenceKeys.formulaEngine] == "plus-s", "plus-S selection persists")
+        check(setup.directory.lastPathComponent == "pp-formulanet-plus-s-fp32-v1", "plus-S has its own cache")
+        check(FormulaEngine.plusS.settings(directory: setup.directory)["max_new_tokens"] as? Int == 1024, "plus-S retains its graph limit")
+        check(FormulaEngine.plusS.bundledPaths.isEmpty, "plus-S remains an optional download")
+        setup.select(.texo)
+        while setup.working { await Task.yield() }
         let source = root.appendingPathComponent("source")
         try files.createDirectory(at: source, withIntermediateDirectories: true)
         let data = Data("authored installation fixture".utf8)

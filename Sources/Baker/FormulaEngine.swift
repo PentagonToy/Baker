@@ -2,17 +2,33 @@ import Foundation
 import BakerCore
 
 enum FormulaEngine: String, CaseIterable, Sendable {
-    case mfr, texo
-    var title: String { self == .mfr ? "Pix2Text" : "Texo · Preview" }
-    var summary: String { self == .mfr ? "Lower memory use. A balanced starting point." : "Faster recognition in our tests, with higher memory use. Experimental." }
-    var resource: String { self == .mfr ? "formula-model" : "texo-model" }
+    case mfr, texo, plusS = "plus-s"
+    var title: String {
+        switch self { case .mfr: return "Pix2Text"; case .texo: return "Texo"; case .plusS: return "PP-FormulaNet plus-S" }
+    }
+    var summary: String {
+        switch self {
+        case .mfr: return "A balanced choice for everyday formulas."
+        case .texo: return "Fast recognition with low memory use in our tests."
+        case .plusS: return "An alternative for multiline formulas. Uses more memory; review the result."
+        }
+    }
+    var resource: String {
+        switch self { case .mfr: return "formula-model"; case .texo: return "texo-model"; case .plusS: return "plus-s-model" }
+    }
     func directoryName(variant: String?) -> String {
-        self == .texo ? "texo-transfer-v1" : (variant == "mlp-int8-v1" ? "mfr-1.5-mlp-int8-v1" : "mfr-1.5")
+        switch self {
+        case .texo: return "texo-transfer-v1"
+        case .plusS: return "pp-formulanet-plus-s-fp32-v1"
+        case .mfr: return variant == "mlp-int8-v1" ? "mfr-1.5-mlp-int8-v1" : "mfr-1.5"
+        }
     }
     func settings(directory: URL) -> [String: Any] {
-        ["model_dir": directory.path, "engine": rawValue, "threads": 2, "max_new_tokens": self == .texo ? 512 : 256, "timeout_seconds": 45, "max_image_pixels": 12000000]
+        ["model_dir": directory.path, "engine": rawValue, "threads": 2, "max_new_tokens": self == .plusS ? 1024 : (self == .texo ? 512 : 256), "timeout_seconds": 45, "max_image_pixels": 12000000]
     }
-    var bundledPaths: [String] { self == .mfr ? ["Runtime/mfr", "DocumentEngine/mfr"] : ["Runtime/texo"] }
+    var bundledPaths: [String] {
+        switch self { case .mfr: return ["Runtime/mfr", "DocumentEngine/mfr"]; case .texo: return ["Runtime/texo"]; case .plusS: return [] }
+    }
     static func cachedMFRVariant(root: URL) -> String? {
         let files = FileManager.default
         if files.fileExists(atPath: root.appendingPathComponent("mfr-1.5/baker-config.json").path) { return "fp32" }
@@ -26,7 +42,7 @@ enum FormulaEngine: String, CaseIterable, Sendable {
             throw BakerError(message: "Baker's model download information is missing. Reinstall Baker.", code: .configurationInvalid, recovery: .updateApp)
         }
         let value = try JSONDecoder().decode(FormulaModelManifest.self, from: Data(contentsOf: source))
-        guard value.variant == nil || (self == .mfr && value.variant == "mlp-int8-v1" && (value.bundledOnly == true || value.archive != nil)) else {
+        guard value.variant == nil || (self == .mfr && value.variant == "mlp-int8-v1" && (value.bundledOnly == true || value.archive != nil)) || (self == .plusS && value.variant == "fp32-ort-v1" && value.archive != nil) else {
             throw BakerError(message: "The formula model variant is unsupported. Reinstall Baker.", code: .configurationInvalid, recovery: .updateApp)
         }
         return value

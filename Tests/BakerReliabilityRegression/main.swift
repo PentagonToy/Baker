@@ -48,6 +48,8 @@ Task { @MainActor in
         check(sanitized.diagnostic!.count <= 1024 && !sanitized.errorDescription!.contains("\u{001B}"), "Diagnostics are bounded and strip control bytes")
         let parsed = try response(#"{"latex":"x _ { 2 }","confidence":0.8,"confidence_method":"geometric_mean_token_probability_v1","diagnostics":{"tokenCount":3,"ambiguousTokenCount":1,"minimumTokenProbability":0.5}}"#)
         check(parsed.latex == "x_{2}" && parsed.confidence == 0.8 && parsed.diagnostics?.tokenCount == 3, "Formula response retains source/score semantics")
+        let plus = try response(#"{"latex":"x+1=0","model":"pp-formulanet-plus-s-fp32-ort-v1"}"#)
+        check(plus.latex == "x+1=0" && plus.confidence == nil && plus.diagnostics == nil, "plus-S accepts valid source without a fabricated model score")
         for (wire, code) in [("formula_token_limit", BakerError.Code.formulaTokenLimit), ("recognition_timeout", .processTimedOut), ("model_not_ready", .modelNotReady), ("future_code", .recognitionFailed)] {
             do { _ = try response("{\"error\":\"test\",\"error_code\":\"" + wire + "\"}", status: 1); check(false,"Worker error rejected") }
             catch let error as BakerError { check(error.code == code, "Worker error classification: " + wire) }

@@ -6,9 +6,9 @@ Captured formulas appear in a popover below the Baker menu-bar icon and copy aut
 
 ## Recognition engine
 
-Development builds offer **Settings → Formula → Recognition engine**. Pix2Text remains selected for existing users. Both models download separately: Pix2Text has about 77 MB of model files and Texo about 100 MB. Choose an engine, then **Download Model** once; later recognition runs offline. Previously installed optimised Pix2Text models remain usable. Switch back to Pix2Text at any time. Each engine keeps its own model files; removing one does not remove the other or captured formulas. The headless CLI uses the same selection unless developer runtime overrides are enabled.
+Choose **Settings → Formula → Recognition engine**: **Pix2Text**, **Texo** or **PP-FormulaNet plus-S**. Each model downloads separately and recognises locally. Approximate model-file sizes are 77 MB, 100 MB and 236 MB respectively. Existing users keep their selected engine and installed Pix2Text variant. Each engine has its own files; removing one preserves the others and your captures. Quick Start offers the same choices after Screen Recording permission. The headless CLI uses the selected engine unless developer runtime overrides are enabled.
 
-Texo was faster in a small comparison but used more typical request memory. Difficult derivatives and some array layouts still need review. Scores from different engines are not calibrated against each other. This preview does not change the PDF conversion engine.
+Texo is a fast, low-memory option in our tests; Pix2Text remains a balanced choice. plus-S can handle some multiline formulas the others miss, but uses more request memory and can still misread symbols, prose and layouts. Scores from different models are not calibrated against each other; plus-S provides no score. These choices do not change PDF conversion. See [model packages and licences](../models/README.md).
 
 ## Formula Workspace
 

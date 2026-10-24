@@ -30,7 +30,7 @@ def main():
     shutil.copytree(base, target / 'python', symlinks=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'site-packages', 'include', 'man'))
     site = target / 'python/lib/python3.12/site-packages'
     site.mkdir(parents=True)
-    pending = ['numpy==2.5.4', 'Pillow==12.3.0', 'onnxruntime==1.31.0', 'tokenizers==0.23.3']
+    pending = ['numpy==2.5.4', 'Pillow==12.3.0', 'onnxruntime==1.31.0', 'tokenizers==0.23.3', 'ftfy==6.3.1', 'wcwidth==0.9.3']
     copied = {}
     while pending:
         requirement = Requirement(pending.pop())

@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Offer optimised Pix2Text and the Texo CPU preview as separate, verified GitHub Release downloads with licences, provenance and source. Keep formula weights out of the base app, reuse installed models and explain memory/speed tradeoffs without implying an accuracy ranking.
-- Let Quick Start download either formula model after screen-recording permission, then enable the capture exercise without leaving the tour.
+- Offer optimised Pix2Text, Texo and PP-FormulaNet plus-S FP32 as separate, verified GitHub Release downloads with licences, provenance and source. Keep formula weights out of the base app, reuse installed models and explain memory/speed tradeoffs without implying an accuracy ranking.
+- Let Quick Start download any of the three formula models after screen-recording permission, then enable the capture exercise without leaving the tour.
 - Load display-sized original formula previews only when shown, cancel pending renders when clearing preview caches, and bound the render queue. Add read-only CLI diagnostics for app memory, caches and active work, and fix intermittent request-permission failures.
 - Fit capture previews to the active display’s usable height by default, closing the oldest preview when full while keeping saved captures. Retain optional limits of one to five previews.
 - Normalise predominantly dark formula captures before Texo margin detection so light equations are not mistaken for the background.

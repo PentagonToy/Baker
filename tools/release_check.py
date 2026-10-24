@@ -44,6 +44,15 @@ def audit(app, external_engine=None):
         target = preview / source.relative_to(expected)
         if not target.is_file() or hashlib.sha256(target.read_bytes()).digest() != hashlib.sha256(source.read_bytes()).digest():
             blockers.append('Repackage the offline formula renderer: ' + str(source.relative_to(expected)))
+    for name in ['Apache-2.0.txt', 'NOTICE.txt']:
+        source = ROOT / 'Sources/Baker/Resources/FormulaNotices' / name
+        target = resources / 'FormulaNotices' / name
+        if not target.is_file() or target.read_bytes() != source.read_bytes():
+            blockers.append('Missing or changed formula notice: ' + name)
+    runtime_python = resources / 'Runtime/python/bin/python3.12'
+    if runtime_python.is_file():
+        check = subprocess.run([str(runtime_python), '-I', '-B', '-c', 'import ftfy, wcwidth'], capture_output=True, timeout=15)
+        if check.returncode: blockers.append('Regenerate the formula runtime with ftfy and wcwidth')
     engine = external_engine or resources / 'DocumentEngine'
     descriptor = None
     if not (resources / 'DocumentEngine').is_dir():
@@ -51,9 +60,9 @@ def audit(app, external_engine=None):
         if not descriptor.get('available'): blockers.append('Optional PDF engine asset is not published; keep this build local')
         if descriptor.get('schema') != 1 or len(descriptor.get('archive_sha256', '')) != 64: blockers.append('Invalid optional PDF descriptor')
     checked = 0
-    for folder in ['Runtime/mfr', 'Runtime/texo']:
+    for folder in ['Runtime/mfr', 'Runtime/texo', 'Runtime/plus-s']:
         if (resources / folder).exists(): blockers.append('Remove bundled optional formula weights: ' + folder)
-    for name in ['formula-model.json', 'formula-model-canonical.json', 'texo-model.json', 'formula_worker.py', 'texo_worker.py', 'formula_model_install.py']:
+    for name in ['formula-model.json', 'formula-model-canonical.json', 'texo-model.json', 'plus-s-model.json', 'plus_s_worker.py', 'formula_worker.py', 'texo_worker.py', 'formula_model_install.py']:
         source = ROOT / 'Sources/Baker/Resources' / name
         target = resources / name
         if not target.is_file() or target.read_bytes() != source.read_bytes():
