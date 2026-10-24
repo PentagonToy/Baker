@@ -1,6 +1,6 @@
 # Local recognition adapter
 
-Baker keeps an app-neutral, headless recognition entry point for future local clients. It has no dependency on Deerstalker, URL schemes or shared clipboard names. A caller starts one short-lived process, sends one versioned JSON request on standard input and closes that input, then reads one JSON response from standard output. No application window, capture sound, notification, capture-history entry or clipboard change is produced by this path.
+Baker accepts local formula requests through a short-lived command-line process. Send one versioned JSON request on standard input, close the input, then read one response from standard output. The adapter leaves windows, the clipboard and capture history unchanged.
 
 ## Capabilities and invocation
 
@@ -23,11 +23,6 @@ A request requires `version` (1), a non-empty `id` up to 128 UTF-8 bytes, `opera
 
 An error response contains `version`, the caller's `id` when available and an `error` string, without `result`. Process exit status is 0 for success/capability information, 1 for recognition/request errors and 2 for invalid adapter command-line usage. `modelScore` is optional model token confidence, not a verified probability of correctness. Callers own review, presentation, output formatting, clipboard policy and history. The adapter does not attempt to classify prose as equations.
 
-The original menu-bar application path is unchanged when no adapter flag is supplied. No persistent adapter server or additional resident model is created. Multiple clients should serialise expensive requests themselves; caller-owned process cancellation and retry remain follow-up work.
+Without an adapter flag, Baker starts its normal menu-bar interface. Each request runs in a short-lived process. Clients should serialise expensive requests and own process cancellation and retry.
 
-## Validation status
-
-Pure request/response checks cover success, caller identity, rejected paths, versions/operations, malformed and oversized input, and engine-call isolation. The complete Baker source typechecks. A release package was rebuilt and installed on the M1 Pro on 19 October 2026. Capability probing passed, and a synthetic E = mc² image returned equivalent LaTeX through the packaged adapter in approximately 1.12 seconds with an empty error stream. This is a single functional smoke check, not a general accuracy or cold/warm performance benchmark.
-
-
-When rebuilding with an existing runtime that contains a quantised formula model, pass its matching descriptor through `BAKER_FORMULA_MODEL_MANIFEST`. Packaging rejects a bundled model/descriptor variant mismatch instead of silently selecting an unprepared model directory. This setting affects packaging only and does not download models.
+Formula weights download separately through Settings. The adapter uses the selected prepared model and leaves provisioning to the app.

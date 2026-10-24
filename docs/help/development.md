@@ -56,18 +56,6 @@ The PDF engine lazily loads mixed-precision GLM-OCR and exits after each job. Re
 
 The builder creates an engine archive and pinned descriptor, tests extraction and compares PDF output. Follow the [PDF distribution procedure](https://github.com/PentagonToy/Baker/blob/main/others/builder/PDF-DISTRIBUTION.md) when changing its payload.
 
-## Formula measurements
-
-An M1 Pro comparison processed 31 formula images in fresh subprocesses with two worker threads per variant.
-
-| Measurement | Original FP32 | MLP INT8 and sequential sessions |
-| --- | ---: | ---: |
-| Encoder file | 83.5 MiB | 43.2 MiB |
-| Median worker peak RSS | 259.4 MiB | 179.7 MiB |
-| Median end-to-end worker time | 1.32 s | 1.19 s |
-
-LaTeX matched in 28 cases; the other three had reviewed formatting differences. A separate 15-crop comparison found one spacing difference. These samples establish neither general OCR accuracy nor whole-app memory usage.
-
 ## Code ownership
 
 Workbench forwards UI commands to capture, recognition, document, clipboard, storage and export coordinators. CaptureLibrary bounds its thumbnail cache to six images and serialises formula writes. WorkspaceWindows retains workspace content; ordinary Settings reopening preserves its page, while recovery actions select their destination. Shutdown cancels and awaits active work.

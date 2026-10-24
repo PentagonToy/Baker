@@ -44,24 +44,14 @@ CleanShot X, Mathpix and Dropzone informed capture and workspace interactions. B
 
 ## Image editing
 
-Background removal uses Baker’s smooth-background operation or Apple Vision foreground masks. Colour tracing uses [VTracer 0.6.15](https://github.com/visioncortex/vtracer); monochrome tracing uses [Potrace 1.16](https://potrace.sourceforge.net/). SVGcode informed workflow research; AutoTrace’s centreline tracing was reviewed and deferred. withoutBG and StarVector are excluded. See [pinned inputs and packaging](https://github.com/PentagonToy/Baker/tree/main/others/image-tools) and [licences](../legal/third-party.md).
+Background removal uses Baker’s smooth-background operation or Apple Vision foreground masks. Colour tracing uses [VTracer 0.6.15](https://github.com/visioncortex/vtracer); monochrome tracing uses [Potrace 1.16](https://potrace.sourceforge.net/). SVGcode informed the workflow. See [pinned inputs and packaging](https://github.com/PentagonToy/Baker/tree/main/others/image-tools) and [licences](../legal/third-party.md).
 
 The capture palette follows Masataka Okabe and Kei Ito’s [Color Universal Design](https://jfly.uni-koeln.de/color/), with an additional white masking swatch.
 
-## Validation and limits
+## Recognition limits
 
-On a 16 GB M1 Pro, the selected document pipeline converted an 11-page research PDF in about 122 seconds with a measured peak process-tree footprint of 2.73 GiB. Four PDF fixtures covering 15 pages passed structure and LaTeX-compilation checks. A complex table page took about 33 seconds and remained slower than the previous engine. These are development measurements, not a general speed or accuracy guarantee.
+Review names, mathematical symbols, table spans and reading order against the source. Small glyphs, dense equations, headings and complex tables can be misread. Enlarge a formula in its source app before capture when possible.
 
-Review names, correspondence markers, mathematical symbols, table spans and reading order against the source. Multilingual scans need further validation. The formula model score measures token probabilities, not a verified probability of correctness; the generative PDF model has no calibrated confidence score.
+Texo uses the pinned transfer model; Pix2Text provides an alternative for everyday formulas. plus-S offers another option for multiline formulas and uses more request memory. Each worker exits after recognition. Formula scores describe token probabilities rather than verified accuracy; plus-S and the PDF model provide no calibrated score.
 
-See [limits](limits.md), [development builds](development.md) and [third-party notices](../legal/third-party.md).
-
-## Formula model comparison
-
-A three-model development comparison used 158 inputs, including 72 newly authored formula variants, earlier regression/stress cases and two private Navier–Stokes crops. Content review on the new 72 accepted 64 Pix2Text, 59 Texo and 60 plus-S results without notation changes. The reviewer was the coding agent, not an independent human panel. This deliberately varied sample does not estimate population accuracy or establish a universal winner.
-
-The distributed plus-S FP32 conversion and focused worker preserved all 158 native predictions. Mixed-INT8 plus-S was rejected after new symbol and bracket errors. The optional 236 MB model runs without Paddle, Torch or OpenCV. On the tested 16 GB M1 Pro, nine fresh worker processes peaked at 0.66 GiB physical footprint; median wall time was 0.87 seconds for a simple polynomial and 2.43 seconds for the title-free three-row Navier–Stokes crop. Whole-app memory, idle/concurrent workloads and other machines remain unmeasured. plus-S corrupted the heading when included, so review prose and equations separately.
-
-Texo uses the pinned 687-token transfer model, not the upstream distill configuration with different published results. It uses no further quantisation. A CoreML encoder experiment failed to improve end-to-end latency on two repeated examples and used more memory, so it is not enabled. All formula workers run per request and terminate afterwards.
-
-Baker inverts predominantly dark captures before Texo and plus-S margin detection; mixed panels retain their original polarity. Small Unicode glyphs such as `½` remained unreliable in the tested captures, including after upscaling, thresholding and sharpening. Token-probability scores remain uncalibrated; plus-S supplies token IDs without a score. See [packaging, reproducibility and licences](../models/README.md).
+See [limits](limits.md), [model packages](../models/README.md) and [third-party notices](../legal/third-party.md).

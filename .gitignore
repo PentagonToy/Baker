@@ -8,6 +8,17 @@ __pycache__/
 # Local agent instructions, investigations and hand-off notes
 /agent/
 /agents/
+/Agents/
+/.codex/
+/.agents/
+/AGENTS.md
+/CLAUDE.md
+/MEMO.md
+/RESEARCH_NOTE.md
+/LOCAL_NOTES.md
+/STATE.json
+/reports/
+/benchmark-results/
 
 # Bad ocr
 /error/
