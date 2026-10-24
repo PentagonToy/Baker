@@ -1,16 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.0.5 — 2026-10-24
 
-- Offer optimised Pix2Text, Texo and PP-FormulaNet plus-S FP32 as separate, verified GitHub Release downloads with licences, provenance and source. Keep formula weights out of the base app, reuse installed models and explain memory/speed tradeoffs without implying an accuracy ranking.
-- Let Quick Start download any of the three formula models after screen-recording permission, then enable the capture exercise without leaving the tour.
-- Load display-sized original formula previews only when shown, cancel pending renders when clearing preview caches, and bound the render queue. Add read-only CLI diagnostics for app memory, caches and active work, and fix intermittent request-permission failures.
-- Fit capture previews to the active display’s usable height by default, closing the oldest preview when full while keeping saved captures. Retain optional limits of one to five previews.
-- Normalise predominantly dark formula captures before Texo margin detection so light equations are not mistaken for the background.
-- Unify warm surfaces, readable action buttons and toolbar icon alignment across Settings, Quick Start, formula views, files and history. Compact the formula toolbar in narrow windows and simplify model management.
-- Dismiss the formula menu-bar popover when clicking outside, including in another app or display; keep clicks inside the popover available.
-- Improve Keynote equation output for braced pseudobold text and centred multiline vectors while retaining underlines, grouping and supported bold notation. Warn on irregular matrix layouts and unsupported commands.
-- Give the Last Capture formula format selector its own row and move Copy below it to prevent overlapping controls.
+- Choose Pix2Text, Texo or PP-FormulaNet plus-S as a verified, optional formula download. Keep weights outside the base app and reuse installed models.
+- Prepare the selected model directly in Quick Start after Screen Recording permission.
+- Fit capture thumbnails to the display’s usable height, with optional fixed limits of one to five.
+- Refine Settings, Workspace, History and the formula popover; align controls, simplify model management and dismiss the popover on outside clicks.
+- Improve dark-capture recognition, Keynote bold and multiline output, and the Last Capture format selector.
+- Bound preview memory and rendering queues, cancel pending cache work, and add read-only CLI diagnostics for memory and active operations.
 
 ## 0.0.4 — 2026-10-22
 

@@ -1,6 +1,6 @@
 # Prepare a release
 
-[Baker 0.0.4](0.0.4.md) is the current app release. Formula and PDF model releases use separate tags and do not update the app. [Distribution](next.md) covers Homebrew maintenance.
+[Baker 0.0.5](0.0.5.md) is the current app release. Formula and PDF model releases use separate tags and do not update the app. [Distribution](next.md) covers Homebrew maintenance.
 
 Build the candidate with the [local builder](../builder/README.md), then audit the prepared app:
 

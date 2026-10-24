@@ -1,6 +1,6 @@
 # Baker
 
-Version **0.0.4** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.4/Baker-0.0.4-arm64.dmg) · [Changelog](../CHANGELOG.md).
+Version **0.0.5** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.5/Baker-0.0.5-arm64.dmg) · [Changelog](../CHANGELOG.md).
 
 **A keen eye. A fresh result.**
 

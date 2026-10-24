@@ -6,7 +6,7 @@ Normal use needs no Python path or JSON configuration. Developers can enable **S
 
 On a prepared Workspace Mac, run `others/builder/Build.command`. It checks runtimes, builds the app, validates PDF output, backs up the installed app and replaces it. It installs no packages and downloads no models. The [builder guide](https://github.com/PentagonToy/Baker/blob/main/others/builder/README.md) covers preparation and build-only checks.
 
-The app contains the formula runtime and MFR model; the structured-PDF engine is optional. `VERSION` supplies the app version. Update it with `CHANGELOG.md` before packaging a release.
+The app contains the formula runtime; formula weights and the structured-PDF engine download separately. `VERSION` supplies the app version. Update it with `CHANGELOG.md` before packaging a release.
 
 ## Runtime packaging
 
