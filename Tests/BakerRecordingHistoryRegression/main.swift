@@ -20,6 +20,7 @@ for ext in ["mp4", "gif"] {
     let raster = try archive.thumbnail(record)
     check(raster.width <= 640 && raster.height <= 640, "Bounded single-frame preview")
     check(record.isGIF == (ext == "gif"), "Media classification")
+    check(record.fileName.hasPrefix(ext == "gif" ? "baker_gif_" : "baker_video_"), "Typed recording filename")
 }
 check(try RecordingArchive(directory: folder).records() == saved.reversed(), "History survives reopening")
 try files.removeItem(at: folder.appendingPathComponent(saved[0].fileName))

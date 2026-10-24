@@ -87,6 +87,7 @@ let svgText = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"96\" height=\"6
     check(try Data(contentsOf: oldURL) == pngBytes && archive.records == [record], "Rejected SVG leaves PNG and history unchanged")
     let saved = try archive.replace(source: svgFile, record: record)
     check(saved.id == record.id && saved.createdAt == record.createdAt && saved.isVector, "Vector replaces same capture identity")
+    check((saved.fileName as NSString).deletingPathExtension == (record.fileName as NSString).deletingPathExtension, "SVG conversion preserves typed filename stem")
     check(!FileManager.default.fileExists(atPath: oldURL.path), "PNG removed after SVG commit")
     check(try Data(contentsOf: archive.fileURL(for: saved)) == vector.data, "Only SVG bytes stored")
     check(try CaptureArchive(directory: archiveDir).records == [saved], "SVG survives history reload")

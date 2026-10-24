@@ -4,6 +4,28 @@ import CryptoKit
 import Foundation
 import ImageIO
 
+/// Shared names for new files; archive IDs remain independent of their visible names.
+public enum CaptureFileName {
+    public enum Kind: String, Sendable { case image, formula, video, gif }
+    public static func available(kind: Kind, date: Date, extension suffix: String, directory: URL) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
+        let stem = "baker_\(kind.rawValue)_\(formatter.string(from: date))"
+        var name = stem + "." + suffix, number = 2
+        // Include dangling symlinks in collision detection. Copy/move still refuses overwrites.
+        while (try? directory.appendingPathComponent(name).resourceValues(forKeys: [.isSymbolicLinkKey])) != nil {
+            name = stem + "_\(number)." + suffix; number += 1
+        }
+        return name
+    }
+    public static func valid(_ name: String, kinds: [Kind]) -> Bool {
+        let types = kinds.map(\.rawValue).joined(separator: "|")
+        return name.range(of: "\\Abaker_(?:" + types + ")_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}(?:_[2-9][0-9]*|_1[0-9]+)?\\.[a-z0-9]+\\z", options: .regularExpression) != nil
+    }
+}
+
 public struct CaptureRecord: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let createdAt: Date
@@ -61,9 +83,9 @@ public final class CaptureArchive {
         catch { throw BakerError(message: "The capture history index is damaged. Existing images have been preserved.", code: .storageFailed) }
         guard index.version == 1 else { throw BakerError(message: "This capture history uses an unsupported index version.", code: .storageFailed) }
         guard index.records.count <= Self.maximumRecords else { throw BakerError(message: "The capture history index exceeds the supported 10,000 records.", code: .resourceLimit) }
-        var identifiers = Set<UUID>()
+        var identifiers = Set<UUID>(), names = Set<String>()
         for record in index.records {
-            guard Self.valid(record), identifiers.insert(record.id).inserted else {
+            guard Self.valid(record), identifiers.insert(record.id).inserted, names.insert(record.fileName).inserted else {
                 throw BakerError(message: "The capture history index contains an invalid or duplicate record. Existing images have been preserved.", code: .storageFailed)
             }
             let url = self.directory.appendingPathComponent(record.fileName)
@@ -98,7 +120,7 @@ public final class CaptureArchive {
     }
 
     /// Copies a supported still image; the caller's source is never moved or removed.
-    @discardableResult public func add(source: URL) throws -> CaptureRecord {
+    @discardableResult public func add(source: URL, asFormula: Bool = false) throws -> CaptureRecord {
         let lockURL = directory.appendingPathComponent(".baker-history.lock")
         let descriptor = open(lockURL.path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else { throw BakerError(message: "Capture history could not be locked.", code: .storageFailed) }
@@ -117,8 +139,9 @@ public final class CaptureArchive {
         }
         let sourceURL = source.standardizedFileURL.resolvingSymlinksInPath()
         let info = try Self.inspect(sourceURL)
-        let identifier = UUID()
-        let record = CaptureRecord(id: identifier, createdAt: Date(), fileName: identifier.uuidString.lowercased() + "." + info.fileExtension, pixelWidth: info.width, pixelHeight: info.height)
+        let identifier = UUID(), date = Date()
+        let name = CaptureFileName.available(kind: asFormula ? .formula : .image, date: date, extension: info.fileExtension, directory: directory)
+        let record = CaptureRecord(id: identifier, createdAt: date, fileName: name, pixelWidth: info.width, pixelHeight: info.height)
         let destination = fileURL(for: record)
         let staging = directory.appendingPathComponent(".baker-import-" + UUID().uuidString.lowercased(), isDirectory: true)
         try files.createDirectory(at: staging, withIntermediateDirectories: false)
@@ -153,7 +176,7 @@ public final class CaptureArchive {
         let info = try Self.inspect(source)
         guard ["png", "svg"].contains(info.fileExtension) else { throw BakerError(message: "Edited captures must use flattened PNG or self-contained SVG data.", code: .invalidInput) }
         records = fresh.records; indexFingerprint = fresh.indexFingerprint
-        let updated = CaptureRecord(id: record.id, createdAt: record.createdAt, fileName: record.id.uuidString.lowercased() + "." + info.fileExtension, pixelWidth: info.width, pixelHeight: info.height)
+        let updated = CaptureRecord(id: record.id, createdAt: record.createdAt, fileName: (record.fileName as NSString).deletingPathExtension + "." + info.fileExtension, pixelWidth: info.width, pixelHeight: info.height)
         let original = fileURL(for: record), destination = fileURL(for: updated)
         let originalData = try Data(contentsOf: original)
         let replacement = try Data(contentsOf: source)
@@ -219,7 +242,8 @@ public final class CaptureArchive {
     public func fileURL(for record: CaptureRecord) -> URL {
         let suffix = (record.fileName as NSString).pathExtension.lowercased()
         let safeSuffix = Self.extensions.contains(suffix) ? suffix : "invalid"
-        return directory.appendingPathComponent(record.id.uuidString.lowercased() + "." + safeSuffix)
+        let name = Self.valid(record) ? record.fileName : record.id.uuidString.lowercased() + "." + safeSuffix
+        return directory.appendingPathComponent(name)
     }
 
     public func thumbnail(for record: CaptureRecord, maximumPixelSize: Int = 600) throws -> CGImage {
@@ -294,7 +318,7 @@ public final class CaptureArchive {
             record.pixelWidth > 0 && record.pixelHeight > 0 &&
             record.pixelWidth <= maximumDimension && record.pixelHeight <= maximumDimension &&
             record.pixelWidth * record.pixelHeight <= maximumPixels && extensions.contains(suffix) &&
-            record.fileName == record.id.uuidString.lowercased() + "." + suffix
+            (record.fileName == record.id.uuidString.lowercased() + "." + suffix || CaptureFileName.valid(record.fileName, kinds: [.image, .formula]))
     }
 
     private static func inspect(_ url: URL, allowSymbolicLink: Bool = true) throws -> ImageInfo {

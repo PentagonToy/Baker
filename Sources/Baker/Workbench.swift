@@ -39,6 +39,7 @@ final class Workbench: ObservableObject {
     var onReopen: (() -> Void)?
     let updates: AppUpdates
     let launchAtLogin: LaunchAtLogin
+    let mathpix: MathpixConnection
     let formulaSetup: FormulaSetup
     let pdfEngineSetup = PDFEngineSetup()
     var onFormulaSetupNeeded: (() -> Void)?
@@ -115,6 +116,7 @@ final class Workbench: ObservableObject {
         let preferences = BakerPreferences(defaults: defaults)
         preferences.migrate()
         self.preferences = preferences
+        mathpix = MathpixConnection(defaults: defaults)
         formulaSetup = FormulaSetup(preferences: preferences)
         updates = AppUpdates(defaults: defaults)
         launchAtLogin = LaunchAtLogin(defaults: defaults)

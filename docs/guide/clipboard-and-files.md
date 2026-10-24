@@ -25,9 +25,9 @@ To remove surrounding text before recognition, double-click a capture thumbnail,
 
 ## PDF conversion
 
-The first PDF conversion requests a one-time engine download and continues after verification. The installed engine works offline; captures and formula recognition need no PDF download. Manage it in **Settings → Advanced → Offline Model**.
+In Baker mode, the first PDF conversion requests a one-time engine download and continues after verification. The installed engine works offline; captures and formula recognition need no PDF download. Manage it in **Settings → Advanced → Offline Model**.
 
-The prepared PDF engine recognises layout, text, equations and tables locally, using available PDF characters to recover text and scripts. Figure files are saved in a companion folder; keep it beside the document when moving the export. No quality switch or online OCR account is needed.
+The prepared PDF engine recognises layout, text, equations and tables locally, using available PDF characters to recover text and scripts. Figure files are saved in a companion folder; keep it beside the document when moving the export. No online account is needed for Baker mode. Unreleased builds also offer [Mathpix account conversion](../help/settings.md#mathpix-and-usage-unreleased); online LaTeX results are saved as `.tex.zip` projects.
 
 Each PDF shows its current stage, completed pages, percentage and elapsed time. Approximate remaining time appears after two completed pages. Model preparation is excluded from that estimate; later complex pages can take longer. Progress stays below 100% until export is ready.
 

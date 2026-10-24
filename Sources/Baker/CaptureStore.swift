@@ -79,13 +79,13 @@ actor CaptureStore {
         try FileManager.default.removeItem(at: probe)
     }
     func records() throws -> [CaptureRecord] { try opened().records }
-    func add(file: URL) throws -> StoredCapture {
+    func add(file: URL, asFormula: Bool = false) throws -> StoredCapture {
         try Task.checkCancellation()
         let archive = try opened()
-        let record = try archive.add(source: file)
+        let record = try archive.add(source: file, asFormula: asFormula)
         return StoredCapture(record: record, thumbnail: try archive.thumbnail(for: record))
     }
-    func add(image: CGImage) throws -> StoredCapture {
+    func add(image: CGImage, asFormula: Bool = false) throws -> StoredCapture {
         try Task.checkCancellation()
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("baker-capture-\(UUID().uuidString).png")
         guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, "public.png" as CFString, 1, nil) else {
@@ -94,7 +94,7 @@ actor CaptureStore {
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "Could not encode the captured image.", code: .storageFailed) }
         do {
-            let result = try add(file: temporary)
+            let result = try add(file: temporary, asFormula: asFormula)
             try? FileManager.default.removeItem(at: temporary)
             return result
         } catch is CancellationError {

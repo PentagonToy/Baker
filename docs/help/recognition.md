@@ -1,6 +1,6 @@
 # Models and references
 
-Baker combines small task-specific engines with native macOS recognition. Captures and PDFs are processed locally. No OCR API or server is required.
+Baker combines small task-specific engines with native macOS recognition. Baker mode processes captures and PDFs locally without an OCR API or server. The Unreleased [Mathpix option](settings.md#mathpix-and-usage-unreleased) sends selected formulas and PDFs to the signed-in Mathpix account.
 
 For app-neutral local clients, see the [headless recognition adapter](adapter.md). It is independent of any reader integration.
 
@@ -19,6 +19,23 @@ For app-neutral local clients, see the [headless recognition adapter](adapter.md
 The PDF model loads only when a region needs it. A usable native-text page can avoid loading GLM-OCR. The document process exits after each conversion. Individual formula images use the selected downloadable Pix2Text, Texo or plus-S model. They run per request and do not remain loaded while Baker is idle.
 
 The document runtime uses [MLX](https://github.com/ml-explore/mlx) and extracted inference definitions from [MLX-VLM 0.7.8](https://github.com/Blaizzy/mlx-vlm). It excludes PyTorch, Transformers and the general MLX-VLM launcher. This build uses Metal on Apple Silicon; it does not claim Neural Engine acceleration. Its MLX library requires macOS 26.2 or later.
+
+## Formula comparison
+
+A development comparison on 24 October 2026 tested 72 authored images: 24 formula families rendered as clean, small-serif and slide-JPEG variants. A pass required preserved mathematical content and notation, plus valid LaTeX syntax; presentation-only differences were accepted.
+
+| Engine | Content and syntax passed | Simple formula response |
+| --- | ---: | ---: |
+| Texo | 59/72 | 0.39 s |
+| Pix2Text | 64/72 | 0.61 s |
+| PP-FormulaNet plus-S, optimised FP32 | 60/72 | 0.65 s |
+| Mathpix Snip account | 66/72 | 1.47 s |
+
+Mathpix corrected four Pix2Text failures but missed two cases Pix2Text passed. Its remaining failures comprised four Greek/Latin character errors and two notation changes: a star became an asterisk, and blackboard-bold expectation became upright E. All 72 Mathpix outputs passed strict KaTeX parsing and XeLaTeX compilation without repairs. Syntactically valid output can still contain incorrect mathematics.
+
+Local response times include a fresh process, model preparation, recognition and exit. Mathpix shows the median of three HTTPS requests, including upload, network and server processing but excluding sign-in; its median across the 72 images was 1.43 s. The timings therefore describe different execution paths. On the Apple M1 Pro with 16 GB RAM, earlier local peak memory was 0.23 GiB for Texo, 0.80 GiB for Pix2Text and 0.72 GiB for plus-S across a broader 158-input comparison. Mathpix's standalone request client peaked at approximately 17 MiB across 75 requests; this excludes Baker's interface and all cloud resources, so it is not a total-memory comparison.
+
+This small diagnostic set contains dependent variants, and the review was conducted with engine identities known. It does not establish general accuracy or a decisive ranking. Mathpix provides a useful optional online path; the local models remain competitive on these samples. PDF conversion was not compared in this evaluation.
 
 ## What the Baker adaptation changes
 

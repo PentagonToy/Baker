@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add optional Mathpix Snip account sign-in in Advanced, a Baker/Mathpix selector, local fallback when offline, and separate on-device usage counts. Keep session tokens in Keychain; online LaTeX PDF exports use `.tex.zip`.
+- Name new captures `baker_<type>_<timestamp>` using `formula`, `image`, `video` or `gif`, with collision suffixes. Keep existing filenames and preserve the stem when editing or converting to SVG.
+
 ## 0.0.5 — 2026-10-24
 
 - Choose Pix2Text, Texo or PP-FormulaNet plus-S as a verified, optional formula download. Keep weights outside the base app and reuse installed models.

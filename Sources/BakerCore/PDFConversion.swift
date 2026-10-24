@@ -30,6 +30,9 @@ public struct PDFPageContent: Sendable {
 }
 
 public struct PDFConversionProgress: Sendable {
+    public init(pageNumber: Int, totalPages: Int, phase: Phase, message: String) {
+        self.pageNumber = pageNumber; self.totalPages = totalPages; self.phase = phase; self.message = message
+    }
     public enum Phase: Sendable { case preparing, reading, recognising, writing, completed, finalising }
     public let pageNumber: Int
     public let totalPages: Int
@@ -39,6 +42,9 @@ public struct PDFConversionProgress: Sendable {
 }
 
 public struct PDFPageSummary: Sendable {
+    public init(pageNumber: Int, source: PDFTextSource, blockCount: Int, characterCount: Int, warnings: [String]) {
+        self.pageNumber = pageNumber; self.source = source; self.blockCount = blockCount; self.characterCount = characterCount; self.warnings = warnings
+    }
     public let pageNumber: Int
     public let source: PDFTextSource
     public let blockCount: Int
@@ -47,6 +53,9 @@ public struct PDFPageSummary: Sendable {
 }
 
 public struct PDFConversionReport: Sendable {
+    public init(destination: URL, format: PDFExportFormat, pages: [PDFPageSummary], bytesWritten: Int, warnings: [String]) {
+        self.destination = destination; self.format = format; self.pages = pages; self.bytesWritten = bytesWritten; self.warnings = warnings
+    }
     public let destination: URL
     public let format: PDFExportFormat
     public let pages: [PDFPageSummary]

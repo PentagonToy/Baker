@@ -69,7 +69,11 @@ import Darwin
                     "thumbnails": ["cached": m.library.cachedThumbnailCount, "pending": m.library.pendingThumbnailCount, "cacheEntryLimit": 6],
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
-                    "document": ["running": m.documentFlow.isConverting], "otherCLIRequests": max(0, jobs.count - 1)]
+                    "document": ["running": m.documentFlow.isConverting],
+                    "recognitionProvider": m.mathpix.routeDescription,
+                    "usage": ["localImages": m.mathpix.usage.localImages, "localPDFs": m.mathpix.usage.localDocuments, "localPages": m.mathpix.usage.localPages,
+                              "mathpixImages": m.mathpix.usage.onlineImages, "mathpixPDFs": m.mathpix.usage.onlineDocuments, "mathpixPages": m.mathpix.usage.onlinePages],
+                    "otherCLIRequests": max(0, jobs.count - 1)]
         case "status": return ["ok": true,"busy": m.busy,"recording": m.isRecording,"convertingPDF": m.isConvertingPDF,"status": m.status,"error": m.failure?.userDescription ?? "","captures": m.captures.count,"storage": m.storageDirectory.path]
         case "history":
             let entries = m.captures.dropFirst(max(0,r.offset ?? 0)).prefix(min(100,max(1,r.limit ?? 20)))
@@ -99,11 +103,11 @@ import Darwin
             guard let page = SettingsPage.allCases.first(where: { $0.rawValue.lowercased() == (r.text ?? "general").lowercased() }) else { try fail("Unknown settings page.") }; m.onSettingsNeeded?(page)
         case "pdf":
             let source = try input()
-            guard let output = r.output, output.hasPrefix("/"), let format = PDFExportFormat(rawValue: r.format ?? "markdown"), !FileManager.default.fileExists(atPath: output), let engine = m.preparedDocumentEngine else { try fail("Prepare the PDF model and supply a new absolute --output path and markdown/latex format.") }
+            guard let output = r.output, output.hasPrefix("/"), let format = PDFExportFormat(rawValue: r.format ?? "markdown"), !FileManager.default.fileExists(atPath: output), m.canConvertDocument else { try fail("Prepare a local PDF model or select Mathpix, and supply a new absolute --output path and markdown/latex format.") }
             m.busy = true; m.isConvertingPDF = true
             defer { m.busy = false; m.isConvertingPDF = false }
-            var options = PDFConversionOptions(); options.documentEngine = engine; options.recognitionLanguages = m.selectedOCRLanguages
-            let report = try await m.documentFlow.convert(source: source, destination: URL(fileURLWithPath: output), format: format, options: options) { m.documentProgress.update($0); m.status = $0.message }
+            var options = PDFConversionOptions(); options.documentEngine = m.preparedDocumentEngine; options.recognitionLanguages = m.selectedOCRLanguages
+            let report = try await m.convertDocument(source: source, destination: URL(fileURLWithPath: output), format: format, options: options) { m.documentProgress.update($0); m.status = $0.message }
             return ["ok": true,"output": report.destination.path,"pages": report.totalPages,"warnings": report.warnings]
         default: try fail("Unknown operation. Run baker help.")
         }

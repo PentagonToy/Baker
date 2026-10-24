@@ -150,17 +150,20 @@ struct BakerSettings: View {
                 Button("Clear Preview Cache", action: model.clearPreviewCache).disabled(model.busy)
             }
         case .advanced:
+            MathpixSettings(connection: model.mathpix, busy: model.busy).padding(18).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.border))
             card("Offline Model") {
                 Text("PDF conversion").font(.headline)
                 PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy, embedded: true)
             }
             DisclosureGroup("Developer overrides") {
-                toggle("Use external OCR runtimes", value: $model.developerRuntimeOverrides)
-                if model.developerRuntimeOverrides {
-                    path("Python executable", value: $model.python)
-                    path("Model configuration", value: $model.config)
-                    path("Tesseract executable", value: $model.tesseractExecutable)
-                }
+                VStack(alignment: .leading, spacing: 14) {
+                    toggle("Use external OCR runtimes", value: $model.developerRuntimeOverrides)
+                    if model.developerRuntimeOverrides {
+                        path("Python executable", value: $model.python)
+                        path("Model configuration", value: $model.config)
+                        path("Tesseract executable", value: $model.tesseractExecutable)
+                    }
+                }.padding(.leading, 18).padding(.top, 8)
             }
 
         }

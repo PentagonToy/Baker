@@ -95,7 +95,7 @@ extension Workbench {
     func convertPDF(format: PDFExportFormat) {
         if let onOpenFiles { onOpenFiles(format); return }
         guard !busy, !shuttingDown else { return }
-        guard preparedDocumentEngine != nil else { report(BakerError(message: "Prepare the optional PDF engine in Settings → Advanced → Offline Model first.", code: .modelNotReady, recovery: .pdfSettings)); return }
+        guard canConvertDocument else { report(BakerError(message: "Prepare the optional PDF engine in Settings → Advanced → Offline Model first.", code: .modelNotReady, recovery: .pdfSettings)); return }
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]; panel.allowsMultipleSelection = false
@@ -107,20 +107,20 @@ extension Workbench {
         let destination = directory.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
         busy = true; isConvertingPDF = true; documentProgress = DocumentProgress()
         pendingDocumentDirectory = directory
-        exportSummary = preparedDocumentEngine == nil ? "Extracting readable text. Structured document recognition is not prepared in this build." : "Reconstructing text, equations, tables and figures locally."
+        exportSummary = mathpix.available ? "Sending this PDF to your Mathpix account for online conversion." : "Reconstructing text, equations, tables and figures locally."
         status = "Preparing PDF…"; onExportReady?()
         var options = PDFConversionOptions(); options.recognitionLanguages = selectedOCRLanguages; options.finnishTextMode = finnishTextMode; options.tesseractExecutable = textEngineExecutable; options.documentEngine = preparedDocumentEngine
         documentFlow.job = Task {
             defer { busy = false; isConvertingPDF = false; documentFlow.job = nil; pendingDocumentDirectory = nil }
             do {
-                let report = try await documentFlow.convert(source: source, destination: destination, format: format, options: options) { [weak self] progress in
+                let report = try await convertDocument(source: source, destination: destination, format: format, options: options) { [weak self] progress in
                     guard let self, self.isConvertingPDF else { return }
                     self.status = progress.message; self.documentProgress.update(progress)
                 }
                 if Task.isCancelled || shuttingDown { throw CancellationError() }
                 let summary = "\(report.totalPages) pages · \(report.ocrPages) pages read with OCR. "
                     + (report.warnings.first ?? "")
-                acceptExport(destination, directory: directory, summary: summary)
+                acceptExport(report.destination, directory: directory, summary: summary)
             } catch {
                 try? FileManager.default.removeItem(at: directory)
                 if error is CancellationError || shuttingDown { status = "PDF conversion cancelled." }

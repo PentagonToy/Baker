@@ -7,7 +7,7 @@
 | Formula | Model preparation and repair, Unicode maths font and preview cache |
 | Shortcuts | Capture and recording shortcuts |
 | Menu | Menu group order, command order and visibility |
-| Advanced | Offline PDF model and developer runtime overrides |
+| Advanced | Recognition provider, optional Mathpix account, on-device usage, offline PDF model and developer runtime overrides |
 
 Settings remembers its selected page and window position during the session. Closing it leaves Baker running in the menu bar. See [storage and history](storage.md) for retention and presets.
 
@@ -28,6 +28,16 @@ Settings, Quit and active Stop/Cancel controls remain available. Hidden commands
 ## Keyboard commands
 
 With a Baker window focused, **⌘Q** quits, **⌘W** closes the window and **⌘,** opens Settings. Text fields support standard macOS editing commands. An ellipsis (`…`) marks a command that opens a chooser or dialog.
+
+## Mathpix and usage (Unreleased)
+
+**Settings → Advanced → Recognition** offers optional Mathpix Snip account sign-in using email and password. Baker stores the session token in macOS Keychain and does not save your password. Successful sign-in selects Mathpix; choose **Baker** to keep recognition local. This does not require a developer API key. SSO-only accounts need a Mathpix password.
+
+Mathpix mode uploads formula images and PDFs to your account. General text OCR remains local. Offline or failed network connections use installed Baker models; prepare a formula model and the Offline Model for PDF fallback. Authentication and plan-limit errors are shown instead of retried. Baker does not enable extra usage or change billing settings. Cancelling stops Baker’s request or wait; an uploaded PDF may continue processing in Mathpix and consume your allowance.
+
+**Usage** counts completed image recognitions, PDFs and PDF pages made by Baker on this Mac, separately for local and Mathpix processing. It starts when this feature is first used and is not your Mathpix account’s total usage or remaining allowance. Sign-out removes the saved session from this Mac and selects Baker; usage counts remain.
+
+Mathpix PDF output uses Mathpix Markdown or a `.tex.zip` LaTeX project. Save the complete ZIP when choosing LaTeX. The headless recognition adapter remains local; live-app CLI operations follow the selected provider.
 
 ## PDF engine
 

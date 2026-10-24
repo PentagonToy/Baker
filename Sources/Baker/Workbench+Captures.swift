@@ -66,13 +66,13 @@ extension Workbench {
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
             formulaCapturePending = asFormula
-            startImport(asFormula: asFormula) { try await self.accept(try await self.captureStore.add(file: url)) }
+            startImport(asFormula: asFormula) { try await self.accept(try await self.captureStore.add(file: url, asFormula: asFormula)) }
         }
     }
     func importFormulaImage(_ url: URL) {
         guard !busy, !shuttingDown, url.isFileURL else { return }
         formulaCapturePending = true
-        startImport(asFormula: true) { try await self.accept(try await self.captureStore.add(file: url)) }
+        startImport(asFormula: true) { try await self.accept(try await self.captureStore.add(file: url, asFormula: true)) }
     }
     func startImport(asFormula: Bool = false, _ operation: @escaping @MainActor () async throws -> Void) {
         busy = true; status = "Saving capture…"
@@ -124,8 +124,8 @@ extension Workbench {
         try await accept(stored)
         return stored.record
     }
-    func importImage(_ image: CGImage, notify: Bool = true) async throws {
-        let stored = try await captureStore.add(image: image)
+    func importImage(_ image: CGImage, notify: Bool = true, asFormula: Bool = false) async throws {
+        let stored = try await captureStore.add(image: image, asFormula: asFormula)
         try await accept(stored, notify: notify)
     }
     func pasteImage(recogniseText: Bool = false) {
@@ -153,7 +153,7 @@ extension Workbench {
         recognitionFlow.warmText(languages: selectedOCRLanguages)
     }
     func capture(scrolling: Bool, action: CaptureAction = .image, fullScreen: Bool = false, reuseArea: Bool = false, window: Bool = false) {
-        if (action == .formula || action == .unicode), !developerRuntimeOverrides, !formulaSetup.ready {
+        if (action == .formula || action == .unicode), !canRecogniseFormula {
             if formulaSetup.working { status = "Preparing formula recognition. Try again in a moment."; return }
             status = "Prepare formula recognition in Settings → Formula."
             onFormulaSetupNeeded?(); return
@@ -176,7 +176,7 @@ extension Workbench {
                 self.importTask = Task {
                     defer { self.importTask = nil }
                     do {
-                        try await self.importImage(frame.image, notify: action == .image)
+                        try await self.importImage(frame.image, notify: action == .image, asFormula: action == .formula || action == .unicode)
                         if !window && !scrolling && !fullScreen && !reuseArea, let area = RepeatCaptureArea(region: frame.region) {
                             area.save(defaults: self.preferences.defaults); self.previousArea = area
                         }

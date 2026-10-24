@@ -40,3 +40,5 @@ ln -s /Applications/Baker.app/Contents/Resources/CLI/baker "$HOME/.local/bin/bak
 ```
 
 The link is optional. Existing `--adapter` and `--adapter-info` remain available.
+
+In Unreleased builds, live-app formula and PDF operations follow the provider selected in Settings → Advanced. Mathpix mode uploads inputs using your account and plan allowance; offline fallback needs the local models. Online LaTeX PDF output is a `.tex.zip` project, and the response reports its actual output path. The headless formula adapter remains local.

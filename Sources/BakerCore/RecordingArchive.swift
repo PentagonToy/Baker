@@ -24,7 +24,7 @@ public final class RecordingArchive {
         }
         let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: indexURL))
         guard index.version == 1, index.records.count <= 10_000, Set(index.records.map(\.id)).count == index.records.count,
-              index.records.allSatisfy({ $0.fileName == "Baker-\($0.id.uuidString).mp4" || $0.fileName == "Baker-\($0.id.uuidString).gif" }) else {
+              Set(index.records.map(\.fileName)).count == index.records.count, index.records.allSatisfy(Self.valid) else {
             throw BakerError(message: "The recording history index is unsupported or damaged. Recording files have been preserved.", code: .storageFailed)
         }
         return try index.records.filter { record in
@@ -41,20 +41,22 @@ public final class RecordingArchive {
         var values = try records()
         guard values.count < 10_000 else { throw BakerError(message: "Recording history is full. Move older recordings to another folder.", code: .resourceLimit) }
         try files.createDirectory(at: directory, withIntermediateDirectories: true)
-        let id = UUID(), ext = source.pathExtension.lowercased()
-        let record = RecordingRecord(id: id, createdAt: Date(), fileName: "Baker-\(id.uuidString).\(ext)")
+        let id = UUID(), date = Date(), ext = source.pathExtension.lowercased()
+        let name = CaptureFileName.available(kind: ext == "gif" ? .gif : .video, date: date, extension: ext, directory: directory)
+        let record = RecordingRecord(id: id, createdAt: date, fileName: name)
         let destination = directory.appendingPathComponent(record.fileName)
         // A failed index update preserves the source and removes only this new copy.
+        var copied = false
         do {
-            try files.copyItem(at: source, to: destination)
+            try files.copyItem(at: source, to: destination); copied = true
             values.insert(record, at: 0)
             try JSONEncoder().encode(Index(version: 1, records: values)).write(to: indexURL, options: .atomic)
-        } catch { try? files.removeItem(at: destination); throw error }
+        } catch { if copied { try? files.removeItem(at: destination) }; throw error }
         return record
     }
     public func thumbnail(_ record: RecordingRecord) throws -> CGImage {
         let url = directory.appendingPathComponent(record.fileName)
-        guard (record.fileName == "Baker-\(record.id.uuidString).mp4" || record.fileName == "Baker-\(record.id.uuidString).gif"), try regularFile(url) else { throw BakerError(message: "The recording is missing.", code: .invalidInput) }
+        guard Self.valid(record), try regularFile(url) else { throw BakerError(message: "The recording is missing.", code: .invalidInput) }
         if record.isGIF {
             guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
                   let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -66,6 +68,11 @@ public final class RecordingArchive {
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.appliesPreferredTrackTransform = true; generator.maximumSize = CGSize(width: 640, height: 640)
         return try generator.copyCGImage(at: .zero, actualTime: nil)
+    }
+    private static func valid(_ record: RecordingRecord) -> Bool {
+        let suffix = (record.fileName as NSString).pathExtension
+        return record.createdAt.timeIntervalSinceReferenceDate.isFinite && ["mp4", "gif"].contains(suffix) &&
+            (record.fileName == "Baker-\(record.id.uuidString).\(suffix)" || CaptureFileName.valid(record.fileName, kinds: suffix == "gif" ? [.gif] : [.video]))
     }
     private func regularFile(_ url: URL) throws -> Bool {
         let value = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])

@@ -49,7 +49,7 @@ extension Workbench {
     }
     func recognise(formula: Bool, outputFormat: OutputFormat = .latex) {
         guard !busy, !shuttingDown, let url = imageURL else { return }
-        if formula, !developerRuntimeOverrides, !formulaSetup.ready {
+        if formula, !canRecogniseFormula {
             status = "Prepare formula recognition with one download in Settings → Formula."
             onFormulaSetupNeeded?(); return
         }
@@ -71,7 +71,7 @@ extension Workbench {
             do {
                 try Task.checkCancellation()
                 guard !shuttingDown else { throw CancellationError() }
-                let recognition = try await recognitionFlow.recognise(RecognitionRequest(url: url, formula: formula, python: selectedPython,
+                let recognition = try await recogniseUsingProvider(RecognitionRequest(url: url, formula: formula, python: selectedPython,
                     configuration: selectedConfig, languages: languages, finnish: finnish, tesseract: tesseractPath))
                 let result = recognition.latex
                 try Task.checkCancellation()
