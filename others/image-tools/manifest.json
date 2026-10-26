@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "vtracer": "0.6.15",
+  "potrace": "1.16",
+  "platform": "macOS arm64 CPython 3.12",
+  "files": [
+    {
+      "path": "vendor/vtracer-0.6.15-cp312-cp312-macosx_11_0_arm64.whl",
+      "sha256": "27a97dfbe9b6d334b2238823a860521f536be252586856b06f5f03199f0cd5d3",
+      "url": "https://files.pythonhosted.org/packages/c0/ad/1a375fc2362461e352cc4018e4880e3643d0c6064a03aa15f69646f20f2b/vtracer-0.6.15-cp312-cp312-macosx_11_0_arm64.whl"
+    },
+    {
+      "path": "sources/vtracer-0.6.15.tar.gz",
+      "sha256": "f7f39943d1fc8e9dc82f5360a40e941aaf4c9166d8df30c3f6a2da8cc21dfc52",
+      "url": "https://files.pythonhosted.org/packages/e4/62/c3c23511ebe3d76dc679db0bb045dfd20ed3452bec12dcbbe8d655498a7d/vtracer-0.6.15.tar.gz"
+    },
+    {
+      "path": "sources/potrace-1.16.tar.gz",
+      "sha256": "be8248a17dedd6ccbaab2fcc45835bb0502d062e40fbded3bc56028ce5eb7acc",
+      "url": "https://potrace.sourceforge.net/download/1.16/potrace-1.16.tar.gz"
+    },
+    {
+      "path": "vendor/potrace-1.16-arm64.zip",
+      "sha256": "4e29b0fef2b274b045f0681aa02820c9d959184e61cb50e686fab28e377c833a",
+      "origin": "Existing Homebrew Potrace 1.16 arm64; original build recipe included"
+    }
+  ]
+}

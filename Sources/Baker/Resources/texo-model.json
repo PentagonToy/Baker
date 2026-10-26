@@ -1,0 +1,91 @@
+{
+  "repository": "alephpi/FormulaNet",
+  "revision": "b2668efe5112082846fde4d446b9bfaab3989533",
+  "pathPrefix": "onnx",
+  "files": {
+    "config.json": {
+      "bytes": 5065,
+      "sha256": "4a6db2899d540ab44ca4c219e0e76381c52f441781e41bd027c1844208b88e34"
+    },
+    "decoder_model.onnx": {
+      "bytes": 25872372,
+      "sha256": "00f07add62d74c78750cfda60ce8f1cff3d1774f913ca3f412e2e72f4189d7d4"
+    },
+    "decoder_with_past_model.onnx": {
+      "bytes": 20337816,
+      "sha256": "cf6838e89f96e33cd81ec8eb885bf78953506e340ff0485aaea13a784af2e804"
+    },
+    "encoder_model.onnx": {
+      "bytes": 54168561,
+      "sha256": "fbd69cf63cf833db1e2ef40013d859b560671c1253278441a01bde4516b624ae"
+    },
+    "generation_config.json": {
+      "bytes": 213,
+      "sha256": "8065912018ef63e9d9399f0e8513fb32809b58938a18393278e01608ded745a5"
+    },
+    "tokenizer.json": {
+      "bytes": 17318,
+      "sha256": "1240f9d178e1ad2a0076fe95ba62e332871c702accdd5ce3ae3ef33ffd6c3a1e"
+    },
+    "README.md": {
+      "bytes": 326,
+      "sha256": "b4bfbc06c6abd5beac5d9b5ca521c155002d6b3c9d829e11874dcca3a50ccb4e",
+      "remotePath": "README.md"
+    }
+  },
+  "archive": {
+    "bytes": 97666853,
+    "sha256": "f9bd7ab9fbdaf365b430e2d7cd197dff0f689e8a11e655e936d7810c7e6765b0",
+    "url": "https://github.com/PentagonToy/Baker/releases/download/formula-models-v1.0.0/Baker-Texo-transfer-onnx-v1.tar.gz",
+    "files": {
+      "PACKAGE.md": {
+        "bytes": 3227,
+        "sha256": "3972091d56e9933776f512d6c1aeedf558bacd635fe2f08bd8dbf73849aea45d"
+      },
+      "PROVENANCE.json": {
+        "bytes": 693,
+        "sha256": "dfa236769cb1e331904cf6c62e61a83f1aada04ffa1bdd84304a02c4c0e596e4"
+      },
+      "legal/Baker-AGPL-3.0.txt": {
+        "bytes": 34523,
+        "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+      },
+      "legal/Texo-AGPL-3.0.txt": {
+        "bytes": 34523,
+        "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+      },
+      "legal/Texo-NOTICE.txt": {
+        "bytes": 165,
+        "sha256": "d7afc0183ecfd64cd68db117916f0e782ed4c438517bd9c65566890e699a005a"
+      },
+      "source/Texo-source.tar.gz": {
+        "bytes": 4419865,
+        "sha256": "14c3a646f53f1078a8b01e036bd191008a462fc7e2d574a087254724f23bd813"
+      },
+      "source/formula_model_install.py": {
+        "bytes": 2680,
+        "sha256": "409d8bfb41274a0e489ed1369e3a9b3f725a277a13158193815dee9650924fb5"
+      },
+      "source/formula_worker.py": {
+        "bytes": 11455,
+        "sha256": "7b031a83ae6440be99d2785cb6469d5bf78afc7a7fbc5ef84f7a147d9bc9e9e3"
+      },
+      "source/mfr-original-manifest.json": {
+        "bytes": 1381,
+        "sha256": "d32321bb961341f7135ee223701c1cfc3a570f0cbb493c35881152335016b1be"
+      },
+      "source/optimize_document_models.py": {
+        "bytes": 4603,
+        "sha256": "8e26bafcbfeae54d9df9be8cf65a5e899c8454fb69638861ca39af387827e457"
+      },
+      "source/package_formula_models.py": {
+        "bytes": 5518,
+        "sha256": "b90b67b901a28cf22103bf71757856fad323900ab8dac0dc2d0b9df157c42c72"
+      },
+      "source/texo_worker.py": {
+        "bytes": 6783,
+        "sha256": "14e9704a5fdfdc6631dee8e1a6ea065a4370be3edb704c2ea4e5efa3b6438b8e"
+      }
+    }
+  }
+}

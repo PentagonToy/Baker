@@ -1,0 +1,90 @@
+{
+  "repository": "PaddlePaddle/PP-FormulaNet_plus-S",
+  "revision": "3d46f557e3a1752f4bf81202395af3b5ecfadfd2",
+  "variant": "fp32-ort-v1",
+  "files": {
+    "formula_model.ort": {
+      "bytes": 231983160,
+      "sha256": "e8589be3c441ac3672a174d3c57688ce776fa7f4692f5114920af3de8eb48197"
+    },
+    "tokenizer.json": {
+      "bytes": 3581950,
+      "sha256": "f8e29e3c3a8017f067b62a3d2d9211bb4cebc08a25afe58d3a6069981e3684d6"
+    },
+    "config.json": {
+      "bytes": 145,
+      "sha256": "b1a643c602674b09aa601991b6e62fb88043b0bd5d3d7ed2892743014b64f9b8"
+    },
+    "README.md": {
+      "bytes": 20557,
+      "sha256": "a87ec34da0925e6ad3e4e80b426dc58cfce2fc6d196261650c1c988bcf9e2a0a"
+    }
+  },
+  "archive": {
+    "bytes": 185259856,
+    "sha256": "14c243aaa576dc78c37c0a51c7e87e67909b40a6776170f8fe44a271d4700134",
+    "url": "https://github.com/PentagonToy/Baker/releases/download/formula-models-v1.1.0/Baker-PP-FormulaNet-plus-S-fp32-ort-v1.tar.gz",
+    "files": {
+      "CONVERSION.json": {
+        "bytes": 1865,
+        "sha256": "98378571c55ee930a8ddc62b4701bad931d6513f47b1c6bd14baac2e7e797f03"
+      },
+      "PACKAGE.md": {
+        "bytes": 5657,
+        "sha256": "9cd7a201613e2677c631db3224cc5613fe21aaf145b1722c6575239010e3ec2f"
+      },
+      "PROVENANCE.json": {
+        "bytes": 799,
+        "sha256": "e8a40c84b3ea544f4cdd4b8132b03d959e26321e14b6a1b73de49e587b1035a8"
+      },
+      "VALIDATION.json": {
+        "bytes": 1964,
+        "sha256": "be07bbf05d2d336247f1431df85eb05e9a7baab82e81ff1547f4f0f6fe5dbd0e"
+      },
+      "legal/Apache-2.0.txt": {
+        "bytes": 11325,
+        "sha256": "accc36c817ac5ede473d05732e14afc11cb6e55ef5919bc826b653f631165043"
+      },
+      "legal/Baker-AGPL-3.0.txt": {
+        "bytes": 34523,
+        "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+      },
+      "legal/NOTICE.txt": {
+        "bytes": 830,
+        "sha256": "4465472541a5bdf62666cbaf341db35008cb8960649fa2bdefe0d4141826bfb2"
+      },
+      "source/formula_model_install.py": {
+        "bytes": 2680,
+        "sha256": "409d8bfb41274a0e489ed1369e3a9b3f725a277a13158193815dee9650924fb5"
+      },
+      "source/formula_worker.py": {
+        "bytes": 12068,
+        "sha256": "21eb7fcfb2cbf9333b1c42d0cc0950a116caf79b547bbd73a53942ba2ed813ca"
+      },
+      "source/optimise_plus_s.py": {
+        "bytes": 5381,
+        "sha256": "461f3680d385d7daa6401bdc1ab1f66f3061e1111556f611dad11b57a431adca"
+      },
+      "source/package_plus_s.py": {
+        "bytes": 5702,
+        "sha256": "d29b4dd41040fb08479e155094ca5ab5b576c9e43ba792f8e8d82975b2582163"
+      },
+      "source/paddlex-3.7.2-processors.py": {
+        "bytes": 37283,
+        "sha256": "4a2c197634a210a90cca7bf3f417ce594b610db0058d2ccfa060dc2dcfb752eb"
+      },
+      "source/plus-s-upstream.json": {
+        "bytes": 816,
+        "sha256": "217ba8f559d75d6c2b87e61cdfdde0a3a5d7fb5fcb8d1ccd78ed2221c9251614"
+      },
+      "source/plus_s_worker.py": {
+        "bytes": 7631,
+        "sha256": "80346869bd8fad382f1561f1fd7be42c5fc2bdbd775a3917fba7507ec879e469"
+      },
+      "source/upstream-config.json": {
+        "bytes": 3951676,
+        "sha256": "ddf1f951ceeb10c2b9de3ae255b62de59299b1028f87878177e86c9604fe3610"
+      }
+    }
+  }
+}

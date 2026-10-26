@@ -1,0 +1,3 @@
+#!/bin/zsh
+set -eu
+exec /Applications/Baker.app/Contents/MacOS/Baker --cli "$@"

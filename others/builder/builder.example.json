@@ -1,0 +1,7 @@
+{
+  "small_ocr_payload": "/absolute/path/to/verified/Baker-OCR-Preview",
+  "formula_models": "/absolute/path/to/prepared/DocumentEngine",
+  "smoke_pdf": "/absolute/path/to/accepted-example.pdf",
+  "smoke_markdown_reference": "/absolute/path/to/accepted-example.md",
+  "include_pdf_engine": false
+}

@@ -1,0 +1,33 @@
+:root {
+  --md-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-code-font: "SFMono-Regular", Consolas, monospace;
+  --md-primary-fg-color: #242a2f;
+  --md-accent-fg-color: #c88d39;
+}
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #1c2024;
+  --md-primary-fg-color: #242a2f;
+  --md-typeset-a-color: #e4b45d;
+}
+[data-md-color-scheme="default"] { --md-typeset-a-color: #885c19; }
+.md-header__button.md-logo img { height: 2rem; width: 2rem; }
+.md-header__title { font-size: 1.15rem; }
+.md-typeset { font-size: .95rem; line-height: 1.75; }
+.md-typeset h1, .md-typeset h2, .md-typeset h3 { font-weight: 600; letter-spacing: -.02em; }
+.md-typeset h1 { color: var(--md-default-fg-color); margin-bottom: 1em; }
+.md-typeset picture img { max-width: 100%; border-radius: 14px; }
+.md-sidebar .md-nav, .md-tabs__link { font-size: .8rem; }
+.md-typeset table:not([class]) { font-size: 1em; line-height: 1.6; }
+.md-typeset table:not([class]) th, .md-typeset table:not([class]) td { padding: .65em .9em; }
+.md-typeset code { font-size: .88em; }
+.md-typeset pre { line-height: 1.6; }
+.md-header, .md-tabs { box-shadow: none; }
+
+.baker-logo-dark { display: none !important; }
+[data-md-color-scheme="slate"] .baker-logo-light { display: none !important; }
+[data-md-color-scheme="slate"] .baker-logo-dark { display: inline-block !important; }
+
+.baker-action-symbol img { width: 22px; height: 22px; vertical-align: middle; }
+.baker-symbol-dark { display: none !important; }
+[data-md-color-scheme="slate"] .baker-symbol-light { display: none !important; }
+[data-md-color-scheme="slate"] .baker-symbol-dark { display: inline-block !important; }

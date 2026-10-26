@@ -1,0 +1,6 @@
+numpy==2.5.4
+Pillow==12.3.0
+onnxruntime==1.31.0
+tokenizers==0.23.3
+ftfy==6.3.1
+wcwidth==0.9.3

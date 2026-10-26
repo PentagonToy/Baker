@@ -1,0 +1,6 @@
+PP-FormulaNet plus-S and PaddleX preprocessing
+Copyright (c) PaddlePaddle Authors. All Rights Reserved.
+https://huggingface.co/PaddlePaddle/PP-FormulaNet_plus-S
+https://github.com/PaddlePaddle/PaddleX
+
+The plus-S weights and PaddleX preprocessing declare Apache-2.0. Baker adapts the PaddleX 3.7.2 crop, resize, pad, pixel transform and text normalisation, replacing OpenCV with NumPy and serialising the tokenizer. Added file, pixel, aspect-ratio and time bounds, transparent compositing and dark-capture inversion. The original processor is retained in the model archive for comparison. Baker exports the weights to ONNX, repairs two scalar loop-carry shapes and serialises a CPU ORT graph with extended optimisation. No training or weight quantisation. Original model card, notices and source identities remain in the archive.
