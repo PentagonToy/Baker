@@ -14,6 +14,9 @@ struct FormulaResult {
     var model = "unknown"
     var recognitionProvider: String? {
         guard model != "unknown", !model.isEmpty else { return nil }
+        if model.hasPrefix("plugin:"), let name = model.split(separator: "|", maxSplits: 1).last, model.contains("|") {
+            return "Plugin · " + String(name.prefix(24))
+        }
         let local = ["pix2text", "texo-", "pp-formulanet-", "Baker · Local"].contains { model.hasPrefix($0) }
         return local ? "Baker · Local" : "Saved result"
     }

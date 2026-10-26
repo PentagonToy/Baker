@@ -106,9 +106,9 @@ extension Workbench {
         } catch { report(error, fallback: .recognitionFailed); return }
         let destination = directory.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
         busy = true; isConvertingPDF = true; documentProgress = DocumentProgress()
-        documentProgress.provider = "Baker · Local"
+        documentProgress.provider = plugins.selected(for: "pdf")?.manifest.label ?? "Baker · Local"
         pendingDocumentDirectory = directory
-        exportSummary = "Reconstructing text, equations, tables and figures locally."
+        exportSummary = plugins.selected(for: "pdf") == nil ? "Reconstructing text, equations, tables and figures locally." : "Converting with the selected plugin."
         status = "Preparing PDF…"; onExportReady?()
         var options = PDFConversionOptions(); options.recognitionLanguages = selectedOCRLanguages; options.finnishTextMode = finnishTextMode; options.tesseractExecutable = textEngineExecutable; options.documentEngine = preparedDocumentEngine
         documentFlow.job = Task {
@@ -137,7 +137,7 @@ extension Workbench {
         }
     }
     func cancelJob() {
-        filesInbox.cancel(); captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel(); importTask?.cancel()
+        plugins.cancel(); filesInbox.cancel(); captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel(); importTask?.cancel()
     }
     func acceptExport(_ url: URL, directory: URL?, summary: String, provider: String? = nil) {
         if let previous = ownedExportDirectory { try? FileManager.default.removeItem(at: previous) }

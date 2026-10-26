@@ -8,7 +8,7 @@
 | Storage | Save location, history retention, caches and presets |
 | Shortcuts | Capture and recording shortcuts |
 | Menu | Menu group order, command order and visibility |
-| Advanced | Local usage, offline PDF model and developer runtime overrides |
+| Advanced | Local usage, optional OCR plugin, offline PDF model and developer runtime overrides |
 
 See [appearance and colours](appearance.md) for the banner-derived palette. Settings remembers its selected page and window position during the session. Closing it leaves Baker running in the menu bar. See [storage and history](storage.md) for retention and presets.
 
@@ -49,3 +49,7 @@ Change the choice in **General → Startup**. If macOS requires approval, use **
 Use **General → Updates → Check for Updates…** to check stable Baker releases. A newer release offers notes, **Download DMG** and **Later**. Open the downloaded disk image and replace Baker in Applications when ready; Baker never installs an update automatically.
 
 Automatic checks are off initially. When enabled, Baker checks GitHub at most once a day while running and shows an available version in Settings and the menu. Background checks show no pop-up and failures stay quiet. Manual checks work regardless of this option. Offline capture and OCR remain available; update preferences stay on this Mac and are excluded from presets.
+
+## OCR plugin
+
+Add one ZIP and enable it in Advanced. Save an optional API key in Keychain and test without uploading a capture. Usage is separate from Baker · Local. See [OCR plugins](plugins.md) for fallback, removal and creating an adapter.

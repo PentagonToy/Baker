@@ -1,6 +1,7 @@
 import BakerCore
 import AppKit
 import SwiftUI
+import Combine
 import UniformTypeIdentifiers
 
 @MainActor
@@ -40,6 +41,8 @@ final class Workbench: ObservableObject {
     var onReopen: (() -> Void)?
     let updates: AppUpdates
     let launchAtLogin: LaunchAtLogin
+    private var pluginChanges: AnyCancellable?
+    let plugins: OCRPlugins
     let usage: LocalUsage
     let formulaSetup: FormulaSetup
     let pdfEngineSetup = PDFEngineSetup()
@@ -117,6 +120,7 @@ final class Workbench: ObservableObject {
         let preferences = BakerPreferences(defaults: defaults)
         preferences.migrate()
         self.preferences = preferences
+        plugins = OCRPlugins(defaults: defaults)
         usage = LocalUsage(defaults: defaults)
         formulaSetup = FormulaSetup(preferences: preferences)
         updates = AppUpdates(defaults: defaults)
@@ -149,6 +153,7 @@ final class Workbench: ObservableObject {
         formulaHistoryDays = [0, 10, 30].contains(preferences[PreferenceKeys.formulaHistoryDays]) ? preferences[PreferenceKeys.formulaHistoryDays] : 0
         _tesseractExecutable = AppStorage(PreferenceKeys.tesseractExecutable, store: defaults)
         ocrLanguageSelection = preferences[PreferenceKeys.ocrLanguages]
+        pluginChanges = plugins.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         let initialStore = captureStore
         initialLoadTask = Task {
             defer { initialLoadTask = nil; if !shuttingDown { refreshCaptureHistory(enforceLimits: true) } }
@@ -191,17 +196,18 @@ final class Workbench: ObservableObject {
 
     func shutdown() async {
         updates.stop()
+        plugins.cancel()
         formulaSetup.cancel(); pdfEngineSetup.cancel(); shuttingDown = true
         await filesInbox.close(); await pdfEngineSetup.close()
         library.cancelThumbnails(); clipboardFlow.invalidate(); initialLoadTask?.cancel(); importTask?.cancel(); historyRefreshTask?.cancel()
-        await captureFlow.close(); await recognitionFlow.close(); await documentFlow.close(); await fileExports.close()
+        await captureFlow.close(); await recognitionFlow.close(); await documentFlow.close(); await plugins.close(); await fileExports.close()
         _ = await initialLoadTask?.result; _ = await importTask?.result; _ = await historyRefreshTask?.result
         await library.flushHistory()
         cleanup()
     }
     func cleanup() {
         initialLoadTask?.cancel()
-        captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel()
+        plugins.cancel(); captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel()
         if let ownedExportDirectory { try? FileManager.default.removeItem(at: ownedExportDirectory) }
         if let pendingDocumentDirectory { try? FileManager.default.removeItem(at: pendingDocumentDirectory) }
     }

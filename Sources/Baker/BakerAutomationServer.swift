@@ -76,9 +76,11 @@ import Darwin
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
                     "document": ["running": m.documentFlow.isConverting],
-                    "recognitionProvider": "Baker · On this Mac",
+                    "recognitionProvider": m.plugins.selected(for: "formula")?.manifest.label ?? "Baker · On this Mac",
                     "usage": ["localImages": m.usage.counts.localImages, "localPDFs": m.usage.counts.localDocuments, "localPages": m.usage.counts.localPages],
                     "otherCLIRequests": max(0, jobs.count - 1)]
+        case "plugins": return ["ok": true, "selected": m.plugins.selection.isEmpty ? "local" : m.plugins.selection,
+            "running": m.plugins.running, "plugins": m.plugins.entries.map { ["id": $0.id, "name": $0.manifest.name, "version": $0.manifest.version, "operations": $0.manifest.operations] as [String: Any] }]
         case "status": return ["ok": true,"busy": m.busy,"recording": m.isRecording,"convertingPDF": m.isConvertingPDF,"status": m.status,"error": m.failure?.userDescription ?? "","captures": m.captures.count,"storage": m.storageDirectory.path]
         case "history":
             let entries = m.captures.dropFirst(max(0,r.offset ?? 0)).prefix(min(100,max(1,r.limit ?? 20)))
@@ -104,6 +106,10 @@ import Darwin
         }
         guard !m.busy, !m.shuttingDown else { try fail("Baker is busy. Read status or cancel before retrying.") }
         switch r.operation {
+        case "plugin-use": try m.plugins.select(r.text ?? "local")
+        case "plugin-probe":
+            guard let entry = m.plugins.entries.first(where: { $0.id == r.text }) else { try fail("Import and approve this plugin in Advanced first.") }
+            _ = try await m.plugins.run(entry, operation: "probe")
         case "capture":
             let mode = r.format ?? "area"
             guard ["area","all","repeat","scroll","window","text","formula"].contains(mode) else { try fail("Unknown capture mode.") }

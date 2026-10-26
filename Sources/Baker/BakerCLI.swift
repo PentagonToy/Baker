@@ -14,7 +14,7 @@ enum BakerAutomation {
         var offset: Int?
     }
     static var directory: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Baker/Automation") }
-    static let commands = ["status", "diagnostics", "history", "formulas", "copy-formula", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf"]
+    static let commands = ["plugins", "plugin-use", "plugin-probe", "status", "diagnostics", "history", "formulas", "copy-formula", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf"]
     static func emit(_ value: [String: Any]) -> Int32 {
         let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])) ?? Data("{}".utf8)
         FileHandle.standardOutput.write(data + Data("\n".utf8))

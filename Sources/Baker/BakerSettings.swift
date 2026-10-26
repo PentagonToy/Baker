@@ -156,6 +156,7 @@ struct BakerSettings: View {
                 Text(model.selectedMathFont.installedFont == nil ? "Font unavailable; using \(model.selectedMathFont.resolvedFont.familyName ?? "system font")." : "Pasted Unicode text includes this font.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
         case .advanced:
+            OCRPluginSettings(plugins: model.plugins, busy: model.busy)
             LocalUsageSettings(usage: model.usage, busy: model.busy)
             card("Offline Model") {
                 PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy, embedded: true)

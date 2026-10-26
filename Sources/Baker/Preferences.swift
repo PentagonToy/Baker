@@ -9,6 +9,9 @@ struct PreferenceKey<Value> {
 }
 
 enum PreferenceKeys {
+    static let ocrPluginUsage = PreferenceKey("ocrPluginUsage", Data())
+    static let ocrPlugins = PreferenceKey("ocrPlugins", Data())
+    static let ocrPluginSelection = PreferenceKey("ocrPluginSelection", "")
     static let recognitionUsage = PreferenceKey("recognitionUsage", Data())
     static let automaticUpdates = PreferenceKey("automaticUpdates", false)
     static let updateLastAttempt = PreferenceKey("updateLastAttempt", 0.0)

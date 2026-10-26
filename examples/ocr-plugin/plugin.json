@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "example.ocr",
+  "name": "My OCR",
+  "version": "1.0.0",
+  "executable": "baker-python",
+  "arguments": ["{plugin}/plugin.py"],
+  "operations": ["formula", "pdf"],
+  "timeout_seconds": 120
+}

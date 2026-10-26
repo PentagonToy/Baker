@@ -6,7 +6,7 @@ This policy covers Baker, developed by PentagonToy, and its documentation websit
 
 ## Local processing and storage
 
-Baker processes screen regions, images, PDFs and clipboard content selected by the user. Capture, recognition, background removal and vector tracing run locally. Baker sends none of this content to an external OCR service, the developer or a Baker-operated server.
+Baker processes screen regions, images, PDFs and clipboard content selected by the user. Built-in capture, recognition, background removal and vector tracing run locally. Baker sends none of this content to the developer or a Baker-operated server. An explicitly installed and selected OCR plugin can process selected formula images and PDFs externally.
 
 The save folder, normally `~/Documents/Baker`, contains captures, recordings and hidden history indexes. Records include dates, dimensions and filenames. Formula records can also contain original and edited LaTeX, Unicode, copy preferences, model identifiers, confidence and token diagnostics. Exported settings presets occupy the `Presets` subfolder and exclude captures, credentials, models and the save path.
 
@@ -23,6 +23,12 @@ Formula models download only when requested in Settings, using pinned archives f
 PDF conversion downloads its optional engine from Baker’s GitHub Releases over HTTPS. Baker verifies the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → Advanced → Offline Model removes the engine while preserving user files.
 
 Download providers receive ordinary connection information, including the requesting IP address. These requests contain no captures, documents, recognised text or account credentials.
+
+## Optional OCR plugins
+
+Users can approve one external code package in Advanced and enable it for supported formula and PDF jobs. Plugins run with user permissions and may read files or transfer data under their own policies. Baker passes the selected input rather than capture history. Failed jobs can fall back to an installed local model; cancellation does not retry. No OCR provider is bundled or endorsed.
+
+Approved packages and private state live under `~/Library/Application Support/Baker/Plugins` and `PluginData`. Optional API keys are stored in macOS Keychain and provided to the selected process. Local preferences retain registration, selection, successful-job counts and their tracking dates, without keys. Removing a plugin forgets registration but retains files, counts and private state; Clear Key removes its saved key. See [OCR plugins](../help/plugins.md).
 
 ## Update checks
 

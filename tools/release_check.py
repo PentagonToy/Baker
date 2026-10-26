@@ -33,6 +33,9 @@ def audit(app, external_engine=None):
         source = image_tools / entry['path']
         if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != entry['sha256']:
             blockers.append('Missing or changed image-tool corresponding source: ' + entry['path'])
+    plugin_unpack = resources / 'plugin_unpack.py'
+    if not plugin_unpack.is_file() or plugin_unpack.read_bytes() != (ROOT / 'Sources/Baker/Resources/plugin_unpack.py').read_bytes():
+        blockers.append('Repackage the current plugin archive validator')
     worker = resources / 'image_tools_worker.py'
     if not worker.is_file() or worker.read_bytes() != (ROOT / 'Sources/Baker/Resources/image_tools_worker.py').read_bytes():
         blockers.append('Repackage the current local image-tool worker')

@@ -29,6 +29,7 @@ cp -R "$source_dir/Sources/BakerCore/Resources/Fonts" "$app/Contents/Resources/"
 # Replace the complete pinned renderer to avoid retaining stale vendor files.
 if [[ -d "$app/Contents/Resources/FormulaPreview" ]]; then rm -rf -- "$app/Contents/Resources/FormulaPreview"; fi
 cp -R "$source_dir/Sources/Baker/Resources/FormulaPreview" "$app/Contents/Resources/"
+cp "$source_dir/Sources/Baker/Resources/plugin_unpack.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_model_install.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/image_tools_worker.py" "$app/Contents/Resources/"
 cp "$source_dir/Sources/Baker/Resources/formula_worker.py" "$source_dir/Sources/Baker/Resources/texo_worker.py" "$source_dir/Sources/Baker/Resources/texo-model.json" "$source_dir/Sources/Baker/Resources/plus_s_worker.py" "$source_dir/Sources/Baker/Resources/plus-s-model.json" "$app/Contents/Resources/"

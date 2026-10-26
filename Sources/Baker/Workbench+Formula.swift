@@ -78,7 +78,7 @@ extension Workbench {
                let oldest = captures.reversed().first(where: { formulaResults[$0.id] != nil }) {
                formulaResults.removeValue(forKey: oldest.id)
             }
-           formulaResults[captureID] = FormulaResult(model: "Baker · Local", format: outputFormat, style: preferredLatexStyle)
+           formulaResults[captureID] = FormulaResult(model: plugins.selected(for: "formula")?.manifest.modelIdentity ?? "Baker · Local", format: outputFormat, style: preferredLatexStyle)
             onFormulaReady?(captureID)
         }
         status = formula ? "Recognising formula…" : "Recognising text…"
@@ -87,7 +87,7 @@ extension Workbench {
             do {
                 try Task.checkCancellation()
                 guard !shuttingDown else { throw CancellationError() }
-                let recognition = try await recogniseLocally(RecognitionRequest(url: url, formula: formula, python: selectedPython,
+                let recognition = try await recogniseInput(RecognitionRequest(url: url, formula: formula, python: selectedPython,
                     configuration: selectedConfig, languages: languages, finnish: finnish, tesseract: tesseractPath), captureID: captureID)
                 let result = recognition.latex
                 try Task.checkCancellation()

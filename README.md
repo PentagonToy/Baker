@@ -9,13 +9,13 @@
 
 Baker is a macOS menu-bar app for local capture, text and formula recognition, and PDF conversion.
 
-**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.7/Baker-0.0.7-arm64.dmg)**
+**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.8/Baker-0.0.8-arm64.dmg)**
 
-Apple Silicon · macOS 26.0 or later · Version 0.0.7
+Apple Silicon · macOS 26.0 or later · Version 0.0.8
 
 [Website and guide](https://pentagontoy.github.io/Baker/) · [Getting started](docs/help/getting-started.md) · [Changelog](CHANGELOG.md)
 
-See the [0.0.7 release notes](others/release/0.0.7.md) for changes and validation limits.
+See the [0.0.8 release notes](others/release/0.0.8.md) for changes and validation limits.
 
 | Task | Result |
 | --- | --- |
@@ -82,5 +82,7 @@ Text recognition and previews work offline with the included runtime. Download a
 Copyright © 2026 PentagonToy. Baker’s source uses [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).
 
 ## Agent CLI
+
+Optional [OCR plugins](docs/help/plugins.md) can add a user-selected provider through one ZIP, with an optional Keychain-stored API key and local fallback. Built-in recognition remains local.
 
 Baker includes a [JSON CLI](docs/help/cli.md) for local capture, recording, OCR, history and PDF conversion.

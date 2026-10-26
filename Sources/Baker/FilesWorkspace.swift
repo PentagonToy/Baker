@@ -123,7 +123,7 @@ final class FilesInbox: ObservableObject {
                         folders.append(folder)
                         let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
                         var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = model.preparedDocumentEngine
-                        items[index].provider = "Baker · Local"
+                        items[index].provider = model.plugins.selected(for: "pdf")?.manifest.label ?? "Baker · Local"
                         let report = try await model.convertDocument(source: source, destination: destination, format: format, options: options) { [weak self] progress in
                             guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
                             self.items[index].progress?.update(progress); self.items[index].message = progress.message
@@ -227,7 +227,7 @@ struct FilesWorkspace: View {
                 if !model.canConvertDocument {
                     Text("PDF model download required").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 } else if !inbox.items.contains(where: { $0.provider != nil }) {
-                    RecognitionProviderLabel(provider: "Baker · Local")
+                    RecognitionProviderLabel(provider: model.plugins.selected(for: "pdf")?.manifest.label ?? "Baker · Local")
                 }
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)

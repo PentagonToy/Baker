@@ -36,7 +36,7 @@ struct LocalUsageSettings: View {
     var body: some View {
         BakerSettingsSection {
             HStack {
-                Text("Usage").font(BakerTypography.section)
+                Text("Usage · Baker · Local").font(BakerTypography.section)
                 Spacer()
                 Text("Since " + usage.counts.since.formatted(date: .abbreviated, time: .omitted))
                     .font(BakerTypography.supporting).foregroundStyle(.secondary)
