@@ -76,9 +76,12 @@ import Darwin
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
                     "document": ["running": m.documentFlow.isConverting],
-                    "recognitionProvider": "Baker · On this Mac",
+                    "recognitionProvider": m.plugins.selected(for: "formula")?.manifest.label ?? "Baker · On this Mac",
                     "usage": ["localImages": m.usage.counts.localImages, "localPDFs": m.usage.counts.localDocuments, "localPages": m.usage.counts.localPages],
                     "otherCLIRequests": max(0, jobs.count - 1)]
+        case "plugins": return ["ok": true, "selected": m.plugins.selection.isEmpty ? "local" : m.plugins.selection,
+            "priorities": Dictionary(uniqueKeysWithValues: OCRPluginJob.allCases.map { ($0.rawValue, m.plugins.preferred(for: $0).isEmpty ? "local" : m.plugins.preferred(for: $0)) }),
+            "running": m.plugins.running, "configuring": m.plugins.configuring, "plugins": m.plugins.entries.map { ["id": $0.id, "name": $0.manifest.name, "version": $0.manifest.version, "configuration": $0.manifest.configuration == true, "operations": $0.manifest.operations] as [String: Any] }]
         case "status": return ["ok": true,"busy": m.busy,"recording": m.isRecording,"convertingPDF": m.isConvertingPDF,"status": m.status,"error": m.failure?.userDescription ?? "","captures": m.captures.count,"storage": m.storageDirectory.path]
         case "history":
             let entries = m.captures.dropFirst(max(0,r.offset ?? 0)).prefix(min(100,max(1,r.limit ?? 20)))
@@ -102,8 +105,15 @@ import Darwin
         case "stop": m.captureFlow.stopRecording(); return ["ok": true]
         default: break
         }
-        guard !m.busy, !m.shuttingDown else { try fail("Baker is busy. Read status or cancel before retrying.") }
+        guard !m.busy, !m.shuttingDown, !m.plugins.running, !m.plugins.configuring else { try fail("Baker is busy. Read status or cancel before retrying.") }
         switch r.operation {
+        case "plugin-use":
+            let job = r.format.flatMap(OCRPluginJob.init(rawValue:))
+            guard r.format == nil || job != nil else { try fail("Choose formula, markdown or latex for --format.") }
+            try m.plugins.select(r.text ?? "local", job: job)
+        case "plugin-probe":
+            guard let entry = m.plugins.entries.first(where: { $0.id == r.text }) else { try fail("Import and approve this plugin in Advanced first.") }
+            _ = try await m.plugins.run(entry, operation: "probe")
         case "capture":
             let mode = r.format ?? "area"
             guard ["area","all","repeat","scroll","window","text","formula"].contains(mode) else { try fail("Unknown capture mode.") }
@@ -127,7 +137,7 @@ import Darwin
             guard let page = SettingsPage.allCases.first(where: { $0.rawValue.lowercased() == (r.text ?? "general").lowercased() }) else { try fail("Unknown settings page.") }; m.onSettingsNeeded?(page)
         case "pdf":
             let source = try input()
-            guard let output = r.output, output.hasPrefix("/"), let format = PDFExportFormat(rawValue: r.format ?? "markdown"), !FileManager.default.fileExists(atPath: output), m.canConvertDocument else { try fail("Prepare the Offline Model in Advanced, and supply a new absolute --output path and markdown/latex format.") }
+            guard let output = r.output, output.hasPrefix("/"), let format = PDFExportFormat(rawValue: r.format ?? "markdown"), !FileManager.default.fileExists(atPath: output), m.canConvertDocument(format: format) else { try fail("Prepare the Offline Model in Advanced, and supply a new absolute --output path and markdown/latex format.") }
             m.busy = true; m.isConvertingPDF = true
             defer { m.busy = false; m.isConvertingPDF = false }
             var options = PDFConversionOptions(); options.documentEngine = m.preparedDocumentEngine; options.recognitionLanguages = m.selectedOCRLanguages

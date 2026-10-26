@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.9 — 2026-10-26
+
+- Add one optional OCR plugin from a ZIP, with explicit approval, Keychain credentials and separate priorities for formulas, Markdown and LaTeX.
+- Support compact in-app plugin setup, a reusable login helper and separate plugin usage. Baker remains the local fallback; cancellation never retries.
+- Harden ZIP imports, limit inherited process variables and remove saved credentials with their plugin.
+- Align history controls and provider badges; offer 7-, 10-, 30- and 90-day formula retention.
+- Display update notes with readable headings, lists, emphasis and links instead of raw Markdown.
+
 ## 0.0.7 — 2026-10-26
 
 - Process image, formula and PDF recognition locally, with no OCR account login or cloud conversion.

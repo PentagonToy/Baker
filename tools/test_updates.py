@@ -11,9 +11,18 @@ out = p.parse_args().output.resolve()
 if out == ROOT or ROOT in out.parents:
     p.error('Keep evidence outside the checkout')
 out.mkdir(parents=True, exist_ok=True)
-files = ['Sources/BakerCore/BakerError.swift', 'Sources/BakerCore/OCRLanguages.swift', 'Sources/BakerCore/AppRelease.swift', 'Sources/Baker/Preferences.swift']
+files = ['Sources/BakerCore/BakerError.swift', 'Sources/BakerCore/OCRLanguages.swift', 'Sources/BakerCore/AppRelease.swift', 'Sources/BakerCore/ReleaseNotes.swift', 'Sources/Baker/Preferences.swift']
 source = '\n'.join((ROOT / f).read_text().replace('import BakerCore\n', '') for f in files)
 source += (ROOT / 'Sources/Baker/AppUpdates.swift').read_text().split('struct AppUpdatesSettings:')[0].replace('import BakerCore\n', '')
+source += '\n' + r'''
+let blocks = ReleaseNoteBlock.parse("## Changes\n\n- **Fast** setup\n- [Guide](https://example.com)\n\nA paragraph\ncontinued.\n\n```swift\nlet x = 1\n```\n---")
+precondition(blocks.map(\.kind) == [.heading, .bullet, .bullet, .paragraph, .code])
+precondition(blocks[0].text == "Changes" && blocks[3].text == "A paragraph continued.")
+precondition(blocks[4].text == "let x = 1")
+precondition(ReleaseNoteBlock.parse("  ").isEmpty)
+precondition(ReleaseNoteBlock.parse("1. First").first?.kind == .bullet)
+print("Release-note block checks passed")
+'''
 source += (ROOT / 'Tests/BakerUpdateRegression/main.swift').read_text()
 script = out / 'updates.swift'
 script.write_text(source)

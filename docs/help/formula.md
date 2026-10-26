@@ -60,7 +60,7 @@ Command-click previews to select several formulas. **Delete Selected…** or Com
 
 Cards reuse capture thumbnails and fall back to saved LaTeX when an image cannot be loaded. Browsing and copying do not rerun OCR. **All Captures…** opens the shared image, formula and recording history.
 
-**Settings → Storage → History** defaults to 50 formula results with no age limit. Choose another count or a 10-day or 30-day expiry. Clearing formula history removes text and diagnostics while retaining captures.
+**Settings → Storage → History** defaults to 50 formula results with no age limit. Choose another count or a 7-, 10-, 30- or 90-day expiry. Clearing formula history removes text and diagnostics while retaining captures.
 
 **Settings → Storage → Caches → Clear Formula Cache** releases rendered previews. It also reconciles images deleted in Finder and removes their linked metadata; existing files remain. See [history and storage](storage.md#history).
 

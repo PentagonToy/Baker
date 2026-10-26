@@ -73,7 +73,7 @@ struct FormulaWorkspace: View {
                         if model.formulaInputPending || state.previewMode != .original {
                             preview(model.formulaInputPending ? "Previous result" : "Rendered") {
                                 if result.phase == .recognising {
-                                    VStack(spacing: 10) { ProgressView(); Text("Recognising on this Mac…").font(BakerTypography.body).foregroundStyle(.black) }
+                                    VStack(spacing: 10) { ProgressView(); Text(result.recognitionMessage).font(BakerTypography.body).foregroundStyle(.black) }
                                 } else if let image = result.preview {
                                     Image(nsImage: image).resizable().scaledToFit().blendMode(colorScheme == .dark ? .normal : .multiply).padding(12)
                                 } else if result.phase == .failed {

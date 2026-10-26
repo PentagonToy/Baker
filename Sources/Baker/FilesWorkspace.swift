@@ -84,7 +84,7 @@ final class FilesInbox: ObservableObject {
         task = Task {
             var ownsBusy = false
             defer { running = false; if ownsBusy { model.busy = false }; task = nil }
-            if items.contains(where: { $0.phase == .waiting && $0.url.pathExtension.lowercased() == "pdf" }), !model.canConvertDocument {
+            if items.contains(where: { $0.phase == .waiting && $0.url.pathExtension.lowercased() == "pdf" }), !model.canConvertDocument(format: format) {
                 do {
                     if !model.pdfEngineSetup.working {
                         guard model.pdfEngineSetup.available else { message = model.pdfEngineSetup.message; return }
@@ -117,13 +117,13 @@ final class FilesInbox: ObservableObject {
                 defer { if access { source.stopAccessingSecurityScopedResource() } }
                 do {
                     if source.pathExtension.lowercased() == "pdf" {
-                        guard model.canConvertDocument else { throw BakerError(message: "Install the PDF engine before converting PDFs.", code: .modelNotReady, recovery: .pdfSettings) }
+                        guard model.canConvertDocument(format: format) else { throw BakerError(message: "Install the PDF engine before converting PDFs.", code: .modelNotReady, recovery: .pdfSettings) }
                         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("baker-inbox-" + UUID().uuidString)
                         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
                         folders.append(folder)
                         let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
                         var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = model.preparedDocumentEngine
-                        items[index].provider = "Baker · Local"
+                        items[index].provider = model.plugins.selected(for: "pdf", format: format)?.manifest.label ?? "Baker · Local"
                         let report = try await model.convertDocument(source: source, destination: destination, format: format, options: options) { [weak self] progress in
                             guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
                             self.items[index].progress?.update(progress); self.items[index].message = progress.message
@@ -224,17 +224,17 @@ struct FilesWorkspace: View {
                 Picker("PDF output", selection: $inbox.pdfFormat) {
                     Text("Markdown").tag(PDFExportFormat.markdown); Text("LaTeX").tag(PDFExportFormat.latex)
                 }.frame(width: 220).disabled(model.busy || inbox.running)
-                if !model.canConvertDocument {
+                if !model.canConvertDocument(format: inbox.pdfFormat) {
                     Text("PDF model download required").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 } else if !inbox.items.contains(where: { $0.provider != nil }) {
-                    RecognitionProviderLabel(provider: "Baker · Local")
+                    RecognitionProviderLabel(provider: model.plugins.selected(for: "pdf", format: inbox.pdfFormat)?.manifest.label ?? "Baker · Local")
                 }
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
                 else { Button("Convert Files", action: inbox.start).buttonStyle(BakerButtonStyle(prominent: true)).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
             }
-            if !model.canConvertDocument && inbox.items.contains(where: { $0.url.pathExtension.lowercased() == "pdf" }) {
+            if !model.canConvertDocument(format: inbox.pdfFormat) && inbox.items.contains(where: { $0.url.pathExtension.lowercased() == "pdf" }) {
                 PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
             }
             List(inbox.items) { file in

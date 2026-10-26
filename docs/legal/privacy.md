@@ -6,7 +6,7 @@ This policy covers Baker, developed by PentagonToy, and its documentation websit
 
 ## Local processing and storage
 
-Baker processes screen regions, images, PDFs and clipboard content selected by the user. Capture, recognition, background removal and vector tracing run locally. Baker sends none of this content to an external OCR service, the developer or a Baker-operated server.
+Baker processes screen regions, images, PDFs and clipboard content selected by the user. Built-in capture, recognition, background removal and vector tracing run locally. Baker sends none of this content to the developer or a Baker-operated server. An explicitly installed and selected OCR plugin can process selected formula images and PDFs externally.
 
 The save folder, normally `~/Documents/Baker`, contains captures, recordings and hidden history indexes. Records include dates, dimensions and filenames. Formula records can also contain original and edited LaTeX, Unicode, copy preferences, model identifiers, confidence and token diagnostics. Exported settings presets occupy the `Presets` subfolder and exclude captures, credentials, models and the save path.
 
@@ -24,6 +24,12 @@ PDF conversion downloads its optional engine from Baker’s GitHub Releases over
 
 Download providers receive ordinary connection information, including the requesting IP address. These requests contain no captures, documents, recognised text or account credentials.
 
+## Optional OCR plugins
+
+Users can approve one external code package in Advanced and choose Plugin first for supported formula and PDF jobs. Plugins run with user permissions and may read files or transfer data under their own policies. Baker passes the selected input rather than capture history. Failed jobs can fall back to an installed local model; cancellation does not retry. No OCR provider is bundled or endorsed. A plugin can declare an explicit Configure action that opens its own setup interface. Baker supplies no capture, document or saved credential to this action; the plugin handles user-entered login details and stores credentials through the operating system. Setup is cancellable and time-limited.
+
+Approved packages and private state live under `~/Library/Application Support/Baker/Plugins` and `PluginData`. Optional API keys are stored in macOS Keychain and provided to the selected process. Local preferences retain registration, selection, successful-job counts and their tracking dates, without keys. Removing a plugin deletes Baker’s saved API key and forgets registration, while retaining files, counts and other private state. Key deletion must succeed before removal completes; Clear Key can also remove it separately. See [OCR plugins](../help/plugins.md).
+
 ## Update checks
 
 A manual check, or an optional daily automatic check, requests public release metadata from GitHub over HTTPS. Automatic checks are off initially. GitHub receives ordinary connection information; the request includes no captures, recognised text, device identifier or account token. Check preferences and timestamps stay on this Mac. Choosing Download DMG opens the release asset in the default browser; Baker does not replace itself.
@@ -38,7 +44,7 @@ For iCloud Drive, Dropbox, Google Drive or another synced folder, the provider�
 
 Capture images default to no count or age limit. Applying a retention policy requires review, moves expired images to Trash and removes linked formula metadata. The approved policy then applies to future captures in that folder. Recordings do not expire automatically.
 
-Formula metadata defaults to the latest 50 results with no age limit. Users can change the count, select 10-day or 30-day expiry, or clear formula history. These actions preserve capture images.
+Formula metadata defaults to the latest 50 results with no age limit. Users can change the count, select 7-, 10-, 30- or 90-day expiry, or clear formula history. These actions preserve capture images.
 
 Clear Image Cache releases thumbnails; Clear Formula Cache releases rendered equations. Both reconcile files deleted in Finder and remove their linked metadata while preserving existing files. Opening Capture History also reconciles missing files. Use **Settings → Storage → Open Folder** to locate captures and indexes; close Baker before manually editing indexes.
 

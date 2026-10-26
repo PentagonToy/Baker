@@ -94,7 +94,7 @@ struct RecognitionProviderLabel: View {
     let provider: String
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: provider == "Saved result" ? "doc.text" : "desktopcomputer")
+            Image(systemName: provider == "Saved result" ? "doc.text" : provider.hasPrefix("Plugin · ") ? "puzzlepiece.extension" : "desktopcomputer")
                 .font(.system(size: 12, weight: .medium)).frame(width: 14, height: 14).accessibilityHidden(true)
             Text(provider)
         }

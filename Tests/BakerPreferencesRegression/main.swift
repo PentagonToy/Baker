@@ -48,13 +48,17 @@ let isolated = BakerPreferences(defaults: UserDefaults(suiteName: suite + ".othe
 check(isolated[PreferenceKeys.copyCapturedImages], "Independent preference domain retains default")
 isolated.defaults.removePersistentDomain(forName: suite + ".other")
 let valid = SettingsPreset(copyImages: false, copyText: true, openTextEditor: false, captureSounds: true,
-    hideDesktopIcons: true, visibleCaptures: 4, formulaHistoryLimit: 100, formulaHistoryDays: 30,
+    hideDesktopIcons: true, visibleCaptures: 4, formulaHistoryLimit: 100, formulaHistoryDays: 90,
     mathFont: MathFont.latinModern.rawValue, languages: ["ko-KR","en-US","fa-IR","ja-JP","fr-FR"], formulaFormat: "LaTeX", latexStyle: LatexCopyStyle.bare.rawValue)
 try valid.validate()
 let data = try JSONEncoder().encode(valid)
 let decoded = try JSONDecoder().decode(SettingsPreset.self, from: data)
 check(decoded == valid, "Portable preset round trip")
 let fields = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+var weekFields = fields; weekFields["formulaHistoryDays"] = 7
+let weekPreset = try JSONDecoder().decode(SettingsPreset.self, from: JSONSerialization.data(withJSONObject: weekFields))
+try weekPreset.validate()
+check(weekPreset.formulaHistoryDays == 7, "Seven-day formula retention survives preset round trip")
 for local in ["storageDirectory","formulaPython","formulaConfig","captureShortcuts","bakerMenuLayout","hasOfferedLaunchAtLogin","repeatCaptureArea"] {
     check(fields[local] == nil, "Preset excludes local setting: " + local)
 }

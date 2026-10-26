@@ -6,6 +6,7 @@ __pycache__/
 /Baker.app
 
 # Local agent instructions, investigations and hand-off notes
+/repository/
 /agent/
 /agents/
 /Agents/

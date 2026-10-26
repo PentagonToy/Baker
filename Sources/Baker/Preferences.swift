@@ -8,7 +8,13 @@ struct PreferenceKey<Value> {
     init(_ name: String, _ defaultValue: Value) { self.name = name; self.defaultValue = defaultValue }
 }
 
+enum FormulaHistoryOptions { static let days = [0, 7, 10, 30, 90] }
+
 enum PreferenceKeys {
+    static let ocrPluginPriorities = PreferenceKey("ocrPluginPriorities", Data())
+    static let ocrPluginUsage = PreferenceKey("ocrPluginUsage", Data())
+    static let ocrPlugins = PreferenceKey("ocrPlugins", Data())
+    static let ocrPluginSelection = PreferenceKey("ocrPluginSelection", "")
     static let recognitionUsage = PreferenceKey("recognitionUsage", Data())
     static let automaticUpdates = PreferenceKey("automaticUpdates", false)
     static let updateLastAttempt = PreferenceKey("updateLastAttempt", 0.0)

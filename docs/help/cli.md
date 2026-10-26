@@ -45,3 +45,7 @@ The link is optional. Existing `--adapter` and `--adapter-info` remain available
 
 
 Formula and PDF commands process inputs on this Mac. Download the required local model first; no online fallback or account login is available.
+
+## OCR plugins
+
+See [OCR plugins](plugins.md) for ZIP registration and the `plugins`, `plugin-use` and `plugin-probe` commands. Registration requires native approval; keys are never returned by the CLI.

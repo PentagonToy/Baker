@@ -6,7 +6,7 @@ Images are limited to 8192 pixels per side and 32 megapixels. Scrolling is manua
 
 Background removal accepts up to eight megapixels; SVG tracing accepts four megapixels, 60 seconds and an 8 MB result with at most 50,000 paths. Photo Cutout can omit thin labels or axes; inspect traced text and small details.
 
-History holds up to 10,000 image records. Image retention defaults to no count or age limit. Formula history defaults to 50 results, with a configurable limit and optional 10-day or 30-day expiry. Formula metadata is limited to 16 MB in total and 32 KiB per text field. Up to eight formula results and six capture thumbnails are cached in memory.
+History holds up to 10,000 image records. Image retention defaults to no count or age limit. Formula history defaults to 50 results, with a configurable limit and optional 7-, 10-, 30- or 90-day expiry. Formula metadata is limited to 16 MB in total and 32 KiB per text field. Up to eight formula results and six capture thumbnails are cached in memory.
 
 ## PDF conversion
 

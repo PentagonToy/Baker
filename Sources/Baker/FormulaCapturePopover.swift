@@ -70,7 +70,7 @@ struct FormulaCapturePopover: View {
         if let result, result.phase == .ready, let image = result.preview {
             Image(nsImage: image).resizable().scaledToFit().padding(16)
         } else if result?.phase == .recognising {
-            VStack(spacing: 12) { ProgressView().controlSize(.small); Text("Recognising on this Mac…").foregroundStyle(.secondary) }
+            VStack(spacing: 12) { ProgressView().controlSize(.small); Text(result?.recognitionMessage ?? "Recognising…").foregroundStyle(.secondary) }
         } else if let result, result.phase == .failed {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.circle").font(.title2)

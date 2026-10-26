@@ -25,7 +25,7 @@ struct FormulaResultCard: View {
             Group {
                 switch result.phase {
                 case .recognising:
-                    VStack(spacing: 8) { Text("Recognising equation…").font(BakerTypography.body); Text("Local processing").font(BakerTypography.supporting).foregroundStyle(.secondary) }
+                    VStack(spacing: 8) { Text("Recognising equation…").font(BakerTypography.body); Text(result.recognitionMessage).font(BakerTypography.supporting).foregroundStyle(.secondary) }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed:
                     VStack(alignment: .leading, spacing: 8) {

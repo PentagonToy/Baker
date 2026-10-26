@@ -135,7 +135,7 @@ struct AppUpdatesSettings: View {
                 if let release = updates.available {
                     VStack(alignment: .leading, spacing: 18) {
                         Text("Baker \(release.version.description) is available").font(.title2.weight(.semibold))
-                        ScrollView { Text(release.notes.isEmpty ? "See the release notes for details." : release.notes).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 260)
+                        ReleaseNotesView(notes: release.notes).frame(height: 280)
                         HStack {
                             Button("Release Notes") { NSWorkspace.shared.open(release.page) }
                             Spacer()
@@ -145,5 +145,43 @@ struct AppUpdatesSettings: View {
                     }.padding(24).frame(width: 560).font(BakerTypography.body)
                 }
             }
+    }
+}
+
+
+private struct ReleaseNotesView: View {
+    let notes: String
+    private func inline(_ text: String) -> AttributedString {
+        var value = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+        let unsafe = value.runs.compactMap { run -> Range<AttributedString.Index>? in
+            guard let link = run.link, !["https", "http"].contains(link.scheme?.lowercased() ?? "") else { return nil }
+            return run.range
+        }
+        for range in unsafe { value[range].link = nil }
+        return value
+    }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("See the release notes for details.").foregroundStyle(.secondary)
+                }
+                ForEach(Array(ReleaseNoteBlock.parse(notes).enumerated()), id: \.offset) { _, block in
+                    switch block.kind {
+                    case .heading:
+                        Text(inline(block.text)).font(.headline).padding(.top, 4)
+                    case .bullet:
+                        HStack(alignment: .firstTextBaseline, spacing: 9) {
+                            Text("•").foregroundStyle(.secondary)
+                            Text(inline(block.text)).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    case .code:
+                        Text(block.text).font(.system(.caption, design: .monospaced)).padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    case .paragraph: Text(inline(block.text))
+                    }
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8).textSelection(.enabled)
+        }
     }
 }

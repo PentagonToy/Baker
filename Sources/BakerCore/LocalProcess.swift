@@ -41,7 +41,7 @@ func processDiagnosticTail(_ url: URL) -> String? {
 /// File-backed output prevents pipe deadlocks. Completion wakes immediately;
 /// a short watchdog checks cancellation and output sizes without retaining logs.
 public func runProcess(_ executable: URL, arguments: [String], timeout: TimeInterval = 180, input: Data? = nil,
-                       environment: [String: String] = [:], maximumOutputBytes: Int = 8 * 1024 * 1024) throws -> ProcessResult {
+                       environment: [String: String] = [:], maximumOutputBytes: Int = 8 * 1024 * 1024, inheritEnvironment: Bool = true) throws -> ProcessResult {
     guard timeout.isFinite, timeout > 0, timeout <= 7200, (1...16 * 1024 * 1024).contains(maximumOutputBytes) else {
         throw BakerError(message: "The process limits are invalid.", code: .configurationInvalid)
     }
@@ -57,7 +57,8 @@ public func runProcess(_ executable: URL, arguments: [String], timeout: TimeInte
     let process = Process()
     let completion = ProcessCompletion(process)
     process.executableURL = executable; process.arguments = arguments
-    if !environment.isEmpty { process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override } }
+    if !inheritEnvironment { process.environment = environment }
+    else if !environment.isEmpty { process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override } }
     process.standardOutput = output; process.standardError = errors
     let inputHandle: FileHandle
     if let input {

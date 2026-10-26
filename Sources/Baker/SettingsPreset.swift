@@ -19,7 +19,7 @@ struct SettingsPreset: Codable, Equatable {
 
     func validate() throws {
         guard version == 1, (0...5).contains(visibleCaptures), (1...500).contains(formulaHistoryLimit),
-              [0, 10, 30].contains(formulaHistoryDays), MathFont(rawValue: mathFont) != nil,
+              FormulaHistoryOptions.days.contains(formulaHistoryDays), MathFont(rawValue: mathFont) != nil,
               !languages.isEmpty, languages.count <= OCRLanguages.maximumActive,
               Set(languages).count == languages.count,
               languages.allSatisfy({ code in OCRLanguages.choices.contains { $0.0 == code } }),

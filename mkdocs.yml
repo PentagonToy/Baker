@@ -57,6 +57,7 @@ nav:
       - Formula model downloads: models/README.md
       - Development builds: help/development.md
       - Agent CLI: help/cli.md
+      - OCR plugins: help/plugins.md
       - Formula: help/formula.md
       - Unicode maths: help/unicode-maths.md
       - Save folder and presets: help/storage.md

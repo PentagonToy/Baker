@@ -92,6 +92,19 @@ import Foundation
     try files.moveItem(at:directory,to:movedDirectory)
     do { _ = try archive.reconcile(); fatalError("Unavailable directory treated as deleted content") } catch { checks += 1 }
     check(!files.fileExists(atPath:directory.path), "Refresh does not recreate unavailable folder")
+    let ageing = CaptureStore(directory: root.appendingPathComponent("formula-age"))
+    var ageIDs: [UUID] = []
+    for days in [89, 90, 91] {
+        let record = try await ageing.add(image: cg).record
+        ageIDs.append(record.id)
+        try await ageing.saveFormula(SavedFormula(id: record.id, originalLatex: "x", latex: "x", unicodeOverride: nil,
+            model: "fixture", confidenceMethod: nil, confidence: nil, diagnostics: nil, format: "LaTeX", style: "",
+            savedAt: now.addingTimeInterval(-Double(days) * 86400)))
+    }
+    let retained = try await ageing.maintainFormulas(limit: 50, days: 90, now: now)
+    check(retained[ageIDs[0]] != nil && retained[ageIDs[1]] != nil, "90-day retention includes the cutoff boundary")
+    check(retained[ageIDs[2]] == nil, "90-day retention removes older formula metadata")
+    check(try await ageing.records().count == 3, "90-day formula expiry preserves capture images")
     print("History retention:", checks, "checks passed")
 }
 Task { @MainActor in do { try await run();exit(0) } catch { print(error);exit(1) } }

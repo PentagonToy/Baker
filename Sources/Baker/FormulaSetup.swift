@@ -250,7 +250,7 @@ struct FormulaSetupView: View {
                 Text(setup.message).font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Text(setup.engine.summary).font(BakerTypography.supporting).foregroundStyle(.secondary)
-            Text("Downloaded separately. Used in Baker mode or offline.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            Text("Downloaded separately. Used for local formula recognition.").font(BakerTypography.supporting).foregroundStyle(.secondary)
         }.buttonStyle(BakerButtonStyle())
     }
 }
