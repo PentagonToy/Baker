@@ -81,6 +81,12 @@ final class CaptureService {
     }
 
     func captureWindow() async throws -> CapturedFrame? {
+        guard let source = try await prepareWindow() else { return nil }
+        let image = try await source.capture.image()
+        try Task.checkCancellation()
+        return CapturedFrame(image: image, region: source.region)
+    }
+    func prepareWindow() async throws -> PreparedWindowCapture? {
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
             throw BakerError(message: "Allow Baker in System Settings → Privacy & Security → Screen Recording.", code: .permissionDenied)
         }
@@ -112,12 +118,12 @@ final class CaptureService {
         configuration.showsCursor = false
         configuration.captureResolution = .best
         configuration.ignoreShadowsSingleWindow = true
-        let image = try await PreparedCapture(filter: filter, configuration: configuration).image()
-        try Task.checkCancellation()
         let top = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
         let frame = selected.frame
         let local = CGRect(x: frame.minX - screen.frame.minX, y: frame.minY - (top - screen.frame.maxY), width: frame.width, height: frame.height)
-        return CapturedFrame(image: image, region: CaptureRegion(screen: screen, rect: local))
+        return PreparedWindowCapture(capture: PreparedCapture(filter: filter, configuration: configuration),
+            region: CaptureRegion(screen: screen, rect: local), application: selected.owningApplication.flatMap { NSRunningApplication(processIdentifier: $0.processID) },
+            frame: selected.frame, title: selected.title ?? "")
     }
     private static func overlap(_ screen: NSScreen, _ rect: CGRect) -> CGFloat {
         let top = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
@@ -173,10 +179,25 @@ final class CaptureService {
     }
 }
 
+struct PreparedWindowCapture {
+    let capture: PreparedCapture
+    let region: CaptureRegion
+    let application: NSRunningApplication?
+    let frame: CGRect
+    let title: String
+}
+
 struct PreparedCapture {
     let filter: SCContentFilter
     let configuration: SCStreamConfiguration
 
+    func preview() async throws -> CGImage {
+        let config = SCStreamConfiguration()
+        let scale = min(640 / Double(configuration.width), 400 / Double(configuration.height))
+        config.width = max(2, Int(Double(configuration.width) * scale)); config.height = max(2, Int(Double(configuration.height) * scale))
+        config.showsCursor = false; config.ignoreShadowsSingleWindow = true
+        return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+    }
     func image() async throws -> CGImage {
         try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
     }

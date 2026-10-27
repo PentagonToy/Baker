@@ -88,7 +88,7 @@ Run each tool with `--output /absolute/path/outside/the/repository`. Checks inte
 
 ## Interface conventions
 
-Keep Baker's warm accent for the current selection and primary action. Shared action buttons use 32-point hit areas, visible neutral borders and a keyboard-focus outline; menus and segmented controls retain native behaviour. Toolbar labels use equal icon slots and compact automatically when space is limited. Supporting text stays at least 13 points. Use the shared surfaces and short state transitions, and honour Reduce Motion.
+Keep Baker's warm accent for the current selection and primary action. Scan uses equal-width native segmented controls. Shared action buttons use 32-point hit areas, visible neutral borders and a keyboard-focus outline; menus and segmented controls retain native behaviour. Toolbar labels use equal icon slots and compact automatically when space is limited. Supporting text stays at least 13 points. Use the shared surfaces and short state transitions, and honour Reduce Motion.
 
 Check narrow windows, keyboard focus, light and dark appearances, empty states, downloads and failures before shipping an interface change. Type checks and colour calculations do not replace inspection of the running app.
 
@@ -97,3 +97,5 @@ Check narrow windows, keyboard focus, light and dark appearances, empty states, 
 Build with a Developer ID Application identity and `BAKER_SIGN_MODE=developer-id`. Configure a `notarytool` Keychain profile interactively; never put account passwords, private keys or certificate exports in the repository. Run `tools/notarise.sh /external/Baker.app /external/Baker.dmg PROFILE IDENTITY` to submit the app, staple its accepted ticket, package the DMG and notarise/staple the disk image. The script records submission IDs beside the output and resumes those IDs after a timeout. Inspect Apple’s log and correct rejected code before making a fresh submission in a new output folder. Do not reuse an output folder after changing its app or signing identity.
 
 Verify `stapler validate` and Gatekeeper assessment before publication. Calculate release and Homebrew checksums only after stapling, which changes the DMG. Keep clean-machine and optional downloaded-runtime checks separate from base-app notarisation.
+
+Scan draft and PDF checks use `python tools/test_scan.py --output /external/scan-checks`. Add `--ocr` to exercise one local Vision export with generated text. These checks do not capture the screen or read user documents.

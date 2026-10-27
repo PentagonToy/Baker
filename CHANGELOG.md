@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 2026-10-27
+
+- Collect screen pages in a recoverable Scan draft, review their order and save one PDF with optional on-device searchable text.
+- Choose a reader from window previews, capture the whole window or an area within it, and turn pages without moving the pointer. Include automatic stopping, manual capture and CLI inspection, pause, resume and draft recovery.
+- Prepare capture and control permissions together on first launch.
+- Simplify website navigation into three tabs with collapsible task groups.
+- Refine Scan controls, pause/resume actions and review thumbnails.
+
 ## 0.1.0 — 2026-10-27
 
 - Distribute Baker with Developer ID signing and Apple notarisation.

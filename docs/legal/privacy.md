@@ -1,6 +1,6 @@
 # Privacy policy
 
-Effective date: 26 October 2026.
+Effective date: 27 October 2026.
 
 This policy covers Baker, developed by PentagonToy, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
 
@@ -39,6 +39,10 @@ A manual check, or an optional daily automatic check, requests public release me
 Baker uses the selected local or Finder-accessible folder and has no cloud-account login. Changing the save folder leaves previous files in place.
 
 For iCloud Drive, Dropbox, Google Drive or another synced folder, the provider’s software may transfer, retain or share its contents under the user’s settings and the provider’s policies. Baker performs no separate cloud transfers. An ordinary local folder avoids provider synchronisation of new captures.
+
+## Scan drafts
+
+Baker keeps one recoverable scan under `~/Library/Application Support/Baker/ScanDraft`. Closing Scan keeps its pages; saving the PDF or choosing Discard Scan removes the working draft. Window-selection previews remain in memory only while needed. Automatic page turning uses macOS control access and targets the selected reader app. No additional model or network service is used for capture or searchable Scan PDFs.
 
 ## Retention and deletion
 

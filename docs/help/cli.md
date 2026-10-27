@@ -6,7 +6,7 @@ Baker 0.0.4 and later include `/Applications/Baker.app/Contents/Resources/CLI/ba
 | --- | --- |
 | `version` | Installed app version |
 | `status` | Busy state, storage, capture count and last status |
-| `diagnostics` | App memory, thumbnail cache, preview queue, image-copy preparation and active OCR/PDF work; no captured content or paths |
+| `diagnostics` | App memory, caches, preview queues and Scan/OCR/PDF work; no captured content or file paths |
 | `history --limit 20 --offset 0` | Capture metadata and saved formula source |
 | `formulas --text softmax --format markdown --limit 20` | Search saved formulas and read formatted output without OCR or clipboard changes |
 | `copy-formula --text UUID --format latex` | Copy a saved formula without opening it or changing the selected format |
@@ -18,7 +18,8 @@ Baker 0.0.4 and later include `/Applications/Baker.app/Contents/Resources/CLI/ba
 | `capture --format formula` | Interactive formula capture |
 | `record --format video` | Interactive recording setup; GIF is also supported |
 | `stop` | Stop recording |
-| `cancel` | Cancel capture, recognition or PDF conversion |
+| `cancel` | Cancel work; Scan keeps its draft for review |
+| `scan --format status --limit 20 --offset 0` | Read Scan state and a page of draft metadata |
 | `import /absolute/image.png` | Add an image to capture history |
 | `open-formula --text UUID` | Open a saved equation |
 | `copy` | Copy the current result |
@@ -49,3 +50,25 @@ Formula and PDF commands process inputs on this Mac. Download the required local
 ## OCR plugins
 
 See [OCR plugins](plugins.md) for ZIP registration and the `plugins`, `plugin-use` and `plugin-probe` commands. Registration requires native approval; keys are never returned by the CLI.
+
+## Scan
+
+Choose the reader window and any crop or next-page button in Baker. The CLI does not grant permissions or choose a target on your behalf.
+
+| `scan --format` | Action |
+| --- | --- |
+| `start` | Open or resume the draft; repeat calls leave an active scan unchanged |
+| `status --limit 20 --offset 0` | Read state, settings, readiness and page UUIDs with image paths; at most 100 items per call |
+| `configure --text '{"delay":2.5,"searchable":true}'` | Set delay or searchable PDF text while paused; delay accepts 0.1–60 seconds |
+| `add` | Add one page from a prepared manual scan |
+| `pause` / `resume` | Pause or resume a prepared automatic scan |
+| `review` | Stop turning pages and review the draft |
+| `continue` | Return from review to manual capture; a restored draft needs its reader selected again |
+| `select` / `retake` / `remove --text UUID` | Select, retake or remove a reviewed page |
+| `move --text UUID --offset -1` | Move a reviewed page earlier; use `1` for later |
+| `save --output /absolute/book.pdf` | Save a reviewed draft to a new PDF |
+| `close` | Stop the session and close its windows, keeping the draft |
+
+Changes return `accepted` with a small state summary. Poll `status` until `working` is false; `captureReady` indicates that a manual page can be added. Successful saving closes the session; read `result.export` for the output path. Failed or cancelled saves keep the draft. Removing a page is destructive; `close` is the safe way to leave a draft for later.
+
+`diagnostics.scan` contains counts and resource state. Detailed page paths are returned only by `scan --format status`, not by general diagnostics. Scan is available in Baker 0.1.1 and later.
