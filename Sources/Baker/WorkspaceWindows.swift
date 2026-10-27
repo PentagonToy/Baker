@@ -37,5 +37,10 @@ final class WorkspaceWindows {
                       y: min(max(frame.minY, screen.minY), screen.maxY - height), width: width, height: height)
     }
     func hide(_ roles: Role...) { for role in roles { windows[role]?.orderOut(nil) } }
+    /// Transient popover content is rebuilt on every show; retaining it while closed has no reuse benefit.
+    static func releaseClosedPopoverContent(_ popover: NSPopover) {
+        guard !popover.isShown else { return }
+        popover.contentViewController = nil
+    }
     func closeAll() { for window in windows.values { window.close() }; windows.removeAll() }
 }

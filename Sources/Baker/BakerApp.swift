@@ -383,7 +383,12 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         if let formulaLocalClickMonitor { NSEvent.removeMonitor(formulaLocalClickMonitor) }
         formulaGlobalClickMonitor = nil; formulaLocalClickMonitor = nil
     }
-    func popoverDidClose(_ notification: Notification) { stopFormulaOutsideClicks() }
+    func popoverDidClose(_ notification: Notification) {
+        stopFormulaOutsideClicks()
+        if let popover = notification.object as? NSPopover {
+            WorkspaceWindows.releaseClosedPopoverContent(popover)
+        }
+    }
     @objc private func showFormulaWorkspace() {
         let hasResult = model.focusedFormulaID.flatMap { model.formulaResults[$0] } != nil
         let panel = windows.resolve(.formula) {

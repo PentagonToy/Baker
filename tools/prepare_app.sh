@@ -124,11 +124,28 @@ if [[ -z "$signing_identity" && -f "$local_identity" ]]; then
     signing_identity="$(<"$local_identity")"
 fi
 signing_identity="${signing_identity:--}"
-for runtime_folder in "$app/Contents/Resources/Runtime" "$app/Contents/Resources/DocumentEngine" "$app/Contents/Resources/ImageTools"; do
-    [[ -d "$runtime_folder" ]] || continue
+signing_mode="${BAKER_SIGN_MODE:-local}"
+if [[ "$signing_mode" == developer-id ]]; then
+    # Distribution code must use Developer ID, hardened runtime and a secure timestamp.
+    [[ "$signing_identity" != - ]] || { print -u2 'Developer ID signing requires BAKER_SIGN_IDENTITY'; exit 1; }
     while IFS= read -r -d '' native_file; do
-        if file -b "$native_file" | grep -q 'Mach-O'; then codesign --force --sign "$signing_identity" "$native_file"; fi
-    done < <(find "$runtime_folder" -type f \( -name '*.so' -o -name '*.dylib' -o -perm -111 \) -print0)
-done
-codesign --force --sign "$signing_identity" "$app"
+        [[ "$native_file" == "$app/Contents/MacOS/Baker" ]] && continue
+        if file -b "$native_file" | grep -q 'Mach-O'; then
+            codesign --force --options runtime --timestamp --sign "$signing_identity" "$native_file"
+        fi
+    done < <(find "$app" -type f -print0)
+    codesign --force --options runtime --timestamp --sign "$signing_identity" "$app"
+    codesign --verify --deep --strict "$app"
+    codesign -dvv "$app" 2>&1 | grep '^Authority=Developer ID Application:' >/dev/null || { print -u2 'Use a Developer ID Application certificate'; exit 1; }
+elif [[ "$signing_mode" == local ]]; then
+    for runtime_folder in "$app/Contents/Resources/Runtime" "$app/Contents/Resources/DocumentEngine" "$app/Contents/Resources/ImageTools"; do
+        [[ -d "$runtime_folder" ]] || continue
+        while IFS= read -r -d '' native_file; do
+            if file -b "$native_file" | grep -q 'Mach-O'; then codesign --force --sign "$signing_identity" "$native_file"; fi
+        done < <(find "$runtime_folder" -type f \( -name '*.so' -o -name '*.dylib' -o -perm -111 \) -print0)
+    done
+    codesign --force --sign "$signing_identity" "$app"
+else
+    print -u2 'BAKER_SIGN_MODE must be local or developer-id'; exit 1
+fi
 print "Prepared: $app"
