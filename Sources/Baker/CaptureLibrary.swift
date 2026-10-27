@@ -20,7 +20,9 @@ final class CaptureLibrary {
         try Task.checkCancellation()
         guard store === source else { throw CancellationError() }
         if let image = cache[record.id] { return image }
-        if cache.count >= 6, let victim = cache.keys.first(where: { !protected.contains($0) }) { cache.removeValue(forKey: victim) }
+        if cache.count >= 6, let victim = cache.keys.first(where: { !protected.contains($0) }) ?? cache.keys.first {
+            cache.removeValue(forKey: victim)
+        }
         let image = NSImage(cgImage: raster, size: .zero); cache[record.id] = image; return image
     }
     func remember(_ stored: StoredCapture, records: [CaptureRecord]) {

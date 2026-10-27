@@ -33,6 +33,44 @@ final class Flag: @unchecked Sendable {
     let b = Task { try await library.thumbnail(captures[0].record, protecting: []) }
     let first = try await a.value, second = try await b.value
     check(first === second, "Concurrent thumbnails share the cached image")
+    library.clearCache()
+    let allProtected = Set(captures.map { $0.record.id })
+    for capture in captures { _ = try await library.thumbnail(capture.record, protecting: allProtected) }
+    check(library.cachedThumbnailCount == 6, "Protected hints cannot grow the six-entry cache")
+    let requests = ThumbnailRequests(), owner = NSObject(), thumbnailID = UUID()
+    let sharedStarted = Flag(), releaseShared = Flag(), cancelledDecode = Flag()
+    var decodeCount = 0
+    func sharedDecode() async throws -> CGImage {
+        decodeCount += 1; sharedStarted.set()
+        do {
+            while !releaseShared.value { try await Task.sleep(nanoseconds: 1_000_000) }
+            return context.makeImage()!
+        } catch { cancelledDecode.set(); throw error }
+    }
+    let firstWaiter = Task { try await requests.load(thumbnailID, store: owner, operation: sharedDecode) }
+    await wait(sharedStarted)
+    let secondWaiting = Flag()
+    let secondWaiter = Task { secondWaiting.set(); return try await requests.load(thumbnailID, store: owner, operation: sharedDecode) }
+    await wait(secondWaiting)
+    firstWaiter.cancel()
+    do { _ = try await firstWaiter.value; check(false, "Cancelled thumbnail waiter returned an image") }
+    catch is CancellationError { check(true, "A cancelled thumbnail waiter returns without waiting for the decode") }
+    check(!cancelledDecode.value && requests.pendingCount == 1, "One remaining consumer keeps the shared decode alive")
+    releaseShared.set(); _ = try await secondWaiter.value
+    check(decodeCount == 1 && requests.pendingCount == 0, "Concurrent consumers share one decode and release the entry")
+    let lastStarted = Flag(), lastStopped = Flag()
+    let lastWaiter = Task {
+        try await requests.load(UUID(), store: owner) {
+            lastStarted.set()
+            do { while true { try await Task.sleep(nanoseconds: 1_000_000) } }
+            catch { lastStopped.set(); throw error }
+        }
+    }
+    await wait(lastStarted); lastWaiter.cancel()
+    do { _ = try await lastWaiter.value; check(false, "Last thumbnail consumer ignored cancellation") }
+    catch is CancellationError { check(requests.pendingCount == 0, "Last consumer cancellation removes the pending entry") }
+    await wait(lastStopped)
+    check(lastStopped.value, "Last consumer cancellation reaches the decode worker")
     func formula(_ index: Int) -> SavedFormula {
         SavedFormula(id:captures[index].record.id,originalLatex:"x",latex:"x",unicodeOverride:nil,model:"fixture",confidenceMethod:nil,confidence:nil,diagnostics:nil,format:"LaTeX",style:LatexCopyStyle.bare.rawValue,savedAt:Date(timeIntervalSince1970:Double(index+100)))
     }
@@ -104,6 +142,36 @@ final class Flag: @unchecked Sendable {
     let imageCopied = try await copying.value
     check(imageCopied == false,"Old image request cannot replace newer text")
     check(pasteboard.string(forType:.string) == "newer text","Text clipboard survives superseded image preparation")
+    let serialStarted = Flag(), releaseSerial = Flag(), nextStarted = Flag(), newerWaiting = Flag()
+    let preparedPayload = try ImageClipboard.prepare(imageURL: imageURL)
+    let serial = ClipboardCoordinator(pasteboard: pasteboard, prepareImage: { url in
+        if url.lastPathComponent == "first.png" {
+            serialStarted.set(); while !releaseSerial.value { Thread.sleep(forTimeInterval: 0.002) }
+        } else { nextStarted.set() }
+        return preparedPayload
+    })
+    let older = Task { try await serial.copyImage(root.appendingPathComponent("first.png")) }
+    await wait(serialStarted)
+    let newer = Task { newerWaiting.set(); return try await serial.copyImage(root.appendingPathComponent("second.png")) }
+    await wait(newerWaiting)
+    check(!nextStarted.value, "A replacement clipboard decode waits for its predecessor")
+    releaseSerial.set()
+    let olderResult = try await older.value, newerResult = try await newer.value
+    check(!olderResult && newerResult && nextStarted.value, "Only the latest image copy is committed")
+    await serial.close()
+    check(!serial.isPreparingImage, "Clipboard shutdown releases its worker")
+    let shutdownStarted = Flag(), releaseShutdown = Flag(), closeStarted = Flag()
+    let closingClipboard = ClipboardCoordinator(pasteboard: pasteboard, prepareImage: { _ in
+        shutdownStarted.set(); while !releaseShutdown.value { Thread.sleep(forTimeInterval: 0.002) }
+        return preparedPayload
+    })
+    let closingCopy = Task { try await closingClipboard.copyImage(imageURL) }
+    await wait(shutdownStarted)
+    let closing = Task { closeStarted.set(); await closingClipboard.close() }
+    await wait(closeStarted); releaseShutdown.set(); await closing.value
+    check(!closingClipboard.isPreparingImage, "Closing during preparation drains and clears the worker")
+    let closingResult = try await closingCopy.value
+    check(!closingResult, "Shutdown cannot commit a pending image copy")
     try clipboard.copyMath("x′",font:.stixTwo)
     check(pasteboard.string(forType:.string) == "x′" && pasteboard.data(forType:.rtf) != nil,"Math clipboard preserves text and RTF")
     for flag in [true,false] {

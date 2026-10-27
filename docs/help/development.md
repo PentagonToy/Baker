@@ -58,7 +58,7 @@ The builder creates an engine archive and pinned descriptor, tests extraction an
 
 ## Code ownership
 
-Workbench forwards UI commands to capture, recognition, document, clipboard, storage and export coordinators. CaptureLibrary bounds its thumbnail cache to six images and serialises formula writes. WorkspaceWindows retains workspace content; ordinary Settings reopening preserves its page, while recovery actions select their destination. Shutdown cancels and awaits active work.
+Workbench forwards UI commands to capture, recognition, document, clipboard, storage and export coordinators. CaptureLibrary bounds its thumbnail cache to six images and serialises formula writes. ThumbnailRequests shares each decode between consumers and cancels it when the last consumer leaves. ClipboardCoordinator serialises image preparation, cancels superseded work and drains its worker at shutdown. WorkspaceWindows retains workspace content; ordinary Settings reopening preserves its page, while recovery actions select their destination. Shutdown cancels and awaits active work.
 
 `PreferenceKeys` declares persisted names, types and defaults. `BakerPreferences` receives an explicit `UserDefaults` domain shared with SwiftUI bindings. Migrations preserve existing selections. `BakerError` codes determine recovery guidance; UI alerts omit bounded technical diagnostics and cancellation.
 

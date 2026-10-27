@@ -6,16 +6,42 @@ import BakerCore
 final class ClipboardCoordinator {
     let pasteboard: NSPasteboard
     private var generation = 0
+    private var worker: Task<ImageClipboard.Payload, Error>?
+    private var workerToken: UUID?
     private let prepareImage: @Sendable (URL) throws -> ImageClipboard.Payload
     init(pasteboard: NSPasteboard, prepareImage: @escaping @Sendable (URL) throws -> ImageClipboard.Payload = { try ImageClipboard.prepare(imageURL: $0) }) {
         self.pasteboard = pasteboard; self.prepareImage = prepareImage
     }
-    func invalidate() { generation &+= 1 }
+    var isPreparingImage: Bool { worker != nil }
+    func close() async {
+        let pending = worker, token = workerToken
+        invalidate(); _ = await pending?.result
+        if workerToken == token { worker = nil; workerToken = nil }
+    }
+    func invalidate() { generation &+= 1; worker?.cancel() }
     func copyImage(_ url: URL) async throws -> Bool {
         invalidate()
         let request = generation, previous = pasteboard.changeCount
         let prepare = prepareImage
-        let payload = try await Task.detached(priority: .userInitiated) { try prepare(url) }.value
+        let previousWorker = worker
+        _ = await previousWorker?.result
+        try Task.checkCancellation()
+        guard request == generation else { return false }
+        let token = UUID()
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let payload = try prepare(url)
+            try Task.checkCancellation()
+            return payload
+        }
+        worker = task; workerToken = token
+        defer { if workerToken == token { worker = nil; workerToken = nil } }
+        let payload: ImageClipboard.Payload
+        do { payload = try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() }) }
+        catch is CancellationError {
+            if request != generation { return false }
+            throw CancellationError()
+        }
         try Task.checkCancellation()
         guard request == generation, pasteboard.changeCount == previous else { return false }
         try ImageClipboard.write(payload, to: pasteboard); return true

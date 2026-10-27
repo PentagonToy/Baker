@@ -200,13 +200,14 @@ final class Workbench: ObservableObject {
         formulaSetup.cancel(); pdfEngineSetup.cancel(); shuttingDown = true
         await filesInbox.close(); await pdfEngineSetup.close()
         library.cancelThumbnails(); clipboardFlow.invalidate(); initialLoadTask?.cancel(); importTask?.cancel(); historyRefreshTask?.cancel()
-        await captureFlow.close(); await recognitionFlow.close(); await documentFlow.close(); await plugins.close(); await fileExports.close()
+        await captureFlow.close(); await recognitionFlow.close(); await documentFlow.close(); await plugins.close(); await fileExports.close(); await clipboardFlow.close()
         _ = await initialLoadTask?.result; _ = await importTask?.result; _ = await historyRefreshTask?.result
         await library.flushHistory()
         cleanup()
     }
     func cleanup() {
         initialLoadTask?.cancel()
+        clipboardFlow.invalidate()
         plugins.cancel(); captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel()
         if let ownedExportDirectory { try? FileManager.default.removeItem(at: ownedExportDirectory) }
         if let pendingDocumentDirectory { try? FileManager.default.removeItem(at: pendingDocumentDirectory) }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Cancel thumbnail decoding when its last consumer leaves and keep its cache within six entries.
+- Serialise image-copy preparation, cancel superseded encoding and drain it on shutdown; expose its state in CLI diagnostics.
+
+
 ## 0.1.0 — 2026-10-27
 
 - Prepare Developer ID distribution with hardened runtime, secure timestamps and a repeatable Apple notarisation workflow.

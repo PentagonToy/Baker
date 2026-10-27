@@ -10,6 +10,7 @@ public enum ImageClipboard {
 
     /// Image reading and encoding may run away from the UI thread.
     public static func prepare(imageURL: URL) throws -> Payload {
+        try Task.checkCancellation()
         guard imageURL.isFileURL else { throw BakerError(message: "Choose a local image to copy.", code: .invalidInput) }
         let values = try imageURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
         guard values.isRegularFile == true, let size = values.fileSize,
@@ -40,8 +41,11 @@ public enum ImageClipboard {
         ] as CFDictionary), image.width * image.height <= CaptureArchive.maximumPixels else {
             throw BakerError(message: "The image could not be decoded for copying.", code: .clipboardFailed)
         }
+        try Task.checkCancellation()
         let png = try encode(image, type: "public.png")
+        try Task.checkCancellation()
         let tiff = try encode(image, type: "public.tiff")
+        try Task.checkCancellation()
         return Payload(png: png, tiff: tiff)
     }
 

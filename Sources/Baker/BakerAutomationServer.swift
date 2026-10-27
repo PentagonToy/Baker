@@ -76,6 +76,7 @@ import Darwin
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
                     "document": ["running": m.documentFlow.isConverting],
+                    "clipboard": ["preparingImage": m.clipboardFlow.isPreparingImage],
                     "recognitionProvider": m.plugins.selected(for: "formula")?.manifest.label ?? "Baker · On this Mac",
                     "usage": ["localImages": m.usage.counts.localImages, "localPDFs": m.usage.counts.localDocuments, "localPages": m.usage.counts.localPages],
                     "otherCLIRequests": max(0, jobs.count - 1)]
