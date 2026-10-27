@@ -21,7 +21,7 @@ The runtime tool copies the standalone interpreter and dependencies, retains not
 
 Current packaged libraries require macOS 26.0 for capture and 26.2 for PDF conversion. The Swift source target of macOS 14 does not establish compatibility with those older systems. The runtime manifests determine the packaged minimum.
 
-Use `BAKER_SIGN_IDENTITY` for a distribution signing identity. Ad-hoc signing supports local development; it provides no notarisation. After building, `tools/package_dmg.sh /path/to/Baker.app /external/build/Baker.dmg` creates and verifies the disk image. See [release preparation](https://github.com/PentagonToy/Baker/blob/main/others/release/README.md) for final checks.
+Use `BAKER_SIGN_MODE=developer-id` and `BAKER_SIGN_IDENTITY` for Developer ID Application signing. This enables hardened runtime and secure timestamps for all bundled native code. The default `local` mode retains development signing and provides no notarisation. After building, `tools/package_dmg.sh /path/to/Baker.app /external/build/Baker.dmg` creates and verifies the disk image. See [release preparation](https://github.com/PentagonToy/Baker/blob/main/others/release/README.md) for final checks.
 
 ## Signing
 
@@ -91,3 +91,9 @@ Run each tool with `--output /absolute/path/outside/the/repository`. Checks inte
 Keep Baker's warm accent for the current selection and primary action. Shared action buttons use 32-point hit areas, visible neutral borders and a keyboard-focus outline; menus and segmented controls retain native behaviour. Toolbar labels use equal icon slots and compact automatically when space is limited. Supporting text stays at least 13 points. Use the shared surfaces and short state transitions, and honour Reduce Motion.
 
 Check narrow windows, keyboard focus, light and dark appearances, empty states, downloads and failures before shipping an interface change. Type checks and colour calculations do not replace inspection of the running app.
+
+## Apple notarisation
+
+Build with a Developer ID Application identity and `BAKER_SIGN_MODE=developer-id`. Configure a `notarytool` Keychain profile interactively; never put account passwords, private keys or certificate exports in the repository. Run `tools/notarise.sh /external/Baker.app /external/Baker.dmg PROFILE IDENTITY` to submit the app, staple its accepted ticket, package the DMG and notarise/staple the disk image. The script records submission IDs beside the output and resumes those IDs after a timeout. Inspect Apple’s log and correct rejected code before making a fresh submission in a new output folder. Do not reuse an output folder after changing its app or signing identity.
+
+Verify `stapler validate` and Gatekeeper assessment before publication. Calculate release and Homebrew checksums only after stapling, which changes the DMG. Keep clean-machine and optional downloaded-runtime checks separate from base-app notarisation.

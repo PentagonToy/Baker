@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0 — 2026-10-27
+
+- Prepare Developer ID distribution with hardened runtime, secure timestamps and a repeatable Apple notarisation workflow.
+
+
 ## 0.0.9 — 2026-10-26
 
 - Add one optional OCR plugin from a ZIP, with explicit approval, Keychain credentials and separate priorities for formulas, Markdown and LaTeX.
