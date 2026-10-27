@@ -1,19 +1,11 @@
 # Changelog
 
-## Unreleased
-
-- Mark the installer’s background image with explicit hidden-file metadata.
-
-- Release the formula popover’s hosted content after closing; reopening already constructs a fresh view.
-
-- Cancel thumbnail decoding when its last consumer leaves and keep its cache within six entries.
-- Serialise image-copy preparation, cancel superseded encoding and drain it on shutdown; expose its state in CLI diagnostics.
-
-
 ## 0.1.0 — 2026-10-27
 
-- Prepare Developer ID distribution with hardened runtime, secure timestamps and a repeatable Apple notarisation workflow.
-
+- Distribute Baker with Developer ID signing and Apple notarisation.
+- Release closed formula popover content to reduce retained resources.
+- Cancel unused thumbnail requests and keep the image cache bounded.
+- Cancel superseded image-copy work and expose its status in CLI diagnostics.
 
 ## 0.0.9 — 2026-10-26
 

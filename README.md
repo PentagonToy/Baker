@@ -9,13 +9,13 @@
 
 Baker is a macOS menu-bar app for local capture, text and formula recognition, and PDF conversion.
 
-**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.0.9/Baker-0.0.9-arm64.dmg)**
+**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.0/Baker-0.1.0-arm64.dmg)**
 
-Apple Silicon · macOS 26.0 or later · Stable version 0.0.9
+Apple Silicon · macOS 26.0 or later · Stable version 0.1.0
 
 [Website and guide](https://pentagontoy.github.io/Baker/) · [Getting started](docs/help/getting-started.md) · [Changelog](CHANGELOG.md)
 
-See the [0.0.9 release notes](others/release/0.0.9.md) for changes and validation limits.
+See the [0.1.0 release notes](others/release/0.1.0.md) for what’s new.
 
 | Task | Result |
 | --- | --- |
@@ -52,7 +52,7 @@ Silent demos, under 10 seconds each. Select a preview for the MP4. [Demo sources
 2. Drag **Baker.app** to **Applications**, then open it there.
 3. Allow Screen Recording when prompted. Choose **Text** or **Formula**, select an area and paste the result.
 
-If macOS blocks the first launch, see [opening a downloaded app](docs/help/troubleshooting.md#opening-a-downloaded-app). Set shortcuts and your save folder in Settings.
+Baker is Developer ID signed and notarised by Apple. Set shortcuts and your save folder in Settings.
 
 Already use Homebrew? Install from [our tap](https://github.com/PentagonToy/homebrew-tap):
 
@@ -67,7 +67,7 @@ Captures, recordings and formula history use one folder, initially `~/Documents/
 
 ## Local recognition
 
-Text uses Apple Vision or Tesseract; formula images use Pix2Text MFR 1.5 or the experimental Texo engine. PDFs combine native text, DocLayout-YOLO and quantised GLM-OCR with a small Baker adapter. [Models and references](docs/help/recognition.md) documents sources, adaptations and measured limits.
+Text uses Apple Vision or Tesseract; formula images use Pix2Text MFR 1.5, Texo or PP-FormulaNet plus-S. PDFs combine native text, DocLayout-YOLO and quantised GLM-OCR with a small Baker adapter. [Models and references](docs/help/recognition.md) documents sources, adaptations and measured limits.
 
 Text recognition and previews work offline with the included runtime. Download a [formula model](docs/models/README.md) once in Settings → Formula; subsequent recognition stays offline. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once, then works offline. Normal use needs no OCR account, Python path or model configuration.
 

@@ -17,7 +17,7 @@
 
 ## Opening a downloaded app
 
-The current preview is not notarised. If macOS blocks the first launch, check that the DMG came from Baker’s GitHub release, then open **System Settings → Privacy & Security** and choose **Open Anyway** for Baker. Approve only a download you trust. See [Apple’s guidance](https://support.apple.com/102445).
+Baker 0.1.0 and later are Developer ID signed and notarised by Apple. Download the DMG from [GitHub releases](https://github.com/PentagonToy/Baker/releases/latest), drag Baker to Applications and open it there. macOS may ask you to confirm the first launch. If it reports damage or cannot verify the app, download a fresh copy and [report the exact message](https://github.com/PentagonToy/Baker/issues).
 
 ## Screen Recording permission after an update
 
