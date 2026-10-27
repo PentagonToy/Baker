@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Mark the installer’s background image with explicit hidden-file metadata.
+
 - Release the formula popover’s hosted content after closing; reopening already constructs a fresh view.
 
 - Cancel thumbnail decoding when its last consumer leaves and keep its cache within six entries.

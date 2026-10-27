@@ -22,6 +22,9 @@ mkdir -p "$work/staging" "$work/module-cache"
 ditto "$app" "$work/staging/Baker.app"
 ln -s /Applications "$work/staging/Applications"
 swift -module-cache-path "$work/module-cache" "$source_directory/dmg_layout.swift" background "$work/staging/.background.tiff"
+# HFS+ Finder presentation needs explicit invisibility, not only a dot-prefixed name.
+chflags hidden "$work/staging/.background.tiff"
+xcrun SetFile -a V "$work/staging/.background.tiff"
 hdiutil create -volname Baker -srcfolder "$work/staging" -fs HFS+ -format UDRW "$work/working.dmg"
 hdiutil attach -nobrowse -noautoopen -noverify -readwrite -plist "$work/working.dmg" > "$work/attach.plist"
 for index in {0..8}; do
@@ -31,6 +34,8 @@ for index in {0..8}; do
     fi
 done
 [[ -n "$mount" ]] || { print -u2 'Could not locate the installer volume.'; exit 1; }
+chflags hidden "$mount/.background.tiff"
+xcrun SetFile -a V "$mount/.background.tiff"
 clang -Wno-deprecated-declarations -framework CoreServices "$source_directory/dmg_alias.c" -o "$work/dmg-alias"
 "$work/dmg-alias" "$mount/.background.tiff" "$work/background-alias"
 swift -module-cache-path "$work/module-cache" "$source_directory/dmg_layout.swift" layout "$mount" "$work/background-alias"
