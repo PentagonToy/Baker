@@ -12,60 +12,72 @@ theme:
   favicon: others/assests/icons/baker_logo_light.svg
   font: false
   palette:
-    - scheme: slate
-      primary: custom
-      accent: amber
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
-    - scheme: default
-      primary: custom
-      accent: amber
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: custom
+    accent: amber
+    toggle:
+      icon: material/weather-night
+      name: Switch to dark mode
+  - media: '(prefers-color-scheme: dark)'
+    scheme: slate
+    primary: custom
+    accent: amber
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to light mode
   features:
-    - navigation.tabs
-    - navigation.top
-    - search.highlight
-    - content.code.copy
+  - navigation.tabs
+  - navigation.top
+  - search.highlight
+  - content.code.copy
+  - navigation.footer
 plugins:
-  - search
+- search
 markdown_extensions:
-  - tables
-  - attr_list
-  - toc:
-      permalink: true
+- tables
+- attr_list
+- toc:
+    permalink: true
 extra:
   google_site_verification: flwxN1rf0OysYtNI7Tged4sc_V5QGQqTJ2KuS55olvg
 extra_css:
-  - stylesheets/brand.css
+- stylesheets/brand.css
 nav:
-  - Home: index.md
-  - Changelog: changelog.md
-  - Guide:
-      - Overview: overview.md
-      - Capture: guide/capture.md
-      - Record: guide/record.md
-      - Clipboard & Files: guide/clipboard-and-files.md
-      - Recent: guide/recent.md
-  - Help:
-      - Overview: help/README.md
-      - Get started: help/getting-started.md
-      - Settings: help/settings.md
-      - Models and references: help/recognition.md
-      - Formula model downloads: models/README.md
-      - Development builds: help/development.md
-      - Agent CLI: help/cli.md
-      - OCR plugins: help/plugins.md
-      - Formula: help/formula.md
-      - Unicode maths: help/unicode-maths.md
-      - Save folder and presets: help/storage.md
-      - Limits: help/limits.md
-      - Troubleshooting: help/troubleshooting.md
-      - Website and ownership: help/website.md
-  - Legal:
-      - Overview: legal/README.md
-      - Privacy policy: legal/privacy.md
-      - Third-party notices: legal/third-party.md
+- Home: index.md
+- Guide:
+  - Start here:
+    - Get started: help/getting-started.md
+    - Overview: overview.md
+  - Capture & scan:
+    - Capture: guide/capture.md
+    - Scan: help/scan.md
+    - Record: guide/record.md
+  - Text & formulas:
+    - Formula: help/formula.md
+    - Unicode maths: help/unicode-maths.md
+  - Files & history:
+    - Clipboard & Files: guide/clipboard-and-files.md
+    - Recent: guide/recent.md
+    - Save folder & presets: help/storage.md
+  - Settings & help:
+    - Settings: help/settings.md
+    - Help overview: help/README.md
+    - Limits: help/limits.md
+    - Troubleshooting: help/troubleshooting.md
+- More:
+  - Models:
+    - Engines & models: help/recognition.md
+    - Formula downloads: models/README.md
+  - Extensions:
+    - OCR plugins: help/plugins.md
+    - Agent CLI: help/cli.md
+  - Project:
+    - Changelog: changelog.md
+    - Development builds: help/development.md
+    - Website & ownership: help/website.md
+  - Privacy & notices:
+    - Overview: legal/README.md
+    - Privacy policy: legal/privacy.md
+    - Third-party notices: legal/third-party.md
 copyright: Copyright © 2026 PentagonToy

@@ -9,13 +9,13 @@
 
 Baker is a macOS menu-bar app for local capture, text and formula recognition, and PDF conversion.
 
-**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.0/Baker-0.1.0-arm64.dmg)**
+**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.1/Baker-0.1.1-arm64.dmg)**
 
-Apple Silicon · macOS 26.0 or later · Stable version 0.1.0
+Apple Silicon · macOS 26.0 or later · Stable version 0.1.1
 
 [Website and guide](https://pentagontoy.github.io/Baker/) · [Getting started](docs/help/getting-started.md) · [Changelog](CHANGELOG.md)
 
-See the [0.1.0 release notes](others/release/0.1.0.md) for what’s new.
+See the [0.1.1 release notes](others/release/0.1.1.md) for what’s new.
 
 | Task | Result |
 | --- | --- |
@@ -25,6 +25,7 @@ See the [0.1.0 release notes](others/release/0.1.0.md) for what’s new.
 | Formula | Preview, LaTeX, Markdown maths, Keynote or Unicode |
 | PDF | Structured Markdown or LaTeX with equations, tables and figures |
 | Record | MP4 with optional system audio, or silent GIF |
+| Scan | Collect reader pages, review their order and save one searchable PDF |
 
 ## In action
 

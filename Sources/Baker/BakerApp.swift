@@ -31,6 +31,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
     private let settingsState = SettingsState()
     private lazy var quickStart = QuickStartProgress(preferences: model.preferences)
     private var subscriptions: Set<AnyCancellable> = []
+    private let startupPermissions = StartupPermissions()
     private var terminating = false
     private var formulaPopover: NSPopover?
     private var formulaGlobalClickMonitor: Any?
@@ -48,7 +49,9 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
             self?.windows.hide(.formula, .result)
         }
         shortcuts.perform = { [weak self] action in
-            guard let self, !self.model.busy else { return }
+            guard let self else { return }
+            if action == "scan" { self.model.startScan(); return }
+            guard !self.model.busy else { return }
             switch action {
             case "area": self.captureRegion()
             case "window": self.captureWindow()
@@ -121,9 +124,12 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         model.warmCaptureSelection()
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.terminating, !self.model.busy else { return }
-            if !self.model.preferences[PreferenceKeys.hasOfferedQuickStart] || self.model.preferences[PreferenceKeys.resumeQuickStart] {
-                self.showQuickStart()
-            } else { self.model.launchAtLogin.presentFirstLaunchOffer() }
+            self.startupPermissions.presentIfNeeded(screen: self.model.screenRecordingPermission) { [weak self] in
+                guard let self, !self.terminating else { return }
+                if !self.model.preferences[PreferenceKeys.hasOfferedQuickStart] || self.model.preferences[PreferenceKeys.resumeQuickStart] {
+                    self.showQuickStart()
+                } else { self.model.launchAtLogin.presentFirstLaunchOffer() }
+            }
         }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -243,6 +249,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         menu.addItem(item("Area", #selector(captureRegion), symbol: "viewfinder", custom: "capture-area", enabled: !model.busy, shortcut: "area"))
         menu.addItem(item("Window…", #selector(captureWindow), symbol: "macwindow", enabled: !model.busy, shortcut: "window"))
         menu.addItem(item("Repeat Area", #selector(repeatCaptureArea), symbol: "arrow.clockwise", custom: "capture-repeat", enabled: !model.busy && model.canRepeatArea, shortcut: "repeat"))
+        menu.addItem(item(model.scanSession?.canAdd == true && model.scanSession?.automatic == false ? "Add Scan Page" : "Scan…", #selector(captureScan), symbol: "doc.viewfinder", enabled: !model.busy || model.scanSession != nil, shortcut: "scan"))
         menu.addItem(item("Scrolling", #selector(captureScroll), symbol: "scroll", custom: "capture-scroll", enabled: !model.busy, shortcut: "scroll"))
         menu.addItem(item("Text", #selector(captureText), symbol: "text.viewfinder", custom: "capture-text", enabled: !model.busy, shortcut: "text"))
         menu.addItem(item("Formula", #selector(captureFormula), symbol: "sum", custom: "capture-formula", enabled: !model.busy, shortcut: "formula"))
@@ -283,6 +290,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
     @objc private func captureRegion() { startCapture() }
     @objc private func repeatCaptureArea() { startCapture(reuseArea: true) }
     @objc private func captureAll() { startCapture(fullScreen: true) }
+    @objc private func captureScan() { model.startScan() }
     @objc private func captureScroll() { startCapture(scrolling: true) }
     @objc private func captureText() { startCapture(action: .text) }
     @objc private func captureFormula() { startCapture(action: .formula) }

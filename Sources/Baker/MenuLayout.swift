@@ -6,7 +6,7 @@ struct BakerMenuGroup: Identifiable {
     let title: String
     let entries: [(id: String, title: String)]
     static let all: [Self] = [
-        .init(id: "capture", title: "Capture", entries: [("captureAll", "All"), ("captureRegion", "Area"), ("captureWindow", "Window…"), ("repeatCaptureArea", "Repeat Area"), ("captureScroll", "Scrolling"), ("captureText", "Text"), ("captureFormula", "Formula"), ("recordScreen", "Record…")]),
+        .init(id: "capture", title: "Capture", entries: [("captureAll", "All"), ("captureRegion", "Area"), ("captureWindow", "Window…"), ("repeatCaptureArea", "Repeat Area"), ("captureScroll", "Scrolling"), ("captureScan", "Scan…"), ("captureText", "Text"), ("captureFormula", "Formula"), ("recordScreen", "Record…")]),
         .init(id: "files", title: "Clipboard & Files", entries: [("openImage", "Open Files"), ("newFormulaWorkspace", "Formula Workspace"), ("pasteImage", "Open Clipboard Image"), ("readClipboard", "Read Clipboard Text")]),
         .init(id: "recent", title: "Recent", entries: [("openCaptureFolder", "Open Capture Folder"), ("showPreview", "Last Capture"), ("showHistory", "Capture History"), ("showResult", "Last Result"), ("showExport", "Last Export")])
     ]

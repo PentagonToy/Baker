@@ -1,10 +1,8 @@
 # Baker
 
-Stable version **0.1.0** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.0/Baker-0.1.0-arm64.dmg) · [Changelog](../CHANGELOG.md).
+Stable version **0.1.1** · [Download for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.1/Baker-0.1.1-arm64.dmg) · [Changelog](../CHANGELOG.md).
 
 **A keen eye. A fresh result.**
-
-Capture the detail. Serve the result fresh from Baker.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../others/assests/banner/baker_banner_dark.svg"><img src="../others/assests/banner/baker_banner_light.svg" alt="Baker — Capture. Recognise. Create."></picture>
 

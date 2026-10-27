@@ -181,6 +181,7 @@ final class Workbench: ObservableObject {
 
     var onResultReady: (() -> Void)?
     var onExportReady: (() -> Void)?
+    var scanSession: ScanSession?
     let captureFlow: CaptureCoordinator
     let recognitionFlow = RecognitionCoordinator()
     let documentFlow = DocumentCoordinator()
@@ -200,6 +201,7 @@ final class Workbench: ObservableObject {
         formulaSetup.cancel(); pdfEngineSetup.cancel(); shuttingDown = true
         await filesInbox.close(); await pdfEngineSetup.close()
         library.cancelThumbnails(); clipboardFlow.invalidate(); initialLoadTask?.cancel(); importTask?.cancel(); historyRefreshTask?.cancel()
+        await scanSession?.close(); scanSession = nil
         await captureFlow.close(); await recognitionFlow.close(); await documentFlow.close(); await plugins.close(); await fileExports.close(); await clipboardFlow.close()
         _ = await initialLoadTask?.result; _ = await importTask?.result; _ = await historyRefreshTask?.result
         await library.flushHistory()

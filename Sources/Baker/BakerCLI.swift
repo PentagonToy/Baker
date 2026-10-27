@@ -14,7 +14,7 @@ enum BakerAutomation {
         var offset: Int?
     }
     static var directory: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Baker/Automation") }
-    static let commands = ["plugins", "plugin-use", "plugin-probe", "status", "diagnostics", "history", "formulas", "copy-formula", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf"]
+    static let commands = ["plugins", "plugin-use", "plugin-probe", "status", "diagnostics", "history", "formulas", "copy-formula", "result", "capture", "record", "stop", "cancel", "import", "open-formula", "copy", "settings", "clear-cache", "pdf", "scan"]
     static func emit(_ value: [String: Any]) -> Int32 {
         let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])) ?? Data("{}".utf8)
         FileHandle.standardOutput.write(data + Data("\n".utf8))
@@ -27,7 +27,7 @@ enum BakerCLI {
         guard arguments.first == "--cli" else { return nil }
         let args = Array(arguments.dropFirst()), command = args.first ?? "help"
         do {
-            if command == "help" { return BakerAutomation.emit(["ok": true, "version": 1, "commands": BakerAutomation.commands + ["version", "unicode", "formula", "request"], "syntax": "baker COMMAND [PATH] [--format VALUE] [--text TEXT] [--output PATH] [--limit N] [--offset N] [--timeout SECONDS]", "captureFormats": ["area", "all", "window", "repeat", "scroll", "text", "formula"], "recordFormats": ["video", "gif"], "notes": "Live commands require Baker running. Capture/record return accepted; poll status/result. Formula and Unicode run headlessly."]) }
+            if command == "help" { return BakerAutomation.emit(["ok": true, "version": 1, "commands": BakerAutomation.commands + ["version", "unicode", "formula", "request"], "syntax": "baker COMMAND [PATH] [--format VALUE] [--text TEXT] [--output PATH] [--limit N] [--offset N] [--timeout SECONDS]", "captureFormats": ["area", "all", "window", "repeat", "scroll", "text", "formula"], "recordFormats": ["video", "gif"], "scanFormats": ["status", "start", "configure", "add", "pause", "resume", "continue", "review", "select", "retake", "remove", "move", "save", "close"], "notes": "Live commands require Baker running. Capture/record return accepted; poll status/result. Formula and Unicode run headlessly."]) }
             if command == "version" { return BakerAutomation.emit(["ok": true, "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Development"]) }
             func option(_ key: String) -> String? { guard let i = args.firstIndex(of: key), args.indices.contains(i+1) else { return nil }; return args[i+1] }
             if command == "unicode" { let value = UnicodeMath.approximate(option("--text") ?? args.dropFirst().first ?? ""); return BakerAutomation.emit(["ok": true, "text": value.text, "warnings": value.warnings, "available": !value.text.isEmpty]) }

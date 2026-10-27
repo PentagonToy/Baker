@@ -75,6 +75,7 @@ import Darwin
                     "thumbnails": ["cached": m.library.cachedThumbnailCount, "pending": m.library.pendingThumbnailCount, "cacheEntryLimit": 6],
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
+                    "scan": m.scanSession?.resourceState ?? ["state": "idle"],
                     "document": ["running": m.documentFlow.isConverting],
                     "clipboard": ["preparingImage": m.clipboardFlow.isPreparingImage],
                     "recognitionProvider": m.plugins.selected(for: "formula")?.manifest.label ?? "Baker · On this Mac",
@@ -102,6 +103,7 @@ import Darwin
                         "output": output, "copyAvailable": !output.isEmpty] as [String: Any]
             }]
         case "result": return ["ok": true,"text": m.text,"latex": m.latex,"unicode": m.unicode,"status": m.status,"busy": m.busy,"export": m.exportURL?.path ?? ""]
+        case "scan": return try await handleScan(r, m)
         case "cancel": m.cancelJob(); return ["ok": true]
         case "stop": m.captureFlow.stopRecording(); return ["ok": true]
         default: break
