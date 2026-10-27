@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Release the formula popover’s hosted content after closing; reopening already constructs a fresh view.
+
 - Cancel thumbnail decoding when its last consumer leaves and keep its cache within six entries.
 - Serialise image-copy preparation, cancel superseded encoding and drain it on shutdown; expose its state in CLI diagnostics.
 

@@ -1,3 +1,6 @@
+@MainActor final class VisiblePopoverFixture: NSPopover {
+    override var isShown: Bool { true }
+}
 import AppKit
 import SwiftUI
 
@@ -29,6 +32,19 @@ import SwiftUI
     windows.hide(.formula, .result)
     windows.closeAll()
     check(WorkspaceWindows.Role.allCases.allSatisfy { windows.existing($0) == nil }, "Shutdown releases all windows")
+    let closedPopover = NSPopover()
+    weak var releasedController: NSViewController?
+    autoreleasepool {
+        let controller = NSViewController(); controller.view = NSView()
+        closedPopover.contentViewController = controller; releasedController = controller
+    }
+    check(releasedController != nil, "Closed popover initially retains its hosted controller")
+    WorkspaceWindows.releaseClosedPopoverContent(closedPopover)
+    check(closedPopover.contentViewController == nil && releasedController == nil, "Closed transient content is released")
+    let visiblePopover = VisiblePopoverFixture(), visibleController = NSViewController()
+    visibleController.view = NSView(); visiblePopover.contentViewController = visibleController
+    WorkspaceWindows.releaseClosedPopoverContent(visiblePopover)
+    check(visiblePopover.contentViewController === visibleController, "A visible popover keeps its controller")
     print("Window lifecycle:", checks, "checks passed")
 }
 Task { @MainActor in run(); exit(0) }
