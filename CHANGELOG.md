@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Use a square-root icon for Formula Workspace, with a compatible fallback on older systems.
+
+- Make Scan cancellation and overlapping source selection safe, retain recoverable drafts and support Down Arrow page turns.
+- Send a saved capture to Trash only through its thumbnail close action.
+- Preserve delimited formula rows and annotations in previews and Keynote output. Align formula status and style controls.
+- Add macOS build CI and standard core tests. Align the Swift package minimum with macOS 26.0.
+
 ## 0.1.1 — 2026-10-27
 
 - Collect screen pages in a recoverable Scan draft, review their order and save one PDF with optional on-device searchable text.
@@ -22,6 +31,11 @@
 - Harden ZIP imports, limit inherited process variables and remove saved credentials with their plugin.
 - Align history controls and provider badges; offer 7-, 10-, 30- and 90-day formula retention.
 - Display update notes with readable headings, lists, emphasis and links instead of raw Markdown.
+
+## 0.0.8 — 2026-10-26
+
+- Add one optional, approved OCR plugin with a generic JSON protocol and optional Keychain credentials.
+- Keep local recognition as fallback, keep cancellation final and distinguish local and plugin usage.
 
 ## 0.0.7 — 2026-10-26
 

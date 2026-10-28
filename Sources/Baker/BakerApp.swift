@@ -230,7 +230,9 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
             item.keyEquivalent = binding.menuKey
             item.keyEquivalentModifierMask = binding.menuModifiers
         }
+        #if compiler(>=6.4)
         if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
+        #endif
         item.image = custom.map { BakerImages.template($0, fallback: symbol) } ?? BakerImages.system(symbol)
         return item
     }
@@ -259,7 +261,9 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
         }
         menu.addItem(.separator()); menu.addItem(heading("CLIPBOARD & FILES"))
         menu.addItem(item("Open Files", #selector(openImage), symbol: "folder", custom: "files-open", enabled: !model.busy))
-        menu.addItem(item("Formula Workspace", #selector(newFormulaWorkspace), symbol: "sum"))
+        let formulaWorkspace = item("Formula Workspace", #selector(newFormulaWorkspace), symbol: "radicand.squareroot")
+        if formulaWorkspace.image == nil { formulaWorkspace.image = BakerImages.system("x.squareroot") }
+        menu.addItem(formulaWorkspace)
         menu.addItem(item("Open Clipboard Image", #selector(pasteImage), symbol: "clipboard", custom: "clipboard-image", enabled: !model.busy))
         menu.addItem(item("Read Clipboard Text", #selector(readClipboard), symbol: "text.viewfinder", custom: "clipboard-text", enabled: !model.busy))
         if model.busy && !model.isRecording {

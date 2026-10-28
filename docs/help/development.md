@@ -19,7 +19,7 @@ BAKER_RUNTIME_DIRECTORY=/external/build/runtime BAKER_BUILD_DIRECTORY=/external/
 
 The runtime tool copies the standalone interpreter and dependencies, retains notices, relocates non-system libraries and checks imports. The app build stages pinned image tools offline, relocates Potrace’s private library and signs nested native binaries. See [image-tool packaging](https://github.com/PentagonToy/Baker/tree/main/others/image-tools).
 
-Current packaged libraries require macOS 26.0 for capture and 26.2 for PDF conversion. The Swift source target of macOS 14 does not establish compatibility with those older systems. The runtime manifests determine the packaged minimum.
+Current packaged libraries require macOS 26.0 for capture and 26.2 for PDF conversion. The Swift package also requires macOS 26.0. Runtime manifests can raise the minimum for a packaged engine.
 
 Use `BAKER_SIGN_MODE=developer-id` and `BAKER_SIGN_IDENTITY` for Developer ID Application signing. This enables hardened runtime and secure timestamps for all bundled native code. The default `local` mode retains development signing and provides no notarisation. After building, `tools/package_dmg.sh /path/to/Baker.app /external/build/Baker.dmg` creates and verifies the disk image. See [release preparation](https://github.com/PentagonToy/Baker/blob/main/others/release/README.md) for final checks.
 
@@ -67,6 +67,12 @@ CaptureStore serialises archive access. Imports preserve the source on failure. 
 Formula Workspace decodes the original only in Original or Both mode, limiting its display copy to 2,048 pixels on the longest side. Recognition, copying and exports retain the saved file. The formula renderer accepts up to 16 waiting requests; clearing its cache cancels pending work and releases the app’s WebKit view. Use the [CLI diagnostics](cli.md) to inspect app memory and work queues without loading models or clearing data.
 
 ProcessCompletion observes termination before launch and wakes waiting callers. A 100 ms watchdog checks cancellation and output limits; PDF progress reads occur at most every 250 ms and read up to 16 KiB. Monotonic deadlines allow two seconds for termination before killing and reaping a child. Failure diagnostics retain at most 500 characters from the final 2 KiB of a log.
+
+## Standard tests and CI
+
+Use full Xcode for `swift test --scratch-path /absolute/external/baker-build --jobs 2`. If Command Line Tools are selected, prefix the command with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The core XCTest cases cover language selection and bounded process execution, including an explicit isolated child environment.
+
+The macOS Swift workflow builds the release executable, runs standard tests and exercises the synthetic capture archive regression for relevant main/dev pushes and pull requests. It does not capture the screen, download OCR models, package a runtime, sign or publish the app. Existing regression executables and focused checks remain available. The CI selection does not replace OCR-quality, plugin-service or installed-app validation.
 
 ## Focused checks
 

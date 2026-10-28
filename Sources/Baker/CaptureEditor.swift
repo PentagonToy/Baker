@@ -237,17 +237,7 @@ private struct CapturePaletteView: View {
             Text("Okabe–Ito").font(.headline)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(36)), count: 3), spacing: 10) {
                 ForEach(CaptureColour.allCases) { colour in
-                    Button { state.selectedColour = colour; state.showingPalette = false } label: {
-                        Circle().fill(colour.colour).frame(width: 30, height: 30)
-                            .overlay(Circle().strokeBorder(.primary.opacity(0.2)))
-                            .overlay {
-                                if state.selectedColour == colour {
-                                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(colour.checkColour)
-                                }
-                            }.frame(width: 36, height: 36)
-                    }.buttonStyle(.plain).help(colour.name + " · " + colour.rawValue)
-                        .accessibilityLabel(colour.name + " " + colour.rawValue)
-                        .accessibilityAddTraits(state.selectedColour == colour ? .isSelected : [])
+                    swatch(colour)
                 }
             }
             VStack(alignment: .leading, spacing: 3) {
@@ -257,6 +247,20 @@ private struct CapturePaletteView: View {
             }
         }.padding(16).background(BakerTheme.surface)
     }
+    private func swatch(_ colour: CaptureColour) -> some View {
+            Button { state.selectedColour = colour; state.showingPalette = false } label: {
+                Circle().fill(colour.colour).frame(width: 30, height: 30)
+                    .overlay(Circle().strokeBorder(.primary.opacity(0.2)))
+                    .overlay {
+                        if state.selectedColour == colour {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(colour.checkColour)
+                        }
+                    }.frame(width: 36, height: 36)
+            }.buttonStyle(.plain).help(colour.name + " · " + colour.rawValue)
+                .accessibilityLabel(colour.name + " " + colour.rawValue)
+                .accessibilityAddTraits(state.selectedColour == colour ? .isSelected : [])
+    }
+
 }
 
 private struct CaptureCanvas: NSViewRepresentable {

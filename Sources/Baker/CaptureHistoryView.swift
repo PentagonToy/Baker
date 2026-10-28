@@ -43,69 +43,96 @@ struct CaptureHistoryView: View {
             (state.filter == .all || (state.filter == .gifs && $0.isGIF) || (state.filter == .videos && !$0.isGIF))
                 && (query.isEmpty || $0.fileName.localizedCaseInsensitiveContains(query))
         }
-        return (records.map(CaptureHistoryItem.image) + media.map(CaptureHistoryItem.recording)).sorted { $0.date > $1.date }
+        var result: [CaptureHistoryItem] = records.map { CaptureHistoryItem.image($0) }
+        result.append(contentsOf: media.map { CaptureHistoryItem.recording($0) })
+        result.sort { (first: CaptureHistoryItem, second: CaptureHistoryItem) -> Bool in first.date > second.date }
+        return result
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Capture History").font(BakerTypography.title)
-                Spacer()
-                Button(action: model.revealCaptures) { Label("Open Folder", systemImage: "folder") }
-            }
-            HStack(spacing: 14) {
-                Picker("Capture type", selection: $state.filter) {
-                    ForEach(CaptureHistoryFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 460)
-                Spacer()
-                Text("\(items.count) captures").font(BakerTypography.supporting).foregroundStyle(.secondary)
-            }
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search formulas or filenames", text: $state.query).textFieldStyle(.plain)
-                if state.searching { ProgressView().controlSize(.small) }
-                if !state.query.isEmpty {
-                    Button { state.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).frame(width: 28, height: 28).accessibilityLabel("Clear search")
-                }
-            }.padding(10).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 9))
-            if items.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "photo.stack").font(.system(size: 36)).foregroundStyle(.secondary)
-                    Text(model.captures.isEmpty && model.recordings.isEmpty ? "Your captures will appear here" : state.searching ? "Searching…" : "No matching captures").font(.headline)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 16)], spacing: 16) {
-                        ForEach(Array(items.prefix(state.limit))) { item in
-                            switch item {
-                            case .image(let record):
-                                CaptureHistoryCard(model: model, record: record, selected: state.selected == record.id,
-                                    select: { state.selected = record.id }, show: { show(record) })
-                            case .recording(let record):
-                                RecordingHistoryCard(model: model, record: record)
-                            }
-                        }
-                    }.padding(2)
-                    if state.limit < items.count { Button("Show More") { state.limit += 100 }.padding(.top, 16) }
-                }
-            }
-        }.buttonStyle(BakerButtonStyle()).padding(20).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
+        historyContent
+            .buttonStyle(BakerButtonStyle()).padding(20).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
             .frame(minWidth: 720, minHeight: 460)
             .onChange(of: state.query) { state.limit = 100 }
             .onChange(of: state.filter) { state.limit = 100 }
-            .task(id: state.query + ":" + String(model.historyRevision) + ":" + String(model.captures.count)) {
-                let token = UUID(); state.searchToken = token
-                let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !query.isEmpty else { state.matches = []; state.searching = false; return }
-                state.searching = true
-                defer { if state.searchToken == token { state.searching = false } }
-                do {
-                    try await Task.sleep(nanoseconds: 180_000_000)
-                    let matches = try await model.searchCaptures(query)
-                    guard !Task.isCancelled, state.searchToken == token else { return }
-                    state.matches = matches
-                } catch is CancellationError {} catch { model.report(error, fallback: .storageFailed) }
+            .task(id: searchIdentity) { await search() }
+    }
+    private var searchIdentity: String {
+        let revision = String(model.historyRevision)
+        let count = String(model.captures.count)
+        return [state.query, revision, count].joined(separator: ":")
+    }
+    private var historyContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            historyHeader
+            filters
+            searchField
+            results
+
+        }
+    }
+    private var historyHeader: some View {
+        HStack {
+            Text("Capture History").font(BakerTypography.title)
+            Spacer()
+            Button(action: model.revealCaptures) { Label("Open Folder", systemImage: "folder") }
+        }
+    }
+    private var filters: some View {
+        HStack(spacing: 14) {
+            Picker("Capture type", selection: $state.filter) {
+                ForEach(CaptureHistoryFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 460)
+            Spacer()
+            Text("\(items.count) captures").font(BakerTypography.supporting).foregroundStyle(.secondary)
+        }
+    }
+    private var searchField: some View {
+        HStack {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search formulas or filenames", text: $state.query).textFieldStyle(.plain)
+            if state.searching { ProgressView().controlSize(.small) }
+            if !state.query.isEmpty {
+                Button { state.query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain).frame(width: 28, height: 28).accessibilityLabel("Clear search")
             }
+        }.padding(10).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 9))
+    }
+    @ViewBuilder
+    private var results: some View {
+        if items.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "photo.stack").font(.system(size: 36)).foregroundStyle(.secondary)
+                Text(model.captures.isEmpty && model.recordings.isEmpty ? "Your captures will appear here" : state.searching ? "Searching…" : "No matching captures").font(.headline)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 16)], spacing: 16) {
+                    ForEach(Array(items.prefix(state.limit))) { item in
+                        switch item {
+                        case .image(let record):
+                            CaptureHistoryCard(model: model, record: record, selected: state.selected == record.id,
+                                select: { state.selected = record.id }, show: { show(record) })
+                        case .recording(let record):
+                            RecordingHistoryCard(model: model, record: record)
+                        }
+                    }
+                }.padding(2)
+                if state.limit < items.count { Button("Show More") { state.limit += 100 }.padding(.top, 16) }
+            }
+        }
+    }
+    private func search() async {
+        let token = UUID(); state.searchToken = token
+        let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { state.matches = []; state.searching = false; return }
+        state.searching = true
+        defer { if state.searchToken == token { state.searching = false } }
+        do {
+            try await Task.sleep(nanoseconds: 180_000_000)
+            let matches = try await model.searchCaptures(query)
+            guard !Task.isCancelled, state.searchToken == token else { return }
+            state.matches = matches
+        } catch is CancellationError {} catch { model.report(error, fallback: .storageFailed) }
     }
 }
 
