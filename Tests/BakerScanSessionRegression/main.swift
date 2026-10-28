@@ -2,8 +2,9 @@ struct CaptureRegion {let screen:NSScreen;let rect:CGRect}
 struct PreparedCapture {func image() async throws -> CGImage {throw CancellationError()};func preview() async throws -> CGImage {throw CancellationError()}}
 struct PreparedWindowCapture {let region:CaptureRegion;let capture:PreparedCapture;let application:NSRunningApplication?;let frame:CGRect;let title:String}
 @MainActor final class CaptureService {
+ static var requests = 0
  var pending:CheckedContinuation<PreparedWindowCapture?,Error>?
- func prepareWindow() async throws -> PreparedWindowCapture? {try await withCheckedThrowingContinuation {pending=$0}}
+ func prepareWindow() async throws -> PreparedWindowCapture? {Self.requests += 1;return try await withCheckedThrowingContinuation {pending=$0}}
  func prepare(_ region:CaptureRegion) async throws -> PreparedCapture {throw CancellationError()}
  func cancelSelection(){let callback=pending;pending=nil;callback?.resume(throwing:CancellationError())}
 }
@@ -40,7 +41,12 @@ Task { @MainActor in
    let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds)!;host.cacheDisplay(in:host.bounds,to:bitmap)
    try! bitmap.representation(using:.png,properties:[:])!.write(to:root.appendingPathComponent("setup.png"))
   }
-  if selecting {session.chooseSource();try! await Task.sleep(for:.milliseconds(30))}
+  if selecting {
+   let before = CaptureService.requests
+   session.chooseSource();try! await Task.sleep(for:.milliseconds(30))
+   session.chooseSource();try! await Task.sleep(for:.milliseconds(30))
+   precondition(CaptureService.requests == before + 1, "A second source picker must not replace pending selection work")
+  }
   if action == "review-selection" {
    session.review();try! await Task.sleep(for:.milliseconds(50))
    precondition(session.phase == .review, "A cancelled picker must not replace Review with Setup")

@@ -100,7 +100,7 @@ import UniformTypeIdentifiers
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
     }
     func chooseSource() {
-        guard !working else { return }
+        guard !working, task == nil, phase != .closed else { return }
         stopAuto(); phase = .selecting; window?.orderOut(nil); panel?.orderOut(nil)
         task = Task { [weak self] in
             guard let self else { return }
@@ -127,7 +127,7 @@ import UniformTypeIdentifiers
         }
     }
     func beginConfiguredScan(automatic: Bool) {
-        guard !working, phase == .setup, let source = windowSource, let region else { return }
+        guard !working, task == nil, phase == .setup, let source = windowSource, let region else { return }
         refreshAccessibility()
         if automatic && !accessibilityAllowed { openAccessibilitySettings(); return }
         turnDelay = turnDelay.isFinite ? min(60, max(0.1, turnDelay)) : 3
@@ -184,7 +184,7 @@ import UniformTypeIdentifiers
         return cropped
     }
     func continueCapture(retake: UUID? = nil) {
-        guard !working else { return }
+        guard !working, task == nil, phase != .closed else { return }
         stopAuto(); automaticSession = false; replacement = retake
         guard let region else { chooseArea(retake: retake); return }
         window?.orderOut(nil); phase = .capturing; showControls(region)
@@ -274,7 +274,10 @@ import UniformTypeIdentifiers
         guard phase == .capturing || phase == .selecting else { return }
         startAutomatically = false; stopAuto(); service.cancelSelection(); imagePicker.cancel()
         if working { message = "Finishing the current page…"; let pending = task; Task { [weak self] in await pending?.value; self?.showReview() } }
-        else { task?.cancel(); task = nil; showReview() }
+        else {
+            task?.cancel(); let pending = task
+            Task { [weak self] in await pending?.value; self?.showReview() }
+        }
     }
     private func showReview(activate: Bool = true) {
         guard phase != .closed else { return }

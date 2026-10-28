@@ -247,13 +247,11 @@ struct OCRPluginSettings: View {
                         HStack {
                             Text(job.title)
                             Spacer(minLength: 16)
-                            Picker(job.title + " preferred provider", selection: Binding(get: { plugins.preferred(for: job) }, set: { value in
+                            BakerSegmentedPicker(title: job.title + " preferred provider", selection: Binding(get: { plugins.preferred(for: job) }, set: { value in
                                 do { try plugins.select(value.isEmpty ? "local" : value, job: job) }
                                 catch { plugins.message = "Wait for the current job before changing priority." }
-                            })) {
-                                Text("Baker").tag("")
-                                Text("Plugin first").tag(entry.id)
-                            }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                            }), choices: [("Baker", ""), ("Plugin first", entry.id)])
+                                .frame(width: 240, height: 24)
                                 .disabled(!entry.manifest.operations.contains(job.operation))
                         }
                     }

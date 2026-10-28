@@ -2,6 +2,62 @@ import Foundation
 
 /// TeX ignores ordinary math whitespace. Keep text groups and command boundaries intact.
 public enum LatexWhitespace {
+    /// Turn a sequence of delimited equations into one math body. Keep unrecognised
+    /// or incomplete input untouched so a preview failure never silently drops source.
+    public static func mathBody(_ source: String) -> String {
+        let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard source.count <= 8000 else { return source }
+        let input = Array(source)
+        var index = 0, rows: [String] = []
+        func starts(_ token: String, at offset: Int) -> Bool {
+            input.dropFirst(offset).starts(with: Array(token))
+        }
+        while index < input.count {
+            while index < input.count && input[index].isWhitespace { index += 1 }
+            guard index < input.count else { break }
+            let pairs = [(#"\("#, #"\)"#), (#"\["#, #"\]"#), ("$$", "$$"), ("$", "$")]
+            guard let (open, close) = pairs.first(where: { starts($0.0, at: index) }) else { return source }
+            index += open.count
+            let start = index
+            var depth = 0
+            while index < input.count {
+                if depth == 0 && starts(close, at: index) { break }
+                if input[index] == "%" {
+                    while index < input.count && !input[index].isNewline { index += 1 }
+                    continue
+                }
+                if input[index] == "\\" { index = min(input.count, index + 2); continue }
+                if input[index] == "{" { depth += 1 }
+                if input[index] == "}" { depth -= 1 }
+                guard depth >= 0 else { return source }
+                index += 1
+            }
+            guard index < input.count, depth == 0 else { return source }
+            var row = String(input[start..<index])
+            guard !row.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return source }
+            index += close.count
+            let annotationStart = index
+            while index < input.count && !pairs.contains(where: { starts($0.0, at: index) }) { index += 1 }
+            let annotation = String(input[annotationStart..<index]).trimmingCharacters(in: .whitespacesAndNewlines)
+            // Only literal annotations are understood outside maths. Preserve other TeX as-is.
+            guard !annotation.contains("\\") else { return source }
+            if !annotation.isEmpty {
+                var escaped = ""
+                for character in annotation {
+                    switch character {
+                    case "{", "}", "$", "#", "%", "&", "_": escaped += "\\" + String(character)
+                    case "~": escaped += #"\textasciitilde{}"#
+                    case "^": escaped += #"\textasciicircum{}"#
+                    default: escaped.append(character.isNewline ? " " : character)
+                    }
+                }
+                row += #"\quad\text{"# + escaped + "}"
+            }
+            rows.append(row)
+        }
+        guard !rows.isEmpty else { return source }
+        return rows.count == 1 ? rows[0] : #"\begin{gathered}"# + rows.joined(separator: "\n\\\\\n") + #"\end{gathered}"#
+    }
     public static let standardOperators: Set<String> = ["sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "arcsin", "arccos", "arctan", "log", "ln", "lg", "exp", "lim", "liminf", "limsup", "injlim", "projlim", "sup", "inf", "max", "min", "det", "gcd", "arg", "deg", "dim", "hom", "ker", "Pr"]
     public static func operatorText(_ name: String) -> String {
         ["liminf": "lim inf", "limsup": "lim sup", "injlim": "inj lim", "projlim": "proj lim"][name] ?? name

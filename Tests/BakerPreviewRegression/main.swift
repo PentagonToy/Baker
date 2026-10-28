@@ -32,9 +32,15 @@ Task { @MainActor in
         ("hydrate", #"\ce{CuSO4 * 5 H2O}"#),
         ("plain-chemistry", #"\mathrm{SO_4}^{2-}+{}^{14}_{6}\mathrm{C}"#),
         ("delimited", #"$$\frac{a}{b}+\sqrt{x}$$"#),
+        ("delimited-derivatives", #"\(\bar{w}_6=\frac{\partial f}{\partial w_6}=1\) (seed)"# + "\n" + #"\(\bar{w}_5=\bar{w}_6\cdot\frac{\partial w_6}{\partial w_5}=1\)"#),
+        ("delimited-label", #"\[x=1\] (seed_1 & 50%)"#),
         ("safe-text", #"\text{<script>alert(1)</script>}"#)
     ]
     fixtures += LatexWhitespace.standardOperators.sorted().map { ("operator-" + $0, "\\" + $0 + " x") }
+    check(LatexWhitespace.mathBody(#"\(x=1\) \(y=2\)"#) == "\\begin{gathered}x=1\n\\\\\ny=2\\end{gathered}", "Separate math spans keep separate rows")
+    for source in [#"\(x=1\) \(y=2"#, #"\(x=1\) \unknown{y}"#, #"x+\text{literal \(value\)}"#] {
+        check(LatexWhitespace.mathBody(source) == source, "Incomplete or ambiguous source is preserved: " + source)
+    }
     do {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         if CommandLine.arguments.count > 3 {

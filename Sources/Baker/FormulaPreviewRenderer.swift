@@ -42,12 +42,7 @@ final class FormulaPreviewRenderer: NSObject, WKNavigationDelegate {
         guard latex.count <= 8000, latex.utf8.count <= 32_000 else {
             throw BakerError(message: "Formula preview is limited to 8,000 characters. The LaTeX is still available.", code: .resourceLimit)
         }
-        var source = LatexWhitespace.compact(latex)
-        for (open, close) in [("$$", "$$"), (#"\["#, #"\]"#), (#"\("#, #"\)"#), ("$", "$")] {
-            if source.hasPrefix(open), source.hasSuffix(close), source.count >= open.count + close.count {
-                source = String(source.dropFirst(open.count).dropLast(close.count)); break
-            }
-        }
+        let source = LatexWhitespace.compact(LatexWhitespace.mathBody(latex))
         guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw BakerError(message: "There is no formula to preview.", code: .invalidInput)
         }
