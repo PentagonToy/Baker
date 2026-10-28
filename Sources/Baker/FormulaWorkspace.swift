@@ -123,11 +123,12 @@ struct FormulaWorkspace: View {
                                 formatRow(.unicode, text: result.unicode, result: result, id: record.id)
                             }.background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
                                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BakerTheme.border))
-                            HStack {
+                            HStack(spacing: 10) {
                                 if result.format == .latex {
+                                    Text("LaTeX style").font(BakerTypography.supporting).frame(width: 78, alignment: .leading)
                                     Picker("LaTeX style", selection: Binding(get: { result.style }, set: { model.chooseLatexStyle(record.id, $0) })) {
                                         ForEach(LatexCopyStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                                    }.frame(maxWidth: 300)
+                                    }.labelsHidden().frame(width: 168)
                                 } else if result.format == .markdown {
                                     Text("Display maths · $$ delimiters on separate lines").font(BakerTypography.supporting).foregroundStyle(.secondary)
                                 } else if result.format == .keynote {
@@ -135,7 +136,7 @@ struct FormulaWorkspace: View {
                                         .font(BakerTypography.supporting).foregroundStyle(.secondary).textSelection(.enabled)
                                 } else { Text(result.warning).font(BakerTypography.supporting).foregroundStyle(.secondary) }
                                 Spacer()
-                            }
+                            }.padding(.horizontal, 14)
                         }
                     } else {
                         inputSlot
@@ -221,14 +222,19 @@ struct FormulaWorkspace: View {
         HStack(spacing: 10) {
             Text(format.rawValue).font(BakerTypography.section).frame(width: 78, alignment: .leading)
             ScrollView(.horizontal) { Text((format == .unicode && result.unicodeUnavailable ? "Unavailable for this formula" : text).replacingOccurrences(of: "\n", with: " ↵ ")).font(format == .unicode ? Font(model.selectedMathFont.resolvedFont.withSize(16)) : .system(size: 13, design: .monospaced)).lineLimit(1).textSelection(.enabled) }.scrollContentBackground(.hidden).frame(height: format == .unicode ? 24 : 18)
-            if format == .unicode && result.unicodeUnavailable { Button { state.showUnicodeWarning.toggle() } label: { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
-                    .buttonStyle(.borderless).help(result.warning).accessibilityLabel("Unicode representation warning: " + result.warning)
-                    .popover(isPresented: $state.showUnicodeWarning, arrowEdge: .bottom) {
-                        Text(result.warning).font(BakerTypography.body).padding(14).frame(width: 300).fixedSize(horizontal: false, vertical: true)
-                    } }
-            Label("Copied", systemImage: "checkmark.circle.fill").font(BakerTypography.supporting).foregroundStyle(BakerTheme.success)
-                .frame(width: 68).opacity(result.copiedFormat == format ? 1 : 0)
-                .accessibilityHidden(result.copiedFormat != format)
+            Group {
+                if format == .unicode && result.unicodeUnavailable {
+                    Button { state.showUnicodeWarning.toggle() } label: { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
+                        .buttonStyle(.borderless).help(result.warning).accessibilityLabel("Unicode representation warning: " + result.warning)
+                        .popover(isPresented: $state.showUnicodeWarning, arrowEdge: .bottom) {
+                            Text(result.warning).font(BakerTypography.body).padding(14).frame(width: 300).fixedSize(horizontal: false, vertical: true)
+                        }
+                } else {
+                    Label("Copied", systemImage: "checkmark.circle.fill").font(BakerTypography.supporting).foregroundStyle(BakerTheme.success)
+                        .opacity(result.copiedFormat == format ? 1 : 0)
+                        .accessibilityHidden(result.copiedFormat != format)
+                }
+            }.frame(width: 68, alignment: .trailing)
             Button { model.chooseFormulaFormat(id, format) } label: { Image(systemName: "doc.on.doc").font(.system(size: 14)).frame(width: 16, height: 20) }
                 .buttonStyle(BakerButtonStyle()).accessibilityLabel("Copy \(format.rawValue)").disabled(format == .unicode && text.isEmpty).help("Select and copy \(format.rawValue)")
         }.padding(.horizontal, 14).padding(.vertical, 6).frame(minHeight: 46).background(result.format == format ? BakerTheme.accent.opacity(0.065) : Color.clear)

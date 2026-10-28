@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Baker",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("26.0")],
     products: [.executable(name: "Baker", targets: ["Baker"]),
                .executable(name: "BakerRegression", targets: ["BakerRegression"]),
                .executable(name: "BakerPDFRegression", targets: ["BakerPDFRegression"]),
@@ -23,6 +23,7 @@ let package = Package(
         .executableTarget(name: "BakerClipboardRegression", dependencies: ["BakerCore"], path: "Tests/BakerClipboardRegression"),
         .executableTarget(name: "BakerFormulaRegression", dependencies: ["BakerCore"], path: "Tests/BakerFormulaRegression"),
         .executableTarget(name: "BakerScrollRegression", dependencies: ["BakerCore"], path: "Tests/BakerScrollRegression"),
-        .executableTarget(name: "BakerLanguageRegression", dependencies: ["BakerCore"], path: "Tests/BakerLanguageRegression")
+        .executableTarget(name: "BakerLanguageRegression", dependencies: ["BakerCore"], path: "Tests/BakerLanguageRegression"),
+        .testTarget(name: "BakerCoreTests", dependencies: ["BakerCore"])
     ]
 )

@@ -10,9 +10,10 @@ import BakerCore
     let size: CGSize
     let point: CGPoint?
     private let button: AXUIElement?
-    init(application: NSRunningApplication, region: CaptureRegion, point: CGPoint?, expectedWindow: CGRect?, expectedTitle: String?) throws {
+    private let keyCode: CGKeyCode
+    init(application: NSRunningApplication, region: CaptureRegion, point: CGPoint?, expectedWindow: CGRect?, expectedTitle: String?, keyCode: CGKeyCode = 124) throws {
         guard AXIsProcessTrusted() else { throw BakerError(message: "Allow Baker to control the reader in System Settings.", code: .permissionDenied) }
-        self.application = application; self.point = point
+        self.application = application; self.point = point; self.keyCode = keyCode
         element = try Self.focused(application.processIdentifier)
         origin = try Self.point(element); size = try Self.size(element)
         if let expectedWindow {
@@ -62,8 +63,8 @@ import BakerCore
                   let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { throw BakerError(message: "Could not click the next-page button.", code: .operationFailed) }
             down.flags = []; up.flags = []; down.postToPid(application.processIdentifier); up.postToPid(application.processIdentifier); return
         }
-        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 124, keyDown: true),
-              let up = CGEvent(keyboardEventSource: nil, virtualKey: 124, keyDown: false) else { throw BakerError(message: "Could not turn the page.", code: .operationFailed) }
+        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { throw BakerError(message: "Could not turn the page.", code: .operationFailed) }
         down.flags = []; up.flags = []; down.postToPid(application.processIdentifier); up.postToPid(application.processIdentifier)
     }
     private static func pressable(at point: CGPoint, application: pid_t, window: AXUIElement) -> AXUIElement? {

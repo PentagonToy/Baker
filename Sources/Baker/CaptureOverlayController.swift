@@ -30,6 +30,7 @@ final class CaptureOverlayController {
     private let previewWidth: CGFloat = 268
     private var previewHeight: CGFloat { previewWidth / ((1 + sqrt(5)) / 2) }
     private var editors: [UUID: CaptureEditWindow] = [:]
+    private var discarding = Set<UUID>()
 
     init(model: Workbench) {
         self.model = model
@@ -88,7 +89,7 @@ final class CaptureOverlayController {
             panel.isReleasedWhenClosed = false; panel.isOpaque = false; panel.backgroundColor = .clear
             panel.hasShadow = true; panel.level = .floating; panel.hidesOnDeactivate = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-            panel.contentView = CaptureHostingView(rootView: CaptureCardView(model: model, record: record, thumbnail: thumbnail, edit: { [weak self] in self?.edit(record) }, dismiss: { [weak self] in self?.dismiss(record.id) }))
+            panel.contentView = CaptureHostingView(rootView: CaptureCardView(model: model, record: record, thumbnail: thumbnail, edit: { [weak self] in self?.edit(record) }, dismiss: { [weak self] in self?.dismiss(record.id) }, discard: { [weak self] in self?.discard(record) }))
             if replacing == nil { screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main }
             cards.insert((record.id, panel), at: min(slot, cards.count))
             panel.alphaValue = 0
@@ -146,6 +147,13 @@ final class CaptureOverlayController {
     func dismiss(_ id: UUID) {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
         retire(cards.remove(at: index).panel, upwards: false); layout()
+    }
+    private func discard(_ record: CaptureRecord) {
+        guard discarding.insert(record.id).inserted else { return }
+        Task {
+            defer { discarding.remove(record.id) }
+            if await model.discardCapture(record) { dismiss(record.id) }
+        }
     }
     private func retire(_ panel: NSPanel, upwards: Bool) {
         retiring.append(panel)
@@ -217,10 +225,11 @@ struct CaptureCardView: View {
     let thumbnail: NSImage
     let edit: () -> Void
     let dismiss: () -> Void
+    let discard: () -> Void
     @ObservedObject var state = CaptureCardState()
     var body: some View {
         if let result = model.formulaResults[record.id] {
-            FormulaResultCard(model: model, record: record, result: result, dismiss: dismiss)
+            FormulaResultCard(model: model, record: record, result: result, discard: discard)
         } else { imageCard }
     }
     private var imageCard: some View {
@@ -246,8 +255,8 @@ struct CaptureCardView: View {
         }
         .overlay(alignment: .topTrailing) {
             if state.hovering {
-                Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).padding(7).background(.ultraThinMaterial, in: Circle()) }
-                    .buttonStyle(.plain).padding(8).help("Close preview · keep saved capture").accessibilityLabel("Close preview")
+                Button(action: discard) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).padding(7).background(.ultraThinMaterial, in: Circle()) }
+                    .buttonStyle(.plain).padding(8).help("Move capture to Trash").accessibilityLabel("Discard capture")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))

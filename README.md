@@ -76,6 +76,8 @@ Text recognition and previews work offline with the included runtime. Download a
 
 **Apple Silicon and macOS 26.0 or later**; PDF conversion requires **macOS 26.2 or later**. The interface is English. Scrolling is manual. Review recognised symbols and complex layouts against the source; see [limits](docs/help/limits.md).
 
+Source changes after the latest package are listed under [Unreleased](CHANGELOG.md#unreleased). Swift build CI and standard core tests supplement the existing regression tools.
+
 [Build from source](docs/help/development.md) · [Release preparation](others/release/README.md) · [Privacy](docs/legal/privacy.md)
 
 ## Licence

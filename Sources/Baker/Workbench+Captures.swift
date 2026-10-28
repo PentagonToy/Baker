@@ -24,6 +24,21 @@ extension Workbench {
     func searchCaptures(_ query: String) async throws -> Set<UUID> { try await captureStore.search(query) }
     func revealCaptures() { NSWorkspace.shared.open(captureStore.directory) }
     func copyCapture(_ record: CaptureRecord) async -> Bool { await copyImageFile(captureURL(record)) }
+    func discardCapture(_ record: CaptureRecord) async -> Bool {
+        guard !shuttingDown, !switchingStorage else { return false }
+        let source = captureStore
+        if activeCaptureID == record.id { await recognitionFlow.close() }
+        await library.flushHistory()
+        guard !shuttingDown, captureStore === source else { return false }
+        do {
+            try await source.trashCapture(record)
+            let records = try await source.records(), formulas = try await source.savedFormulas()
+            guard captureStore === source else { return true }
+            library.clearCache(); adoptCaptureHistory(records, formulas: formulas)
+            status = "Capture moved to Trash."
+            return true
+        } catch { report(error, fallback: .storageFailed); return false }
+    }
     func confirmCaptureSaved(_ record: CaptureRecord) async -> Bool {
         do {
             _ = try await captureStore.thumbnail(record)

@@ -16,6 +16,11 @@ expect(FormulaHistoryOutput.text(latex: #"\unknownnotation{x}"#, unicode: nil, s
 let matrix = #"\left[\begin{array}{cc}a&b\\c&d\end{array}\right]"#
 let keynote = FormulaHistoryOutput.text(latex: matrix, unicode: nil, style: .equation, format: .keynote)
 expect(keynote.contains("bmatrix") && !keynote.contains("array"), "Keynote destination conversion")
+let delimited = #"\(x=1\) (seed) \(y=2\)"#
+let delimitedKeynote = FormulaHistoryOutput.text(latex: delimited, unicode: nil, style: .bare, format: .keynote)
+expect(delimitedKeynote == #"\begin{matrix}x=1\quad\text{(seed)}\\y=2\end{matrix}"#, "Keynote keeps separate equations and literal annotations")
+expect(FormulaHistoryOutput.text(latex: delimited, unicode: nil, style: .bare, format: .latex) == LatexWhitespace.compact(delimited), "LaTeX copy preserves the recognised source")
+expect(KeynoteLatex.convert(#"\(x=1\) \(y=2"#).text == #"\(x=1\) \(y=2"#, "Incomplete delimiters are preserved")
 expect(FormulaHistoryOutput.text(latex: source, unicode: nil, style: .bare, format: .text).isEmpty, "Unsupported format rejected")
 let board = NSPasteboard.withUniqueName()
 defer { board.releaseGlobally() }

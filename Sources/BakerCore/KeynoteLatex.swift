@@ -6,7 +6,7 @@ public enum KeynoteLatex {
         guard source.count <= 8000, source.utf8.count <= 32_000 else {
             return MathConversion(text: source, warnings: ["Keynote conversion is limited to 8,000 characters; the source was preserved."])
         }
-        var converter = KeynoteArrayConverter(source)
+        var converter = KeynoteArrayConverter(LatexWhitespace.mathBody(source))
         do {
             let text = try converter.rewrite(0..<converter.input.count, depth: 0)
             return MathConversion(text: text, warnings: Array(Set(converter.warnings)).sorted())

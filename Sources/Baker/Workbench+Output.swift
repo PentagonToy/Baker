@@ -137,7 +137,7 @@ extension Workbench {
         }
     }
     func cancelJob() {
-        if let scanSession { if scanSession.phase == .exporting { scanSession.cancelExport() } else { scanSession.review() }; return }
+        if let scanSession { Task { await scanSession.close() }; return }
         plugins.cancel(); filesInbox.cancel(); captureFlow.cancel(); recognitionFlow.cancel(); documentFlow.cancel(); fileExports.cancel(); importTask?.cancel()
     }
     func acceptExport(_ url: URL, directory: URL?, summary: String, provider: String? = nil) {
