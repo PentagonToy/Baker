@@ -149,7 +149,7 @@ public actor ScanDocument {
     }
     /// One raster and OCR request at a time; publish only a complete, uncancelled PDF.
     public func export(to destination: URL, searchable: Bool, languages: [String], replace: Bool = false,
-                       progress: @Sendable (Int, Int) -> Void = { _, _ in }) throws {
+                       progress: @Sendable (Int, Int) -> Void = { _, _ in }) async throws {
         guard !discarded, !manifest.pages.isEmpty, destination.isFileURL, destination.pathExtension.lowercased() == "pdf" else {
             throw BakerError(message: "Add a page and choose a PDF destination.", code: .invalidInput)
         }
@@ -167,20 +167,25 @@ public actor ScanDocument {
         do {
             for (index, page) in manifest.pages.enumerated() {
                 try Task.checkCancellation()
-                try autoreleasepool {
-                    guard let source = CGImageSourceCreateWithURL(try file(page) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-                          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-                          (properties[kCGImagePropertyPixelWidth] as? Int) == page.width,
-                          (properties[kCGImagePropertyPixelHeight] as? Int) == page.height,
-                          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw BakerError(message: "A scan page could not be read. Retake it before saving.", code: .exportFailed) }
-                    var box = CGRect(x: 0, y: 0, width: CGFloat(page.width) / 2, height: CGFloat(page.height) / 2)
-                    pdf.beginPage(mediaBox: &box); pdf.draw(image, in: box)
-                    if searchable {
-                        let request = VNRecognizeTextRequest(); try OCRLanguages.configure(request, languages: languages)
-                        try VNImageRequestHandler(cgImage: image).perform([request]); try Task.checkCancellation()
-                        Self.drawText(request.results ?? [], in: pdf, box: box)
+                let request = searchable ? VNRecognizeTextRequest() : nil
+                try await withTaskCancellationHandler {
+                    try autoreleasepool {
+                        guard let source = CGImageSourceCreateWithURL(try file(page) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                              (properties[kCGImagePropertyPixelWidth] as? Int) == page.width,
+                              (properties[kCGImagePropertyPixelHeight] as? Int) == page.height,
+                              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw BakerError(message: "A scan page could not be read. Retake it before saving.", code: .exportFailed) }
+                        var box = CGRect(x: 0, y: 0, width: CGFloat(page.width) / 2, height: CGFloat(page.height) / 2)
+                        pdf.beginPage(mediaBox: &box); pdf.draw(image, in: box)
+                        if let request {
+                            try OCRLanguages.configure(request, languages: languages); try Task.checkCancellation()
+                            try VNImageRequestHandler(cgImage: image).perform([request]); try Task.checkCancellation()
+                            Self.drawText(request.results ?? [], in: pdf, box: box)
+                        }
+                        pdf.endPage()
                     }
-                    pdf.endPage()
+                } onCancel: {
+                    request?.cancel()
                 }
                 progress(index + 1, manifest.pages.count)
             }
@@ -189,7 +194,7 @@ public actor ScanDocument {
                 guard replace else { throw BakerError(message: "A file appeared at the destination. Choose another name.", code: .storageConflict) }
                 _ = try files.replaceItemAt(destination, withItemAt: staging)
             } else { try files.moveItem(at: staging, to: destination) }
-        } catch { if !pdfClosed { pdf.closePDF() }; throw error }
+        } catch { if !pdfClosed { pdf.closePDF() }; try Task.checkCancellation(); throw error }
     }
     private static func drawText(_ observations: [VNRecognizedTextObservation], in context: CGContext, box: CGRect) {
         context.saveGState(); defer { context.restoreGState() }; context.setTextDrawingMode(.invisible)

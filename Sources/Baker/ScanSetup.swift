@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 enum ScanSourceChoice: String, CaseIterable, Identifiable { case window = "Window", area = "Selected Area"; var id: String { rawValue } }
-enum ScanAdvanceChoice: String, CaseIterable, Identifiable { case arrow = "Right Arrow", click = "Click a Button"; var id: String { rawValue } }
+enum ScanAdvanceChoice: String, CaseIterable, Identifiable { case arrow = "Right Arrow", down = "Down Arrow", click = "Click a Button"; var id: String { rawValue } }
 
 struct ScanDelayField: View {
     @Binding var seconds: Double
@@ -36,8 +36,8 @@ struct ScanSetup: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Next page").font(BakerTypography.section)
                         BakerSegmentedPicker(title: "Next-page action", selection: $session.advanceChoice,
-                            choices: [("→ Key", .arrow), ("Click", .click)]).frame(height: 32)
-                            .help("Choose the next-page button on the window preview.")
+                            choices: [("→", .arrow), ("↓", .down), ("Click", .click)]).frame(height: 32)
+                            .help("Use Right Arrow, Down Arrow or a next-page button chosen on the window preview.")
                     }
                     HStack {
                         Text("Delay").font(BakerTypography.section)

@@ -4,7 +4,7 @@ Collect pages from a reader window and save them as one PDF.
 
 1. Choose **Scan…** from Baker’s menu, then choose the reader from the window previews. Search by app or window title.
 2. Select **Window** or **Area**. Area lets you mark a rectangle on a preview of that window.
-3. Choose **→ Key** or **Click**, enter a **Delay** in seconds, then **Start Scan**. For clicking, select the next-page button on the window preview.
+3. Choose **→**, **↓** or **Click**, enter a **Delay** in seconds, then **Start Scan**. The arrows send Right Arrow or Down Arrow. For clicking, select the next-page button on the window preview.
 4. When the page stops changing, Baker waits once more and opens the review. The unchanged trailing capture is not added.
 
 In review, select a thumbnail to retake, remove or move a page. Save one PDF to your chosen location; enable **Searchable text** to add local OCR during export. Check recognised text before relying on it. Markdown and LaTeX conversion remain separate PDF operations.
@@ -25,3 +25,5 @@ There is no continuous screen-sampling stream or OCR during capture. Originals a
 
 
 Agents can pause, resume, inspect and save a prepared session through the [CLI](cli.md#scan).
+
+Choose **Cancel Processing** from Baker’s menu to stop the scan and close its windows. Captured pages stay in the draft for next time.

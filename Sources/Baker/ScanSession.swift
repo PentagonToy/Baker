@@ -55,7 +55,7 @@ import UniformTypeIdentifiers
         let start = max(0, offset), count = min(100, max(1, limit))
         return resourceState.merging(["draft": draft.directory.path, "message": message, "selected": selected?.uuidString ?? "",
             "source": sourceName ?? "", "capture": sourceChoice == .area ? "area" : "window",
-            "advance": advanceChoice == .click ? "click" : "arrow", "delay": turnDelay, "searchable": searchable,
+            "advance": advanceChoice == .click ? "click" : advanceChoice == .down ? "down" : "arrow", "delay": turnDelay, "searchable": searchable,
             "offset": start, "limit": count, "hasMore": start < pages.count && count < pages.count - start,
             "items": pages.enumerated().dropFirst(start).prefix(count).map { index, page in
                 ["id": page.id.uuidString, "page": index + 1, "width": page.width, "height": page.height,
@@ -119,7 +119,9 @@ import UniformTypeIdentifiers
                 guard !Task.isCancelled, phase != .closed else { return }
                 showSetup()
             } catch {
-                task = nil; message = error.localizedDescription
+                task = nil
+                guard !Task.isCancelled, phase != .closed else { return }
+                message = error.localizedDescription
                 if phase != .closed { showSetup() }
             }
         }
@@ -150,7 +152,9 @@ import UniformTypeIdentifiers
                 try Task.checkCancellation()
                 phase = .capturing; sourcePreview = nil; window?.contentView = nil; showControls(region); task = nil; addPage()
             } catch {
-                task = nil; startAutomatically = false; message = error.localizedDescription
+                task = nil; startAutomatically = false
+                guard !Task.isCancelled, phase != .closed else { return }
+                message = error.localizedDescription
                 if phase != .closed { showReview() }
             }
         }
@@ -190,7 +194,7 @@ import UniformTypeIdentifiers
                 if let windowSource { prepared = windowSource } else { prepared = try await service.prepare(region) }
                 try Task.checkCancellation(); task = nil; if retake != nil { addPage() }
             }
-            catch { task = nil; message = error.localizedDescription; showReview() }
+            catch { task = nil; if !Task.isCancelled, phase != .closed { message = error.localizedDescription; showReview() } }
         }
     }
     func addPage() {
@@ -241,8 +245,8 @@ import UniformTypeIdentifiers
               advanceChoice != .click || clickPoint != nil else {
             throw BakerError(message: "Prepare the reader and next-page action before resuming auto scan.", code: .invalidState)
         }
-        turnTarget = try ScanTurnTarget(application: app, region: region, point: clickPoint, expectedWindow: expectedWindow, expectedTitle: expectedTitle)
-        automatic = true; automaticSession = true; message = clickPoint == nil ? "Scanning with →." : "Scanning with the selected button."
+        turnTarget = try ScanTurnTarget(application: app, region: region, point: clickPoint, expectedWindow: expectedWindow, expectedTitle: expectedTitle, keyCode: advanceChoice == .down ? 125 : 124)
+        automatic = true; automaticSession = true; message = clickPoint == nil ? "Scanning with \(advanceChoice == .down ? "↓" : "→")." : "Scanning with the selected button."
         autoTask = Task { [weak self] in
             guard let self else { return }
             // Explicit timing, not a guess that a reader has finished loading.
@@ -296,6 +300,7 @@ import UniformTypeIdentifiers
         let p = NSPanel(contentRect: NSRect(x: visible.minX + 18, y: visible.minY + 18, width: 448, height: 126),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.title = "Baker · Scan Controls"; p.level = .floating; p.hidesOnDeactivate = false; p.isReleasedWhenClosed = false
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.isMovableByWindowBackground = true; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = true
         p.contentView = NSHostingView(rootView: ScanControls(session: self)); panel?.contentView = nil; panel?.close(); panel = p; p.orderFrontRegardless()
     }
@@ -358,10 +363,12 @@ import UniformTypeIdentifiers
         let callback = ended; ended = nil; saved = nil; callback?()
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard !working else { if phase == .exporting { message = "Cancel saving before closing this scan." }; return false }
-        keepAndClose(); return false // Draft is kept automatically; Scan resumes it next time.
+        Task { await close() }
+        return false // Cancel pending work before closing, keeping the recoverable draft.
     }
     func close() async {
+        guard phase != .closed else { return }
+        phase = .closed; working = true; message = "Stopping scan…"
         startAutomatically = false; stopAuto(); task?.cancel(); service.cancelSelection(); imagePicker.cancel(); let pending = task; await pending?.value
         working = false; task = nil; keepAndClose()
     }
