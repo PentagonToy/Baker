@@ -32,6 +32,8 @@ Choose Pix2Text or Texo in **Quick Start → Capture a formula** and download it
 
 Capture previews fit the current display’s usable height. When the stack fills, the oldest preview closes and its saved capture remains in History. Choose **Settings → Capture → Visible captures** to use a fixed limit instead.
 
+Click **X** on a preview to discard that capture. Its image moves to Trash and its linked formula result leaves History. Saving, dragging or letting a preview leave the stack keeps the saved capture. Closing Baker also keeps saved captures.
+
 Choose **Formula**, drag around one equation and release. Compare **Original** and **Rendered**, then select **LaTeX**, **Markdown**, **Keynote** or **Unicode**. Baker copies the selected format automatically.
 
 Formula models live under `~/Library/Application Support/Baker/Models` and work offline after download. **Repair Model** downloads a verified replacement; **Remove Model** removes the selected model without deleting captures. Existing optimised Pix2Text caches remain usable; repair downloads the verified optimised package.

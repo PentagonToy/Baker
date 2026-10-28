@@ -11,7 +11,7 @@ struct FormulaResultCard: View {
     @ObservedObject var model: Workbench
     let record: CaptureRecord
     let result: FormulaResult
-    let dismiss: () -> Void
+    let discard: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -19,8 +19,8 @@ struct FormulaResultCard: View {
                 Spacer()
                 if let provider = result.recognitionProvider { RecognitionProviderLabel(provider: provider) }
                 if result.phase == .recognising { ProgressView().controlSize(.small) }
-                Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 22, height: 22) }
-                    .buttonStyle(.plain).help("Close preview · keep saved capture")
+                Button(action: discard) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 22, height: 22) }
+                    .buttonStyle(.plain).help("Move capture to Trash").accessibilityLabel("Discard capture")
             }
             Group {
                 switch result.phase {

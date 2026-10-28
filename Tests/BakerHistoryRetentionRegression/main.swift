@@ -17,6 +17,27 @@ import Foundation
     check(CaptureRetentionPolicy(count: -1, days: -1).expired(in: records, now: now).isEmpty, "Invalid negative values do not delete images")
     let library = CaptureLibrary(directory: directory), store = library.store
     let cg = CGContext(data:nil,width:24,height:12,bitsPerComponent:8,bytesPerRow:0,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue)!.makeImage()!
+    let dismissTrash = root.appendingPathComponent("discard-trash")
+    try files.createDirectory(at: dismissTrash, withIntermediateDirectories: true)
+    let dismissDirectory = root.appendingPathComponent("dismissed-captures"), dismissStore = CaptureStore(directory: dismissDirectory)
+    let discarded = try await dismissStore.add(image: cg), retainedCapture = try await dismissStore.add(image: cg)
+    for record in [discarded.record, retainedCapture.record] {
+        try await dismissStore.saveFormula(SavedFormula(id: record.id, originalLatex: "x", latex: "x", unicodeOverride: nil, model: "fixture", confidenceMethod: nil, confidence: nil, diagnostics: nil, format: "LaTeX", style: ""))
+    }
+    let keptURL = dismissDirectory.appendingPathComponent(retainedCapture.record.fileName), keptBytes = try Data(contentsOf: keptURL)
+    try await dismissStore.trashCapture(discarded.record) { url in try files.moveItem(at: url, to: dismissTrash.appendingPathComponent(url.lastPathComponent)) }
+    check(!files.fileExists(atPath: dismissDirectory.appendingPathComponent(discarded.record.fileName).path), "Explicit discard removes the saved capture file")
+    check(files.fileExists(atPath: dismissTrash.appendingPathComponent(discarded.record.fileName).path), "Discarded captures remain recoverable in Trash")
+    let reopenedDismissed = CaptureStore(directory: dismissDirectory)
+    check(try await reopenedDismissed.records().map(\.id) == [retainedCapture.record.id], "Discard survives reopening and preserves other saved captures")
+    let keptFormulas = try await reopenedDismissed.savedFormulas()
+    check(keptFormulas[discarded.record.id] == nil && keptFormulas[retainedCapture.record.id] != nil, "Discard removes only the linked formula result")
+    check(try Data(contentsOf: keptURL) == keptBytes, "Other capture bytes remain unchanged")
+    do {
+        try await dismissStore.trashCapture(retainedCapture.record) { _ in throw BakerError(message: "Fixture refusal", code: .storageFailed) }
+        preconditionFailure("Trash failure was ignored")
+    } catch {}
+    check(try await dismissStore.records().map(\.id) == [retainedCapture.record.id] && files.fileExists(atPath: keptURL.path), "Failed discard retains the capture for retry")
     var saved: [StoredCapture] = []
     for _ in 0..<5 { saved.append(try await store.add(image: cg)) }
     // Serial removal must not race an earlier save or remove the capture itself.

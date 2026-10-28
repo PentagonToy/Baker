@@ -165,4 +165,10 @@ extension CaptureStore {
         _ = try opened().reconcile(trashing: candidates, trash: trash)
         _ = try reconcileHistory()
     }
+    func trashCapture(_ record: CaptureRecord, trash: (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }) throws {
+        let url = try opened().fileURL(for: record)
+        let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        guard let bytes = values.fileSize else { throw BakerError(message: "The capture size could not be read.", code: .storageFailed) }
+        try trashCaptures([CaptureRemovalCandidate(record: record, bytes: bytes, modified: values.contentModificationDate)], trash: trash)
+    }
 }
