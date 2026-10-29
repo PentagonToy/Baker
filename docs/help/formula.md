@@ -40,7 +40,7 @@ Keynote has its own equation parser. [Apple documents](https://support.apple.com
 
 ## Preview and chemistry
 
-Bundled [KaTeX 0.19.0](https://katex.org/docs/support_table.html) renders common operators, accents, limits, sized delimiters, fractions, matrices, aligned equations and cases. Unsupported notation shows its source and an explanation; saved and copied LaTeX remain available.
+Bundled [KaTeX 0.19.0](https://katex.org/docs/support_table.html) renders common operators, accents, limits, sized delimiters, fractions, matrices, aligned equations and cases. Complete sequences of delimited formulas retain their separate rows and literal annotations in previews and Keynote output. Ordinary LaTeX copying keeps the source. Unsupported notation shows its source and an explanation; saved and copied LaTeX remain available.
 
 The mhchem extension renders `\ce{H2O}`, ions, isotopes and reactions such as `\ce{2 H2 + O2 -> 2 H2O}`. Ordinary notation such as `\mathrm{SO_4}^{2-}` also works. Chemical OCR accuracy has not been established; Baker does not reconstruct molecular structures.
 

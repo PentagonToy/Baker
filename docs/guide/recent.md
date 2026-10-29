@@ -14,7 +14,7 @@ Capture History shows thumbnail cards in date order. Filter by **All**, **Images
 
 For formula text rather than capture images, use the [Formula Workspace grid](../help/formula.md#history). It supports direct format-specific copy and confirmed removal of individual or Command-selected formula records while keeping the original images.
 
-Closing a capture thumbnail keeps its image and saved result. Recordings are saved automatically in the chosen folder and remain in history after Baker quits. Existing temporary recordings from older versions are not imported automatically. Files processed in the file workspace remain temporary until saved, cleared or Baker quits.
+Clicking **X** on a capture thumbnail moves that image to Trash and removes its linked formula result. Saving, dragging or automatic dismissal keeps the saved capture. Recordings are saved automatically in the chosen folder and remain in history after Baker quits. Existing temporary recordings from older versions are not imported automatically. Files processed in the file workspace remain temporary until saved, cleared or Baker quits.
 
 Choose the capture folder in [Settings → Storage](../help/storage.md). You can change the Recent menu order in Settings → Menu.
 

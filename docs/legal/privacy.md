@@ -1,6 +1,6 @@
 # Privacy policy
 
-Effective date: 27 October 2026.
+Effective date: 29 October 2026.
 
 This policy covers Baker, developed by PentagonToy, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
 
@@ -14,7 +14,7 @@ Retired online connections are removed from Baker’s local Keychain item and pr
 
 Settings stay in local macOS preferences. Repeat Area stores the display identifier, display size and selection rectangle there; these values are excluded from presets. Selected copy actions place content on the macOS clipboard, where other apps and clipboard managers may access it.
 
-Closing a thumbnail retains its file. Done in the editor replaces the capture and removes its old OCR metadata. Vectorisation replaces the previous image with one SVG; subsequent image editing can replace that SVG with PNG. Previously exported or backed-up copies remain unchanged. Temporary outputs can remain while a job or workspace is open; failed operations may retain an original for recovery.
+Clicking **X** on a capture thumbnail moves its file to Trash and removes linked formula metadata. Saving, dragging, automatic dismissal and quitting Baker retain saved captures. Done in the editor replaces the capture and removes its old OCR metadata. Vectorisation replaces the previous image with one SVG; subsequent image editing can replace that SVG with PNG. Previously exported or backed-up copies remain unchanged. Temporary outputs can remain while a job or workspace is open; failed operations may retain an original for recovery.
 
 ## Downloads
 

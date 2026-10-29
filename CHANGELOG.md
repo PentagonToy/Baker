@@ -1,13 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 — 2026-10-29
 
-- Use a square-root icon for Formula Workspace, with a compatible fallback on older systems.
-
-- Make Scan cancellation and overlapping source selection safe, retain recoverable drafts and support Down Arrow page turns.
-- Send a saved capture to Trash only through its thumbnail close action.
-- Preserve delimited formula rows and annotations in previews and Keynote output. Align formula status and style controls.
-- Add macOS build CI and standard core tests. Align the Swift package minimum with macOS 26.0.
+- Stop Scan safely during setup, source selection and processing; retain captured pages for recovery.
+- Support Down Arrow page turns and prevent overlapping Scan setup work.
+- Move a capture to Trash only when its thumbnail close button is clicked; saving and dragging keep it.
+- Preserve separate formula rows and annotations in previews and Keynote output. Refine formula controls and the Workspace icon.
+- Add build and core-test checks, with macOS 26 SDK compatibility fixes.
 
 ## 0.1.1 — 2026-10-27
 
