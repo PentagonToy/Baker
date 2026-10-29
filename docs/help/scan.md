@@ -11,7 +11,7 @@ In review, select a thumbnail to retake, remove or move a page. Save one PDF to 
 
 **Manual** collects pages without automatic input or Accessibility access. Turn pages yourself and choose **Add Page**; the **Scan / Add Page** shortcut works without moving the pointer.
 
-Closing review keeps a working draft. Choose Scan again to resume it. Saving the PDF removes its working images; **Discard Scan…** removes an unwanted draft. Previously saved files are kept.
+Closing Scan or choosing **Cancel Processing** from Baker’s menu stops pending work and keeps captured pages in a working draft. Choose Scan again to resume it. Saving the PDF removes its working images; **Discard Scan…** removes an unwanted draft. Previously saved files are kept.
 
 ## Timing and limits
 
@@ -25,5 +25,3 @@ There is no continuous screen-sampling stream or OCR during capture. Originals a
 
 
 Agents can pause, resume, inspect and save a prepared session through the [CLI](cli.md#scan).
-
-Choose **Cancel Processing** from Baker’s menu to stop the scan and close its windows. Captured pages stay in the draft for next time.
