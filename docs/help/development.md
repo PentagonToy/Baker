@@ -72,7 +72,7 @@ ProcessCompletion observes termination before launch and wakes waiting callers. 
 
 Use full Xcode for `swift test --scratch-path /absolute/external/baker-build --jobs 2`. If Command Line Tools are selected, prefix the command with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The core XCTest cases cover language selection and bounded process execution, including an explicit isolated child environment.
 
-The macOS Swift workflow builds the release executable, runs standard tests and exercises the synthetic capture archive regression for relevant main/dev pushes and pull requests. It does not capture the screen, download OCR models, package a runtime, sign or publish the app. Existing regression executables and focused checks remain available. The CI selection does not replace OCR-quality, plugin-service or installed-app validation.
+For relevant pushes to main and dev and for pull requests, macOS CI builds the Release executable and runs XCTest plus the capture archive, process, PDF and formula rendering regressions. These checks use local fixtures. Screen capture permissions, OCR model quality, third-party services and signed installations require separate validation.
 
 ## Focused checks
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### CLI and PDF conversion
+
+- Reject CLI responses from another user, non-regular files, replies over 8 MiB and replies that do not match the request ID.
+- Read plugin export sizes from file metadata and avoid rereading the exported document.
+
+### Validation
+
+- Run process, PDF and formula rendering regressions in macOS CI alongside XCTest and capture archive checks.
+
 ## 0.1.2 — 2026-10-29
 
 - Stop Scan safely during setup, source selection and processing; retain captured pages for recovery.

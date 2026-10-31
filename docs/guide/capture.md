@@ -11,15 +11,15 @@ Choose a capture action from Baker’s menu-bar icon. Drag to select an area; Es
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-text-dark.svg"><img src="../../others/assests/symbols/capture-text.svg" width="22" alt="Text"></picture> Text | Saves the source and recognises text without a thumbnail |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/capture-formula-dark.svg"><img src="../../others/assests/symbols/capture-formula.svg" width="22" alt="Formula"></picture> Formula | Saves the source without a thumbnail, shows a menu-bar popover and copies the selected format |
 
-Text copies automatically when **General → Copy recognised text** is enabled. Formula always copies the selected format. Its result appears below the Baker icon. Choose **Workspace** for the original image, editing and history. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
+Text copies automatically when **Settings → Capture → Copy recognised text** is enabled. Formula always copies the selected format. Its result appears below the Baker icon. Choose **Workspace** for the original image, editing and history. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
 
 Image thumbnails fit without cropping and follow the pointer to the lower-left corner of the active monitor. The stack moves gently between displays and stays in place during a drag.
 
 Hover over an image thumbnail to copy, save, pin or recognise it. **Save** confirms the file in the capture folder and closes the thumbnail without a location chooser. For another destination, use **Save a Copy As…** in the context menu.
 
-A successful drop closes its thumbnail; a cancelled or rejected drop keeps it. Closing a thumbnail preserves the saved file.
+A successful drop closes its thumbnail and keeps the file. A cancelled or rejected drop keeps the thumbnail. Click **X** to move the capture to Trash and remove its linked formula result from History.
 
-In **Settings → Capture**, enable **Hide desktop icons in captures and recordings** to exclude Finder’s desktop icons from images, scrolling captures and recordings. Your desktop stays unchanged; open Finder windows remain visible.
+In **Settings → Capture**, enable **Hide desktop icons** to exclude Finder’s desktop icons from images, scrolling captures and recordings. Your desktop stays unchanged; open Finder windows remain visible.
 
 ## Shortcuts
 

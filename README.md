@@ -7,7 +7,7 @@
 
 **A keen eye. A fresh result.**
 
-Baker is a macOS menu-bar app for local capture, text and formula recognition, and PDF conversion.
+Baker is a macOS menu-bar app for screenshots, recording, text and formula recognition, and PDF conversion. Built-in recognition runs on your Mac.
 
 **[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.2/Baker-0.1.2-arm64.dmg)**
 
@@ -25,7 +25,7 @@ See the [0.1.2 release notes](others/release/0.1.2.md) for what’s new.
 | Formula | Preview, LaTeX, Markdown maths, Keynote or Unicode |
 | PDF | Structured Markdown or LaTeX with equations, tables and figures |
 | Record | MP4 with optional system audio, or silent GIF |
-| Scan | Collect reader pages, review their order and save one searchable PDF |
+| Scan | Collect reader pages, review their order and save a PDF with optional searchable text |
 
 ## In action
 
@@ -70,13 +70,13 @@ Captures, recordings and formula history use one folder, initially `~/Documents/
 
 Text uses Apple Vision or Tesseract; formula images use Pix2Text MFR 1.5, Texo or PP-FormulaNet plus-S. PDFs combine native text, DocLayout-YOLO and quantised GLM-OCR with a small Baker adapter. [Models and references](docs/help/recognition.md) documents sources, adaptations and measured limits.
 
-Text recognition and previews work offline with the included runtime. Download a [formula model](docs/models/README.md) once in Settings → Formula; subsequent recognition stays offline. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once, then works offline. Normal use needs no OCR account, Python path or model configuration.
+Text recognition and previews work offline with the included runtime. An optional [OCR plugin](docs/help/plugins.md) can process selected formula images and PDFs through a user-chosen service. Download a [formula model](docs/models/README.md) once in Settings → Formula; subsequent recognition stays offline. PDF conversion downloads and verifies [PDF Engine 1.0.0](https://github.com/PentagonToy/Baker/releases/tag/pdf-engine-v1.0.0) once, then works offline. Normal use needs no OCR account, Python path or model configuration.
 
 ## Requirements
 
 **Apple Silicon and macOS 26.0 or later**; PDF conversion requires **macOS 26.2 or later**. The interface is English. Scrolling is manual. Review recognised symbols and complex layouts against the source; see [limits](docs/help/limits.md).
 
-Source changes after the latest package are listed under [Unreleased](CHANGELOG.md#unreleased). Swift build CI and standard core tests supplement the existing regression tools.
+See [Unreleased](CHANGELOG.md#unreleased) for changes made since the packaged release.
 
 [Build from source](docs/help/development.md) · [Release preparation](others/release/README.md) · [Privacy](docs/legal/privacy.md)
 
@@ -85,7 +85,5 @@ Source changes after the latest package are listed under [Unreleased](CHANGELOG.
 Copyright © 2026 PentagonToy. Baker’s source uses [GNU AGPL version 3](LICENSE) (`AGPL-3.0-only`). Fonts, models and other dependencies retain their own [licences and notices](docs/legal/third-party.md).
 
 ## Agent CLI
-
-Optional [OCR plugins](docs/help/plugins.md) can add a user-selected provider through one ZIP, with an optional Keychain-stored API key and local fallback. Built-in recognition remains local.
 
 Baker includes a [JSON CLI](docs/help/cli.md) for local capture, recording, OCR, history and PDF conversion.

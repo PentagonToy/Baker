@@ -24,13 +24,13 @@ This installs the same app as the DMG. Open Baker from Applications, then allow 
 
 The first capture needs permission in **System Settings → Privacy & Security → Screen Recording**. Enable Baker and reopen it if macOS requests a restart. Imported images and clipboard images do not need screen capture permission.
 
-Development builds also offer control access at first launch for automatic [Scan](scan.md) page turning. Existing permissions are reused; you can continue with manual capture.
+Allow Accessibility access to use automatic [Scan](scan.md) page turns. You can capture pages manually without that permission.
 
 ## Capture a formula
 
 Choose Pix2Text or Texo in **Quick Start → Capture a formula** and download it there after allowing screen recording. You can also manage models in **Settings → Formula**. The model files occupy about 77 MB for Pix2Text and 100 MB for Texo; downloads are compressed. Baker verifies the files before recognition becomes ready. Existing installed models are reused.
 
-Capture previews fit the current display’s usable height. When the stack fills, the oldest preview closes and its saved capture remains in History. Choose **Settings → Capture → Visible captures** to use a fixed limit instead.
+Capture previews fit the current display’s usable height. When the stack fills, the oldest preview closes and its saved capture remains in History. Choose **Settings → Capture → Quick previews** to use a fixed limit instead.
 
 Click **X** on a preview to discard that capture. Its image moves to Trash and its linked formula result leaves History. Saving, dragging or letting a preview leave the stack keeps the saved capture. Closing Baker also keeps saved captures.
 

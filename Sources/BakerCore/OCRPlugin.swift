@@ -151,8 +151,11 @@ public enum OCRPluginRunner {
         try PDFExportBundle.save(source: source, destination: destination)
         let pages = (1...pageCount).map { PDFPageSummary(pageNumber: $0, source: .structured, blockCount: 0, characterCount: 0, warnings: []) }
         let warnings = Array((response.warnings ?? []).prefix(16)).map { String($0.prefix(300)) }
+        guard let bytesWritten = try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+            throw BakerError(message: "The exported document size is unavailable.", code: .invalidResponse)
+        }
         let report = PDFConversionReport(destination: destination, format: format, pages: pages,
-            bytesWritten: try Data(contentsOf: destination).count, warnings: warnings, provider: manifest.label)
+            bytesWritten: bytesWritten, warnings: warnings, provider: manifest.label)
         return OCRPluginExecution(latex: nil, report: report)
     }
     private static func validateOutput(_ folder: URL) throws {
