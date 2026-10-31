@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Run process, PDF and formula regression checks in macOS CI alongside core tests and capture checks.
+- Validate CLI response ownership, file type, size and request identity before reading results.
+- Read exported plugin document sizes from file metadata instead of loading the document again.
+
 ## 0.1.2 — 2026-10-29
 
 - Stop Scan safely during setup, source selection and processing; retain captured pages for recovery.

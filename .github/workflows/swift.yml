@@ -23,3 +23,9 @@ jobs:
         run: swift test --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2
       - name: Synthetic capture archive regression
         run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerCaptureRegression "$RUNNER_TEMP/baker-capture-checks"
+      - name: Process and core regression
+        run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerRegression
+      - name: Synthetic PDF regression
+        run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerPDFRegression "$RUNNER_TEMP/baker-pdf-checks"
+      - name: Formula rendering regression
+        run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerFormulaRegression "$RUNNER_TEMP/baker-formula-checks"

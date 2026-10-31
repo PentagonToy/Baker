@@ -65,7 +65,7 @@ enum BakerCLI {
             let deadline = Date().addingTimeInterval(min(7200, max(1, Double(option("--timeout") ?? "30") ?? 30)))
             while Date() < deadline {
                 if FileManager.default.fileExists(atPath: output.path) {
-                    let value = try JSONSerialization.jsonObject(with: Data(contentsOf: output)) as? [String: Any] ?? [:]
+                    let value = try AutomationResponse.read(output, requestID: request.id)
                     return BakerAutomation.emit(value)
                 }
                 Thread.sleep(forTimeInterval: 0.05)
