@@ -23,6 +23,10 @@ Unlock protected PDFs before conversion. Keep exported figure folders beside the
 
 Development builds without the document engine use text extraction and text OCR. That fallback does not reconstruct equations, tables or figures.
 
+## Web import
+
+Baker accepts public HTTP and HTTPS links. The web importer limits page content to 4 MiB and downloaded PDFs to 64 MiB. Some sites require a separate browser for sign-in or security checks. A PDF made from a web page contains its readable text and may omit images and layout details. Downloaded PDFs retain their original contents when saved as PDF.
+
 ## Recording
 
 Recording does not upscale the selected area. Video can include system audio, while GIF is silent; microphone capture is not supported. Frames or audio buffers may be skipped if real-time encoding falls behind. Longer GIFs take more time to export and can produce large files; export processes one frame at a time rather than retaining the whole animation. Video uses even pixel dimensions; GIFs loop continuously. Duration and size limits are listed in [Record](../guide/record.md).

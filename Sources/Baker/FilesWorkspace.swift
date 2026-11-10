@@ -3,10 +3,46 @@ import BakerCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SourceOutput: String, CaseIterable {
+    case pdf = "PDF", markdown = "Markdown", latex = "LaTeX"
+
+    var conversion: PDFExportFormat? {
+        switch self {
+        case .pdf: nil
+        case .markdown: .markdown
+        case .latex: .latex
+        }
+    }
+}
+
 struct InboxFile: Identifiable {
+    enum Source {
+        case file(URL)
+        case web(WebImportCandidate)
+
+        var name: String {
+            switch self {
+            case let .file(url): url.lastPathComponent
+            case let .web(item): item.name
+            }
+        }
+
+        var isDocument: Bool {
+            switch self {
+            case let .file(url): url.pathExtension.lowercased() == "pdf"
+            case .web: true
+            }
+        }
+
+        var isWeb: Bool {
+            if case .web = self { return true }
+            return false
+        }
+    }
+
     enum Phase { case waiting, processing, ready, failed, cancelled }
     let id = UUID()
-    let url: URL
+    let source: Source
     var phase: Phase = .waiting
     var message = "Waiting"
     var capture: CaptureRecord?
@@ -32,7 +68,7 @@ final class FilesWorkspaceWindow: NSWindow {
 @MainActor
 final class FilesInbox: ObservableObject {
     @Published var items: [InboxFile] = []
-    @Published var pdfFormat: PDFExportFormat = .markdown
+    @Published var sourceOutput: SourceOutput = .markdown
     @Published private(set) var running = false
     @Published var message = ""
     @Published var targeted = false
@@ -50,10 +86,25 @@ final class FilesInbox: ObservableObject {
             guard ["png", "jpg", "jpeg", "tif", "tiff", "heic", "heif", "bmp", "pdf"].contains(url.pathExtension.lowercased()) else {
                 message = "Supported: PNG, JPEG, TIFF, HEIC, BMP and PDF."; continue
             }
-            guard !items.contains(where: { $0.url.standardizedFileURL == url.standardizedFileURL }) else { continue }
-            items.append(InboxFile(url: url))
+            guard !items.contains(where: {
+                if case let .file(existing) = $0.source { return existing.standardizedFileURL == url.standardizedFileURL }
+                return false
+            }) else { continue }
+            items.append(InboxFile(source: .file(url)))
         }
     }
+
+    func addWebContent(_ item: WebImportCandidate) -> Bool {
+        guard !running, !model.busy, items.count < 50 else { return false }
+        items.append(InboxFile(source: .web(item)))
+        return true
+    }
+
+    var needsPDFEngine: Bool {
+        guard let format = sourceOutput.conversion, items.contains(where: { $0.phase == .waiting && $0.source.isDocument }) else { return false }
+        return !model.canConvertDocument(format: format)
+    }
+
     func browse() {
         guard !running, !model.busy else { return }
         if let filePicker { filePicker.makeKeyAndOrderFront(nil); return }
@@ -79,12 +130,30 @@ final class FilesInbox: ObservableObject {
     }
     func start() {
         guard !running, !model.busy, items.contains(where: { $0.phase == .waiting }) else { return }
+        let format = sourceOutput.conversion
+        let webItemsWaiting = items.contains { $0.phase == .waiting && $0.source.isWeb }
+        var approvedPlugin: OCRPlugins.Entry?
+        if let format, webItemsWaiting, let plugin = model.plugins.selected(for: "pdf", format: format) {
+            let alert = NSAlert()
+            alert.messageText = "Convert web sources with \(plugin.manifest.name)?"
+            alert.informativeText = "The plugin will receive PDFs from the web, including pages you signed in to."
+            alert.addButton(withTitle: "Use Baker Local")
+            alert.addButton(withTitle: "Use Plugin")
+            alert.addButton(withTitle: "Cancel")
+            switch alert.runModal() {
+            case .alertFirstButtonReturn: break
+            case .alertSecondButtonReturn: approvedPlugin = plugin
+            default: return
+            }
+        }
         running = true
-        let format = pdfFormat
-        task = Task {
+        task = Task { [self] in
             var ownsBusy = false
             defer { running = false; if ownsBusy { model.busy = false }; task = nil }
-            if items.contains(where: { $0.phase == .waiting && $0.url.pathExtension.lowercased() == "pdf" }), !model.canConvertDocument(format: format) {
+            if let format, items.contains(where: { file in
+                file.phase == .waiting && file.source.isDocument
+                    && !model.canConvertDocument(format: format, usePlugin: !file.source.isWeb || approvedPlugin != nil)
+            }) {
                 do {
                     if !model.pdfEngineSetup.working {
                         guard model.pdfEngineSetup.available else { message = model.pdfEngineSetup.message; return }
@@ -111,36 +180,81 @@ final class FilesInbox: ObservableObject {
                 if Task.isCancelled { break }
                 guard items[index].phase == .waiting else { continue }
                 items[index].phase = .processing; items[index].message = "Preparing…"
-                items[index].progress = items[index].url.pathExtension.lowercased() == "pdf" ? DocumentProgress() : nil
-                let source = items[index].url
-                let access = source.startAccessingSecurityScopedResource()
-                defer { if access { source.stopAccessingSecurityScopedResource() } }
+                let item = items[index].source
+                var temporary: URL?
+                defer {
+                    if let temporary, items[index].export == nil {
+                        try? FileManager.default.removeItem(at: temporary)
+                        folders.removeAll { $0 == temporary }
+                    }
+                }
                 do {
-                    if source.pathExtension.lowercased() == "pdf" {
-                        guard model.canConvertDocument(format: format) else { throw BakerError(message: "Install the PDF engine before converting PDFs.", code: .modelNotReady, recovery: .pdfSettings) }
-                        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("baker-inbox-" + UUID().uuidString)
-                        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-                        folders.append(folder)
-                        let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent).appendingPathExtension(format.fileExtension)
-                        var options = PDFConversionOptions(); options.recognitionLanguages = model.selectedOCRLanguages; options.finnishTextMode = model.finnishTextMode; options.tesseractExecutable = model.textEngineExecutable; options.documentEngine = model.preparedDocumentEngine
-                        items[index].provider = model.plugins.selected(for: "pdf", format: format)?.manifest.label ?? "Baker · Local"
-                        let report = try await model.convertDocument(source: source, destination: destination, format: format, options: options) { [weak self] progress in
-                            guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
-                            self.items[index].progress?.update(progress); self.items[index].message = progress.message
-                            if let provider = progress.provider { self.items[index].provider = provider }
+                    let source: URL
+                    switch item {
+                    case let .file(url):
+                        source = url
+                    case let .web(.pdf(pdf)):
+                        source = pdf.url
+                    case let .web(.page(page, _)):
+                        items[index].message = "Preparing web page…"
+                        let folder = try makeFolder()
+                        temporary = folder
+                        source = try await WebImportPDF.stage(page, in: folder)
+                    }
+                    let access = source.startAccessingSecurityScopedResource()
+                    defer { if access { source.stopAccessingSecurityScopedResource() } }
+                    if item.isDocument {
+                        var summary = "Saved to save folder"
+                        if let format {
+                            let currentPlugin = model.plugins.selected(for: "pdf", format: format)
+                            let usePlugin = !item.isWeb || (approvedPlugin != nil && approvedPlugin?.digest == currentPlugin?.digest)
+                            guard model.canConvertDocument(format: format, usePlugin: usePlugin) else {
+                                throw BakerError(message: "Install the PDF engine before converting PDFs.", code: .modelNotReady, recovery: .pdfSettings)
+                            }
+                            let folder: URL
+                            if let temporary { folder = temporary }
+                            else { folder = try makeFolder(); temporary = folder }
+                            let destination = folder.appendingPathComponent(source.deletingPathExtension().lastPathComponent)
+                                .appendingPathExtension(format.fileExtension)
+                            var options = PDFConversionOptions()
+                            options.recognitionLanguages = model.selectedOCRLanguages
+                            options.finnishTextMode = model.finnishTextMode
+                            options.tesseractExecutable = model.textEngineExecutable
+                            options.documentEngine = model.preparedDocumentEngine
+                            items[index].progress = DocumentProgress()
+                            items[index].provider = (usePlugin ? currentPlugin?.manifest.label : nil) ?? "Baker · Local"
+                            let report = try await model.convertDocument(source: source, destination: destination, format: format,
+                                                                         options: options, usePlugin: usePlugin) { [weak self] progress in
+                                guard let self, self.items.indices.contains(index), self.items[index].phase == .processing else { return }
+                                self.items[index].progress?.update(progress)
+                                self.items[index].message = progress.message
+                                if let provider = progress.provider { self.items[index].provider = provider }
+                            }
+                            try Task.checkCancellation()
+                            items[index].provider = report.provider
+                            items[index].export = report.destination
+                            let warning = report.warnings.first { $0.contains("figures still use online links") }
+                            summary = "\(report.totalPages) pages · " + summary + (warning.map { " · " + $0 } ?? "")
+                        } else {
+                            items[index].provider = "Baker · Local"
+                            items[index].export = source
                         }
-                        try Task.checkCancellation()
-                        items[index].provider = report.provider
-                        items[index].export = report.destination
-                        do {
-                            let saved = try await model.fileExports.saveAutomatically(source: report.destination, directory: model.storageDirectory)
-                            items[index].export = saved
-                            let figureWarning = report.warnings.first { $0.contains("figures still use online links") }
-                            items[index].message = "\(report.totalPages) pages · Saved to save folder" + (figureWarning.map { " · " + $0 } ?? "")
-                            try? FileManager.default.removeItem(at: folder)
-                            folders.removeAll { $0 == folder }
-                        } catch {
-                            items[index].message = "Converted, but automatic save failed. Use Save… to keep this result. " + BakerError.wrapping(error, fallback: .exportFailed).userDescription
+                        if let result = items[index].export {
+                            items[index].message = "Saving…"
+                            do {
+                                let saved = try await model.fileExports.saveAutomatically(source: result, directory: model.storageDirectory)
+                                items[index].export = saved
+                                items[index].message = summary
+                                if let temporary {
+                                    try? FileManager.default.removeItem(at: temporary)
+                                    folders.removeAll { $0 == temporary }
+                                }
+                            } catch is CancellationError {
+                                throw CancellationError()
+                            } catch {
+                                items[index].message = "Automatic save failed. Use Save As… to keep this result. "
+                                    + BakerError.wrapping(error, fallback: .exportFailed).userDescription
+                            }
                         }
                     } else {
                         items[index].capture = try await model.importFileIntoHistory(source)
@@ -159,6 +273,13 @@ final class FilesInbox: ObservableObject {
             if !Task.isCancelled { model.playCaptureFeedback(success: !items.contains { $0.phase == .failed }) }
         }
     }
+    private func makeFolder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("baker-inbox-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        folders.append(folder)
+        return folder
+    }
+
     func cancel() { task?.cancel() }
     func close() async {
         if let filePicker {
@@ -175,6 +296,8 @@ final class FilesInbox: ObservableObject {
             running = true; model.busy = true; message = "Saving file…"
             task = Task {
                 defer { running = false; model.busy = false; task = nil }
+                let access = source.startAccessingSecurityScopedResource()
+                defer { if access { source.stopAccessingSecurityScopedResource() } }
                 do { try await model.fileExports.save(source: source, destination: destination); message = "Saved " + destination.lastPathComponent }
                 catch is CancellationError { message = "Save cancelled." }
                 catch { message = BakerError.wrapping(error, fallback: .exportFailed).userDescription }
@@ -188,6 +311,7 @@ struct FilesWorkspace: View {
     @ObservedObject var model: Workbench
     @ObservedObject var inbox: FilesInbox
     @ObservedObject private var pdfSetup: PDFEngineSetup
+    @State private var showingWebImport = false
     init(model: Workbench, inbox: FilesInbox) {
         self.model = model; self.inbox = inbox; self.pdfSetup = model.pdfEngineSetup
     }
@@ -206,7 +330,13 @@ struct FilesWorkspace: View {
                 Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
                 Text("Drop images and PDFs here").font(.headline)
                 Text("Choose files, select an output, then convert. Originals stay in place.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                Button("Choose Files…", action: inbox.browse).buttonStyle(BakerButtonStyle(prominent: inbox.items.isEmpty)).disabled(model.busy || inbox.running)
+                HStack(spacing: 8) {
+                    Button("Choose Files…", action: inbox.browse)
+                        .buttonStyle(BakerButtonStyle(prominent: inbox.items.isEmpty))
+                        .disabled(model.busy || inbox.running)
+                    Button("Import Web Content…") { showingWebImport = true }
+                        .disabled(model.busy || inbox.running)
+                }
             }.frame(maxWidth: .infinity).padding(24)
                 .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? BakerTheme.accent : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
@@ -221,28 +351,30 @@ struct FilesWorkspace: View {
                     return true
                 }
             HStack {
-                Picker("PDF output", selection: $inbox.pdfFormat) {
-                    Text("Markdown").tag(PDFExportFormat.markdown); Text("LaTeX").tag(PDFExportFormat.latex)
+                Picker("Source output", selection: $inbox.sourceOutput) {
+                    ForEach(SourceOutput.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.frame(width: 220).disabled(model.busy || inbox.running)
-                if !model.canConvertDocument(format: inbox.pdfFormat) {
+                if inbox.needsPDFEngine {
                     Text("PDF model download required").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 } else if !inbox.items.contains(where: { $0.provider != nil }) {
-                    RecognitionProviderLabel(provider: model.plugins.selected(for: "pdf", format: inbox.pdfFormat)?.manifest.label ?? "Baker · Local")
+                    let provider = inbox.sourceOutput.conversion.flatMap { model.plugins.selected(for: "pdf", format: $0) }
+                    RecognitionProviderLabel(provider: provider?.manifest.label ?? "Baker · Local")
                 }
                 Spacer()
                 Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
                 if inbox.running { Button("Cancel", action: inbox.cancel) }
                 else { Button("Convert Files", action: inbox.start).buttonStyle(BakerButtonStyle(prominent: true)).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
             }
-            if !model.canConvertDocument(format: inbox.pdfFormat) && inbox.items.contains(where: { $0.url.pathExtension.lowercased() == "pdf" }) {
+            if inbox.needsPDFEngine {
                 PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
             }
             List(inbox.items) { file in
-                HStack {
-                    Image(systemName: file.url.pathExtension.lowercased() == "pdf" ? "doc.richtext" : "photo")
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: file.source.isWeb ? "globe" : (file.source.isDocument ? "doc.richtext" : "photo"))
+                        .frame(width: 16)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text(file.url.lastPathComponent).lineLimit(1)
+                            Text(file.source.name).lineLimit(1)
                             if let provider = file.provider { RecognitionProviderLabel(provider: provider) }
                         }
                         Text(file.message).font(BakerTypography.supporting).foregroundStyle(file.phase == .failed ? .red : .secondary).lineLimit(2).help(file.message)
@@ -258,7 +390,9 @@ struct FilesWorkspace: View {
                 }.padding(.vertical, 4)
             }.scrollContentBackground(.hidden).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 10))
             Text(inbox.message.isEmpty ? "Completed files save automatically. Use Save As… for another copy." : inbox.message).font(BakerTypography.supporting).foregroundStyle(.secondary)
-        }.animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: inbox.targeted)
+        }
+        .sheet(isPresented: $showingWebImport) { WebImportView(add: inbox.addWebContent) }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: inbox.targeted)
         .buttonStyle(BakerButtonStyle()).font(BakerTypography.body).tint(BakerTheme.accent).padding(20).foregroundStyle(BakerTheme.ink).background(BakerTheme.background).frame(minWidth: 680, minHeight: 520)
     }
 }

@@ -71,21 +71,19 @@ struct DocumentProgressView: View {
     let progress: DocumentProgress
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            if let fraction = progress.fraction {
-                HStack {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(BakerTheme.accent.opacity(0.15))
-                            Capsule().fill(BakerTheme.accent).frame(width: geometry.size.width * fraction)
-                        }
-                    }.frame(height: 6).accessibilityValue(Text(fraction, format: .percent))
-                    Text("\(Int(fraction * 100))% · \(progress.completed)/\(progress.total) pages").font(BakerTypography.supporting.monospacedDigit())
-                }
-            } else { ProgressView().controlSize(.small) }
+            ProgressView(value: progress.fraction)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+                .tint(BakerTheme.accent)
+                .accessibilityLabel("PDF conversion progress")
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(progress.timing()).font(BakerTypography.supporting).foregroundStyle(.secondary)
+                let timing = progress.timing()
+                let detail = progress.fraction.map { fraction in
+                    "\(Int(fraction * 100))% · \(progress.completed)/\(progress.total) pages · \(timing)"
+                } ?? timing
+                Text(detail).font(BakerTypography.supporting.monospacedDigit()).foregroundStyle(.secondary)
             }
-        }.accessibilityLabel("PDF conversion progress")
+        }
     }
 }
 

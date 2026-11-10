@@ -2,14 +2,11 @@
 
 ## Unreleased
 
-### CLI and PDF conversion
-
-- Reject CLI responses from another user, non-regular files, replies over 8 MiB and replies that do not match the request ID.
-- Read plugin export sizes from file metadata and avoid rereading the exported document.
-
-### Validation
-
-- Run process, PDF and formula rendering regressions in macOS CI alongside XCTest and capture archive checks.
+- Add web pages and PDFs to Clipboard & Files from a link. Sign in when needed, then export the queued sources as PDF, Markdown or LaTeX.
+- Keep PDF conversion progress in place as page counts and timing become available.
+- Validate CLI replies before returning their contents. Each reply must be a regular file owned by the current user, at most 8 MiB, and match the request ID.
+- Report PDF conversion output size from file metadata, avoiding a second read of the plugin export.
+- Run process, PDF conversion and formula rendering regression checks in macOS CI alongside XCTest and capture archive checks.
 
 ## 0.1.2 — 2026-10-29
 

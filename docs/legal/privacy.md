@@ -1,6 +1,6 @@
 # Privacy policy
 
-Effective date: 29 October 2026.
+Effective date: 10 November 2026.
 
 This policy covers Baker, developed by PentagonToy, and its documentation website. Contact [kanghanseul96@gmail.com](mailto:kanghanseul96@gmail.com) for privacy questions.
 
@@ -23,6 +23,12 @@ Formula models download only when requested in Settings, using pinned archives f
 PDF conversion downloads its optional engine from Baker’s GitHub Releases over HTTPS. Baker verifies the archive size, SHA-256 and file inventory before installation under `~/Library/Application Support/Baker/Engines`. Settings → Advanced → Offline Model removes the engine while preserving user files.
 
 Download providers receive ordinary connection information, including the requesting IP address. These requests contain no captures, documents, recognised text or account credentials.
+
+## Web import
+
+Opening a link contacts the destination site and any services the page loads. These sites receive ordinary connection information. Enter sign-in details directly on the site. The in-app browser uses a temporary session that ends when its view closes.
+
+Baker holds queued pages in memory and keeps downloaded PDFs in temporary storage until the queue clears. Exports go to the save folder. Baker asks before passing a web PDF to the selected OCR plugin and offers local conversion.
 
 ## Optional OCR plugins
 

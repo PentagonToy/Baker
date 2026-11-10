@@ -136,6 +136,7 @@ import Darwin
             return ["ok": true, "formulaID": id.uuidString, "format": format.rawValue, "status": m.status]
         case "copy": m.copyOutput()
         case "clear-cache": m.clearPreviewCache()
+        case "open-files": m.onOpenFiles?(nil)
         case "settings":
             guard let page = SettingsPage.allCases.first(where: { $0.rawValue.lowercased() == (r.text ?? "general").lowercased() }) else { try fail("Unknown settings page.") }; m.onSettingsNeeded?(page)
         case "pdf":

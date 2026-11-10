@@ -41,3 +41,7 @@ Capture image-tool inputs and provenance are documented in [Local capture image 
 ## Installer helpers
 
 The DMG alias and layout helpers derive from remile. by PentagonToy under the MIT licence. Their notice is retained in [tools/remile-LICENSE.txt](../../tools/remile-LICENSE.txt).
+
+## Web import
+
+Web import uses Mozilla Readability (Apache-2.0), Turndown and Turndown GFM (MIT). Their licence files and pinned versions ship in `Sources/Baker/Resources/WebImport`.

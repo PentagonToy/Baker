@@ -4,7 +4,9 @@ import BakerCore
 extension Workbench {
     var canRecogniseFormula: Bool { plugins.selected(for: "formula") != nil || developerRuntimeOverrides || formulaSetup.ready }
     var canConvertDocument: Bool { canConvertDocument(format: .markdown) || canConvertDocument(format: .latex) }
-    func canConvertDocument(format: PDFExportFormat) -> Bool { plugins.selected(for: "pdf", format: format) != nil || preparedDocumentEngine != nil }
+    func canConvertDocument(format: PDFExportFormat, usePlugin: Bool = true) -> Bool {
+        preparedDocumentEngine != nil || (usePlugin && plugins.selected(for: "pdf", format: format) != nil)
+    }
     func recogniseInput(_ request: RecognitionRequest, captureID: UUID? = nil) async throws -> FormulaRecognition {
         if request.formula, let plugin = plugins.selected(for: "formula") {
             if let captureID { formulaResults[captureID]?.model = plugin.manifest.modelIdentity }
@@ -28,9 +30,9 @@ extension Workbench {
         usage.record()
         return result
     }
-    func convertDocument(source: URL, destination: URL, format: PDFExportFormat, options: PDFConversionOptions,
+    func convertDocument(source: URL, destination: URL, format: PDFExportFormat, options: PDFConversionOptions, usePlugin: Bool = true,
                          progress: @escaping @MainActor (PDFConversionProgress) -> Void) async throws -> PDFConversionReport {
-        if let plugin = plugins.selected(for: "pdf", format: format) {
+        if usePlugin, let plugin = plugins.selected(for: "pdf", format: format) {
             progress(PDFConversionProgress(pageNumber: 0, totalPages: 0, phase: .recognising, message: "Converting with " + plugin.manifest.name + "…", provider: plugin.manifest.label))
             do {
                 let result = try await plugins.run(plugin, operation: "pdf", input: source, destination: destination, format: format)

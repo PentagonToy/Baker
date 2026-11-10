@@ -25,11 +25,14 @@ Baker 0.0.4 and later include `/Applications/Baker.app/Contents/Resources/CLI/ba
 | `copy` | Copy the current result |
 | `clear-cache` | Clear preview caches and reconcile history |
 | `settings --text Advanced` | Open a settings category |
+| `open-files` | Open Clipboard & Files |
 | `pdf /absolute/input.pdf --output /absolute/new.md --format markdown --timeout 7200` | Offline PDF export; LaTeX is also supported |
 | `formula /absolute/image.png` | Headless recognition without clipboard or history changes |
 | `unicode --text '\mathbf{x}+1'` | Headless plain Unicode approximation |
 
-Live commands require Baker running. There is no extra worker or server port. Requests use an owner-only mailbox awakened by filesystem events. Responses must be regular files owned by the current user, at most 8 MiB, and match the request ID. Invalid responses fail without returning their contents. Capture and recording commands return acceptance rather than completed output. Poll `status` and `result` afterwards. The normal Screen Recording permission and interactive selection still apply. Model downloads remain explicit app actions.
+Start Baker before running live commands. Capture and recording commands acknowledge the request. Use `status` and `result` to check progress and retrieve the output. Screen Recording permission and interactive selection still apply. Start model downloads in the app.
+
+Baker receives requests through an owner-only mailbox. Each reply must be a regular file owned by the current user, at most 8 MiB, and match the request ID. Invalid replies fail without returning their contents.
 
 `clipboard.preparingImage` reports pending image encoding. `diagnostics` is read-only and remains available during conversion. `process.residentBytes` and `physicalFootprintBytes` describe the app process, excluding OCR workers and WebKit services. Compare repeated samples under the same workload; one reading cannot establish a leak. Cache limits are budgets, not the total memory retained by visible views.
 

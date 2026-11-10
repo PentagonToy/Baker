@@ -300,7 +300,7 @@ final class BakerDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWi
     @objc private func captureFormula() { startCapture(action: .formula) }
     @objc private func captureUnicode() { startCapture(action: .unicode) }
     private func showFiles(_ format: PDFExportFormat? = nil) {
-        if let format { model.filesInbox.pdfFormat = format }
+        if let format { model.filesInbox.sourceOutput = format == .markdown ? .markdown : .latex }
         let window = windows.resolve(.files) {
             let panel = FilesWorkspaceWindow()
             panel.title = "Baker · Clipboard & Files"
@@ -517,8 +517,10 @@ private struct ExportView: View {
                 .font(.title3.weight(.semibold)).lineLimit(2)
             if let provider = model.isConvertingPDF ? model.documentProgress.provider : model.exportProvider { RecognitionProviderLabel(provider: provider) }
             Text(model.exportSummary).font(BakerTypography.body).foregroundStyle(.secondary)
-            if model.isConvertingPDF { DocumentProgressView(progress: model.documentProgress) }
-            Text(model.status).font(BakerTypography.supporting).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(model.status).font(BakerTypography.supporting).foregroundStyle(.secondary)
+                if model.isConvertingPDF { DocumentProgressView(progress: model.documentProgress) }
+            }
             HStack {
                 if model.isConvertingPDF { Button("Cancel", action: model.cancelJob) }
                 Spacer()
