@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Draw the area capture overlay across each connected display, including portrait monitors.
 - Add web pages and PDFs to Clipboard & Files from a link. Sign in when needed, then export the queued sources as PDF, Markdown or LaTeX.
 - Keep PDF conversion progress in place as page counts and timing become available.
 - Validate CLI replies before returning their contents. Each reply must be a regular file owned by the current user, at most 8 MiB, and match the request ID.

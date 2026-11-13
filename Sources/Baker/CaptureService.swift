@@ -205,7 +205,7 @@ struct PreparedCapture {
 
 @MainActor
 private final class RegionSelector {
-    private var windows: [NSWindow] = []
+    private var windows: [SelectionWindow] = []
     private var screenSignature = ""
     private var continuation: CheckedContinuation<CaptureRegion?, Never>?
     private var resolved = false
@@ -220,12 +220,15 @@ private final class RegionSelector {
         windows.forEach { $0.orderOut(nil) }
         windows = []; screenSignature = signature
         for screen in screens {
-            let window = SelectionWindow(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+            let contentRect = CGRect(origin: .zero, size: screen.frame.size)
+            let window = SelectionWindow(contentRect: contentRect, styleMask: [.borderless, .nonactivatingPanel],
+                                         backing: .buffered, defer: true, screen: screen)
+            window.targetScreen = screen
             window.level = .screenSaver; window.sharingType = .none
             window.hidesOnDeactivate = false
             window.isOpaque = false; window.backgroundColor = .clear
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
+            let view = SelectionView(frame: contentRect)
             view.completion = { [weak self] rect in
                 guard let rect else { self?.complete(nil); return }
                 self?.complete(CaptureRegion(screen: screen, rect: CGRect(x: rect.minX,
@@ -237,7 +240,7 @@ private final class RegionSelector {
     }
     func setSnapshot(_ image: CGImage, screen: NSScreen) {
         guard active else { return }
-        for window in windows where window.frame == screen.frame {
+        for window in windows where window.targetScreen == screen {
             (window.contentView as? SelectionView)?.snapshot = NSImage(cgImage: image, size: screen.frame.size)
             window.contentView?.needsDisplay = true
         }
@@ -245,14 +248,18 @@ private final class RegionSelector {
     func begin() {
         prepare()
         resolved = false; selectedRegion = nil; active = true
-        windows.forEach {
-            ($0.contentView as? SelectionView)?.resetSelection()
-            $0.orderFrontRegardless()
+        for window in windows {
+            // Keep the cached panel aligned to the full display, including portrait displays.
+            if let screen = window.targetScreen, window.frame != screen.frame {
+                window.setFrame(screen.frame, display: false)
+            }
+            (window.contentView as? SelectionView)?.resetSelection()
+            window.orderFrontRegardless()
+            window.displayIfNeeded()
         }
         let window = windows.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? windows.first
         window?.makeKey(); window?.makeFirstResponder(window?.contentView)
         if !cursorPushed { NSCursor.crosshair.push(); cursorPushed = true }
-        window?.displayIfNeeded()
     }
     func result() async -> CaptureRegion? {
         if resolved { return selectedRegion }
@@ -270,6 +277,7 @@ private final class RegionSelector {
 }
 
 private final class SelectionWindow: NSPanel {
+    var targetScreen: NSScreen?
     override var canBecomeKey: Bool { true }
 }
 
