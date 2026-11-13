@@ -1,17 +1,17 @@
 # Clipboard & Files
 
-Choose **Open Files** to queue images, PDFs or web pages. Drop local files into the workspace or select them with **Choose Files…**. The workspace stays open when you switch apps.
+Choose **Open Files** from the Baker menu. Drop images and PDFs into the workspace or use **Add Sources → Choose Files…**. You can also import a web link or use the clipboard from **Add Sources**.
 
 1. Add up to 50 items.
 2. For documents, choose **PDF**, **Markdown** (initial format) or **LaTeX** under **Source output**.
-3. Choose **Convert Files**. Baker processes one file at a time.
+3. Choose **Convert Files**, or **Import Images** for an image-only queue. Baker processes one file at a time.
 4. Document exports save automatically to your save folder. Choose **Open** to view a result or **Save As…** for another copy.
 
 Images are copied into capture history. Choose **Formula** beside an imported image to recognise it. Original files stay in place.
 
 ## Web content
 
-1. Choose **Import Web Content…**, paste a link and choose **Open**.
+1. Choose **Add Sources → Import Web Content…**, paste a link and choose **Open**.
 2. Choose **Add** to queue the page. If the site needs sign-in or a security check, choose **Continue Here…** and complete it in the web view. Choose **Add Page** or **Add PDF** once the content is ready.
 3. Choose a format under **Source output**, then choose **Convert Files**.
 
@@ -21,7 +21,7 @@ If a site cannot open in the web view, choose **Open in Browser**, download the 
 
 ## Formula images
 
-Choose **Formula Workspace** for image drops, **Image…** for a file chooser and **New** for an empty input. **History** and the arrows reopen saved equations. See [Formula Workspace](../help/formula.md#formula-workspace).
+Drop an image into **Formula Workspace** or choose **New → Open Image…**. The history grid and arrows reopen saved equations. See [Formula Workspace](../help/formula.md#formula-workspace).
 
 To remove surrounding text before recognition, double-click a capture thumbnail, cover it with an opaque white filled rectangle, then choose **Done**. Drag the updated thumbnail into Formula Workspace. The edit overwrites that capture; keep a separate copy if you need the original.
 
@@ -30,7 +30,7 @@ To remove surrounding text before recognition, double-click a capture thumbnail,
 | Action | Use |
 | --- | --- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/files-open-dark.svg"><img src="../../others/assests/symbols/files-open.svg" width="22" alt="Open Files"></picture> **Open Files** | Drop files or browse for several files |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/clipboard-image-dark.svg"><img src="../../others/assests/symbols/clipboard-image.svg" width="22" alt="Clipboard Image"></picture> **Clipboard Image** | Import the current clipboard image |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/clipboard-image-dark.svg"><img src="../../others/assests/symbols/clipboard-image.svg" width="22" alt="Open Clipboard Image"></picture> **Open Clipboard Image** | Import the current clipboard image |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/symbols/clipboard-text-dark.svg"><img src="../../others/assests/symbols/clipboard-text.svg" width="22" alt="Read Clipboard Text"></picture> **Read Clipboard Text** | Recognise text in the current clipboard image |
 
 ## PDF conversion

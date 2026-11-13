@@ -8,9 +8,9 @@ A plugin is executable code, with your user permissions. It can read files and u
 
 ## API keys and usage
 
-After adding an API-key plugin, enter its key if required and choose **Save Key**. Plugins that supply interactive setup show **Configure…** instead; choosing it opens the plugin’s own setup window or browser. Baker stores the key in macOS Keychain and supplies it only to that plugin’s invocation. **Clear Key** removes it. A key alone does not identify an OCR service: the plugin defines the destination, authentication and response handling. Never include credentials in a ZIP, source file or diagnostic output.
+After adding an API-key plugin, enter its key if required and choose **Save Key**. For interactive setup, choose **Configure…** to open the plugin’s setup window or browser. Baker stores the key in macOS Keychain and supplies it only to that plugin. Use **Manage Plugin** to clear the saved key or credentials, or remove the plugin. Never include credentials in a ZIP, source file or diagnostic output.
 
-**Test Connection** runs a `probe` without a capture or PDF. Plugin usage counts successful image jobs, PDFs and pages completed through Baker, rather than the provider’s billing balance. **Reset…** clears these counts after confirmation and updates the tracking date. The separate **Baker · Local** counts include jobs completed by local fallback.
+**Test Connection** runs a `probe` without a capture or PDF. For plugins with interactive setup, find it under **Manage Plugin**. Usage counts successful image jobs, PDFs and pages completed through Baker. **Reset…** clears these counts and updates the tracking date. **Baker · Local** counts include jobs completed by local fallback.
 
 If a plugin fails, Baker tries the installed local model once. Cancelled jobs stay cancelled. Baker never retries against another remote service; a failed request may nevertheless have reached the provider and incurred a charge. Install a formula model and the optional Offline Model to make both fallbacks available. The formula popover, workspace and PDF result show the provider that actually completed the job. A local fallback is labelled Baker even when the plugin was preferred. PDF output preferences apply to document conversion, not to copying a recognised formula in another text format.
 

@@ -75,7 +75,9 @@ struct FormulaHistoryView: View {
             }
         }.font(BakerTypography.body).foregroundStyle(BakerTheme.ink)
             .onChange(of: state.query) { state.limit = 60; state.selection = [] }
-            .onChange(of: records.map(\.id)) { state.selection.formIntersection(Set(records.map(\.id))) }
+            .onChange(of: records.map(\.id)) { _, ids in
+                if !state.selection.isEmpty { state.selection.formIntersection(ids) }
+            }
             .alert(state.pendingDeletion.count == 1 ? "Delete this formula?" : "Delete \(state.pendingDeletion.count) formulas?", isPresented: $state.confirmingDeletion) {
                 Button("Cancel", role: .cancel) { state.pendingDeletion = [] }
                 Button("Delete", role: .destructive) {

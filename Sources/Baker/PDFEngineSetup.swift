@@ -171,13 +171,21 @@ struct PDFEngineSetupView: View {
     @ObservedObject var setup: PDFEngineSetup
     var inUse = false
     var embedded = false
+    var showsCancel = true
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(setup.ready ? "PDF model installed" : "Download for PDF conversion", systemImage: setup.ready ? "checkmark.circle.fill" : "arrow.down.circle").font(BakerTypography.section).foregroundStyle(setup.ready ? BakerTheme.success : Color.primary)
             if !setup.ready || setup.working || setup.failure != nil { Text(setup.message).font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             if setup.working {
                 ProgressView(value: setup.progress)
-                HStack { Text(setup.progress < 1 ? "\(Int(setup.progress * 100))% downloaded" : "Verifying files…").font(BakerTypography.supporting).foregroundStyle(.secondary); Spacer(); Button("Cancel", action: setup.cancel) }
+                HStack {
+                    Text(setup.progress < 1 ? "\(Int(setup.progress * 100))% downloaded" : "Verifying files…")
+                        .font(BakerTypography.supporting).foregroundStyle(.secondary)
+                    if showsCancel {
+                        Spacer()
+                        Button("Cancel", action: setup.cancel)
+                    }
+                }
             } else {
                 HStack {
                     Button(setup.ready ? "Reinstall" : "Download · " + setup.downloadSize, action: setup.prepare).disabled(!setup.available || inUse)

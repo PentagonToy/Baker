@@ -36,10 +36,7 @@ struct ScreenRecordingPermissionView: View {
             }
             if !permission.allowed {
                 Text("Allow Baker in Screen & System Audio Recording, then return here.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                HStack {
-                    Button("Check Again", action: permission.refresh)
-                    Button("Reopen Baker", action: reopen).disabled(busy)
-                }
+                Button("Reopen Baker", action: reopen).disabled(busy)
             }
         }.onAppear(perform: permission.refresh)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in permission.refresh() }

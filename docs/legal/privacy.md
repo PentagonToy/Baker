@@ -56,7 +56,7 @@ Capture images default to no count or age limit. Applying a retention policy req
 
 Formula metadata defaults to the latest 50 results with no age limit. Users can change the count, select 7-, 10-, 30- or 90-day expiry, or clear formula history. These actions preserve capture images.
 
-Clear Image Cache releases thumbnails; Clear Formula Cache releases rendered equations. Both reconcile files deleted in Finder and remove their linked metadata while preserving existing files. Opening Capture History also reconciles missing files. Use **Settings → Storage → Open Folder** to locate captures and indexes; close Baker before manually editing indexes.
+**Clear Preview Caches** releases thumbnails and rendered equations. It removes history entries and linked metadata for files deleted in Finder. Opening Capture History also reconciles missing files. Use **Settings → Storage → Open Folder** to locate captures and indexes. Close Baker before manually editing indexes.
 
 Uninstalling Baker leaves the save folder, model cache, preferences and provider backups in place.
 

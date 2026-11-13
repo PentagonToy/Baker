@@ -52,4 +52,4 @@ Automatic checks are off initially. When enabled, Baker checks GitHub at most on
 
 ## OCR plugin
 
-Add one ZIP in Advanced, then choose Baker or Plugin first separately for Formula OCR, PDF → Markdown and PDF → LaTeX. Baker is the local fallback. Use Configure… for a plugin that supplies its own setup, or save an optional API key in Keychain. Test Connection does not upload a capture. Usage is separate from Baker · Local. See [OCR plugins](plugins.md) for fallback, removal and creating an adapter.
+Add one ZIP in Advanced, then choose Baker or Plugin first separately for Formula OCR, PDF → Markdown and PDF → LaTeX. Baker is the local fallback. Use **Configure…** for a plugin that supplies its own setup, or save an optional API key in Keychain. **Manage Plugin** holds maintenance actions. See [OCR plugins](plugins.md) for connection tests, usage and removal.

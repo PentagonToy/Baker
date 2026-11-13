@@ -18,4 +18,4 @@ Clicking **X** on a capture thumbnail moves that image to Trash and removes its 
 
 Choose the capture folder in [Settings → Storage](../help/storage.md). You can change the Recent menu order in Settings → Menu.
 
-Use Settings → Storage → Caches → Clear Image Cache to discard thumbnail cache and reconcile files deleted in Finder. Retention defaults to no image limit; reviewed limits move images to Trash. Videos and GIFs are unaffected.
+Use **Settings → Storage → Maintenance → Clear Preview Caches** to discard cached previews and update history after deleting files in Finder. Retention defaults to no image limit. Approved limits move images to Trash. Videos and GIFs are unaffected.

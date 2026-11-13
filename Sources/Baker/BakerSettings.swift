@@ -123,20 +123,24 @@ struct BakerSettings: View {
                 Text("Captures, recordings, PDF exports and history.").font(BakerTypography.supporting).foregroundStyle(.secondary)
             }
             HistorySettings(model: model, confirmFormulaClear: $state.confirmFormulaClear)
-            card("Caches") {
+            card("Maintenance") {
                 HStack {
-                    Button("Clear Image Cache", action: model.clearImageCache)
-                    Button("Clear Formula Cache", action: model.clearPreviewCache)
-                }.disabled(model.busy)
-                Text("Rebuild previews and remove history entries for files deleted in Finder.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-            }
-            DisclosureGroup("Settings presets") {
+                    Text("Preview caches")
+                    Spacer()
+                    Button("Clear Preview Caches", action: model.clearPreviewCache).fixedSize()
+                }
+                Text("Also removes history entries for files deleted in Finder.")
+                    .font(BakerTypography.supporting).foregroundStyle(.secondary)
+                Divider()
                 HStack {
-                    Button("Save Preset…", action: model.saveSettingsPreset)
-                    Button("Load Preset…", action: model.loadSettingsPreset)
-                }.disabled(model.busy).padding(.top, 8)
-                Text("Stored in the Presets folder; model files stay on this Mac.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-            }
+                    Text("Settings presets")
+                    Spacer()
+                    Menu("Save or Load") {
+                        Button("Save Preset…", action: model.saveSettingsPreset)
+                        Button("Load Preset…", action: model.loadSettingsPreset)
+                    }.fixedSize().accessibilityLabel("Settings presets")
+                }
+            }.disabled(model.busy)
         case .shortcuts:
             card("Capture and record") { CaptureShortcutSettings(shortcuts: shortcuts) }
         case .menu:

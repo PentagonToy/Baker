@@ -14,7 +14,7 @@ The folder contains capture images, the hidden `.baker-history.json` capture ind
 
 ## Presets
 
-**Save Preset** starts in the save folder’s `Presets` subfolder. **Load Preset** restores the selected preset after checking its format.
+In **Settings → Storage → Maintenance**, use **Save or Load** beside **Settings presets**. **Save Preset…** starts in the save folder’s `Presets` subfolder. **Load Preset…** restores the selected preset after checking its format.
 
 Presets include OCR languages, maths font, formula copy style, clipboard preferences, capture sounds, desktop-icon visibility, preview count and formula-history limits. They exclude the save location, shortcuts, Python paths, models and credentials. Loading a preset can apply its formula-history limits.
 
@@ -28,6 +28,6 @@ Let the provider finish downloading the folder before opening it. Use one Baker 
 
 Storage → History groups image and formula retention. Capture images default to **No limit** and **No age limit**. Choose a count or age, then use **Review & Apply** to inspect the number and total size before moving affected images to Trash. Linked formula results are removed with their images. The approved policy applies to future captures in that folder; review it again after choosing another save folder. Videos, GIFs and unindexed files are unaffected. No limit means no automatic retention removal; archive safety caps still apply.
 
-**Clear Image Cache** discards cached thumbnails and reconciles missing files. Opening Capture History also refreshes its records. Images already deleted in Finder, and their linked formula metadata, disappear from history; unreadable files that still exist are retained. An unavailable folder is reported rather than treated as an empty history.
+**Settings → Storage → Maintenance → Clear Preview Caches** clears thumbnails and rendered formula previews. It also removes history entries and linked formula metadata for files deleted in Finder. Opening Capture History also checks for missing files. Unreadable files that still exist are retained. Baker reports an unavailable folder.
 
-Formula limits remove recognised text and diagnostics while preserving existing images. The default keeps 50 results with no age limit. **Clear Formula Cache** lives in Storage settings and also reconciles deleted files. Image removal policies and their folder approval are local settings excluded from portable presets.
+Formula limits remove recognised text and diagnostics while preserving existing images. The default keeps 50 results with no age limit. Image removal policies and their folder approval are local settings excluded from portable presets.

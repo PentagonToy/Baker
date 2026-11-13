@@ -40,11 +40,6 @@ extension Workbench {
             } catch { report(error, fallback: .storageFailed, context: "Capture history could not be refreshed:") }
         }
     }
-    func clearImageCache() {
-        guard !busy else { return }
-        library.clearCache(); refreshCaptureHistory()
-        status = "Image previews cleared. Checking saved files…"
-    }
     func reviewImageRetention() {
         guard !busy, !shuttingDown else { return }
         guard canChangeStorage?() != false else { report(BakerError(message: "Close the capture editor before applying image limits.", code: .invalidState)); return }

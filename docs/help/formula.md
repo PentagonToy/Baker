@@ -14,9 +14,9 @@ Texo is a fast, low-memory option in our tests; Pix2Text remains a balanced choi
 
 ## Formula Workspace
 
-Choose **Formula Workspace**, drop an image or edited capture thumbnail, or choose **Image…**. The preview, model score and copy fields remain empty until recognition.
+In **Formula Workspace**, choose **Capture**, drop an image or edited capture thumbnail, or choose **New → Open Image…**.
 
-**New** opens an empty input without deleting history. **History** lists saved equations across sessions; arrows move between results. From New, the left arrow returns to the last selected equation. Saved results reopen without rerunning OCR.
+**New → Empty Workspace** opens a blank input and keeps history. The grid button lists saved equations, and the arrows move between results. From an empty workspace, the left arrow returns to the last selected equation. Saved results reopen without rerunning OCR.
 
 The workspace opens with the rendered equation. Choose **Original** or **Both** to compare it with the capture.
 
@@ -54,15 +54,15 @@ Preview scripts, fonts and styles ship with Baker. Prepared text and formula rec
 
 ## History
 
-Switch between **Formula History** and **Detail** with the grid and rectangle buttons in the Workspace toolbar. Search saved formulas, choose a copy format once, then copy directly from a card. Select its preview to open the full result. **New** also shows the six most recent formulas beneath the image drop area.
+Switch between **Formula History** and **Detail** with the grid and rectangle buttons in the Workspace toolbar. Search saved formulas, choose a copy format once, then copy directly from a card. Select its preview to open the full result. The empty workspace shows up to six recent formulas below the drop area.
 
 Command-click previews to select several formulas. **Delete Selected…** or Command-Delete removes their saved text, edits and recognition details after confirmation; original capture images remain in Capture History. Right-click a card for individual deletion or keyboard-accessible selection. Changing the search clears the selection.
 
-Cards reuse capture thumbnails and fall back to saved LaTeX when an image cannot be loaded. Browsing and copying do not rerun OCR. **All Captures…** opens the shared image, formula and recording history.
+Cards reuse capture thumbnails and show saved LaTeX when an image cannot be loaded. **All Captures…** opens the shared image, formula and recording history.
 
 **Settings → Storage → History** defaults to 50 formula results with no age limit. Choose another count or a 7-, 10-, 30- or 90-day expiry. Clearing formula history removes text and diagnostics while retaining captures.
 
-**Settings → Storage → Caches → Clear Formula Cache** releases rendered previews. It also reconciles images deleted in Finder and removes their linked metadata; existing files remain. See [history and storage](storage.md#history).
+**Settings → Storage → Maintenance → Clear Preview Caches** clears formula previews and thumbnails. See [history and storage](storage.md#history).
 
 ## Long formulas and failures
 

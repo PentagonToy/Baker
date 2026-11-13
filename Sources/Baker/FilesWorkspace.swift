@@ -100,8 +100,11 @@ final class FilesInbox: ObservableObject {
         return true
     }
 
+    var hasWaitingItems: Bool { items.contains { $0.phase == .waiting } }
+    var hasWaitingDocuments: Bool { items.contains { $0.phase == .waiting && $0.source.isDocument } }
+
     var needsPDFEngine: Bool {
-        guard let format = sourceOutput.conversion, items.contains(where: { $0.phase == .waiting && $0.source.isDocument }) else { return false }
+        guard !running, let format = sourceOutput.conversion, hasWaitingDocuments else { return false }
         return !model.canConvertDocument(format: format)
     }
 
@@ -129,7 +132,7 @@ final class FilesInbox: ObservableObject {
         folders.forEach { try? FileManager.default.removeItem(at: $0) }; folders = []; items = []; message = ""
     }
     func start() {
-        guard !running, !model.busy, items.contains(where: { $0.phase == .waiting }) else { return }
+        guard !running, !model.busy, hasWaitingItems else { return }
         let format = sourceOutput.conversion
         let webItemsWaiting = items.contains { $0.phase == .waiting && $0.source.isWeb }
         var approvedPlugin: OCRPlugins.Entry?
@@ -146,14 +149,13 @@ final class FilesInbox: ObservableObject {
             default: return
             }
         }
+        message = ""
         running = true
         task = Task { [self] in
             var ownsBusy = false
             defer { running = false; if ownsBusy { model.busy = false }; task = nil }
-            if let format, items.contains(where: { file in
-                file.phase == .waiting && file.source.isDocument
-                    && !model.canConvertDocument(format: format, usePlugin: !file.source.isWeb || approvedPlugin != nil)
-            }) {
+            if let format, hasWaitingDocuments,
+               !model.canConvertDocument(format: format, usePlugin: !webItemsWaiting || approvedPlugin != nil) {
                 do {
                     if !model.pdfEngineSetup.working {
                         guard model.pdfEngineSetup.available else { message = model.pdfEngineSetup.message; return }
@@ -163,9 +165,7 @@ final class FilesInbox: ObservableObject {
                         alert.addButton(withTitle: "Download & Continue"); alert.addButton(withTitle: "Not Now")
                         guard alert.runModal() == .alertFirstButtonReturn else { message = "PDF files are waiting. Download the engine when you are ready."; return }
                     }
-                    message = "Preparing PDF engine…"
                     try await model.pdfEngineSetup.waitUntilReady()
-                    message = ""
                 } catch { message = BakerError.wrapping(error).userDescription; return }
             }
             do {
@@ -316,28 +316,24 @@ struct FilesWorkspace: View {
         self.model = model; self.inbox = inbox; self.pdfSetup = model.pdfEngineSetup
     }
     var body: some View {
+        let hasWaitingDocuments = inbox.hasWaitingDocuments
+        let preparingEngine = inbox.running && !model.busy && pdfSetup.working
+            && hasWaitingDocuments && inbox.sourceOutput.conversion != nil
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Clipboard & Files").font(BakerTypography.title)
-                    Text("Turn captures and documents into editable text.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                }
+                Text("Clipboard & Files").font(BakerTypography.title)
                 Spacer()
-                Button("Clipboard Image") { model.pasteImage() }.disabled(model.busy)
-                Button("Read Clipboard Text") { model.pasteImage(recogniseText: true) }.disabled(model.busy)
-            }
-            VStack(spacing: 10) {
-                Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 30)).foregroundStyle(BakerTheme.accent)
-                Text("Drop images and PDFs here").font(.headline)
-                Text("Choose files, select an output, then convert. Originals stay in place.").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                HStack(spacing: 8) {
+                Menu {
                     Button("Choose Files…", action: inbox.browse)
-                        .buttonStyle(BakerButtonStyle(prominent: inbox.items.isEmpty))
-                        .disabled(model.busy || inbox.running)
                     Button("Import Web Content…") { showingWebImport = true }
-                        .disabled(model.busy || inbox.running)
-                }
-            }.frame(maxWidth: .infinity).padding(24)
+                    Divider()
+                    Button("Open Clipboard Image") { model.pasteImage() }
+                    Button("Read Clipboard Text") { model.pasteImage(recogniseText: true) }
+                } label: { Label("Add Sources", systemImage: "plus") }
+                    .fixedSize().disabled(model.busy || inbox.running)
+            }
+            Label("Drop images and PDFs here", systemImage: "square.and.arrow.down.on.square")
+                .font(BakerTypography.section).frame(maxWidth: .infinity).padding(18)
                 .background(inbox.targeted ? BakerTheme.accent.opacity(0.1) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(inbox.targeted ? BakerTheme.accent : Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6])))
                 .onDrop(of: [UTType.fileURL.identifier], isTargeted: $inbox.targeted) { providers in
@@ -351,22 +347,22 @@ struct FilesWorkspace: View {
                     return true
                 }
             HStack {
-                Picker("Source output", selection: $inbox.sourceOutput) {
-                    ForEach(SourceOutput.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.frame(width: 220).disabled(model.busy || inbox.running)
-                if inbox.needsPDFEngine {
-                    Text("PDF model download required").font(BakerTypography.supporting).foregroundStyle(.secondary)
-                } else if !inbox.items.contains(where: { $0.provider != nil }) {
-                    let provider = inbox.sourceOutput.conversion.flatMap { model.plugins.selected(for: "pdf", format: $0) }
-                    RecognitionProviderLabel(provider: provider?.manifest.label ?? "Baker · Local")
+                if hasWaitingDocuments || (inbox.running && inbox.items.contains { $0.source.isDocument }) {
+                    Picker("Source output", selection: $inbox.sourceOutput) {
+                        ForEach(SourceOutput.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.frame(width: 220).disabled(model.busy || inbox.running)
                 }
                 Spacer()
-                Button("Clear", action: inbox.clear).disabled(model.busy || inbox.running)
-                if inbox.running { Button("Cancel", action: inbox.cancel) }
-                else { Button("Convert Files", action: inbox.start).buttonStyle(BakerButtonStyle(prominent: true)).disabled(model.busy || !inbox.items.contains { $0.phase == .waiting }) }
+                if inbox.running {
+                    Button("Cancel", action: inbox.cancel)
+                } else {
+                    Button("Clear", action: inbox.clear).disabled(model.busy || (inbox.items.isEmpty && inbox.message.isEmpty))
+                    Button(hasWaitingDocuments || !inbox.hasWaitingItems ? "Convert Files" : "Import Images", action: inbox.start)
+                        .buttonStyle(BakerButtonStyle(prominent: true)).disabled(model.busy || !inbox.hasWaitingItems)
+                }
             }
-            if inbox.needsPDFEngine {
-                PDFEngineSetupView(setup: model.pdfEngineSetup, inUse: model.busy)
+            if inbox.needsPDFEngine || preparingEngine {
+                PDFEngineSetupView(setup: pdfSetup, inUse: model.busy, showsCancel: !inbox.running)
             }
             List(inbox.items) { file in
                 HStack(alignment: .firstTextBaseline) {
@@ -382,14 +378,17 @@ struct FilesWorkspace: View {
                     }
                     Spacer()
                     if file.phase == .processing && file.progress == nil { ProgressView().controlSize(.small) }
-                    if let export = file.export {
+                    if file.phase != .processing, let export = file.export {
                         Button("Open") { NSWorkspace.shared.open(export) }
                         Button("Save As…") { inbox.save(file) }
+                            .disabled(model.busy || inbox.running)
                     }
                     if let capture = file.capture { Button("Formula") { model.selectCapture(capture, action: .formula) }.disabled(model.busy) }
                 }.padding(.vertical, 4)
             }.scrollContentBackground(.hidden).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 10))
-            Text(inbox.message.isEmpty ? "Completed files save automatically. Use Save As… for another copy." : inbox.message).font(BakerTypography.supporting).foregroundStyle(.secondary)
+            if !inbox.message.isEmpty {
+                Text(inbox.message).font(BakerTypography.supporting).foregroundStyle(.secondary)
+            }
         }
         .sheet(isPresented: $showingWebImport) { WebImportView(add: inbox.addWebContent) }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: inbox.targeted)

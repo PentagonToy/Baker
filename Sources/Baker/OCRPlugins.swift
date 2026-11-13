@@ -230,6 +230,7 @@ enum OCRPluginJob: String, CaseIterable {
 
 @MainActor private final class PluginSettingsState: ObservableObject {
     @Published var confirmReset = false
+    @Published var confirmRemoval = false
     @Published var apiKey = ""
     @Published var keyMessage = ""
 }
@@ -240,9 +241,9 @@ struct OCRPluginSettings: View {
     var body: some View {
         BakerSettingsSection {
             Group {
-                Label("Plugin", systemImage: "puzzlepiece.extension").font(BakerTypography.section)
+                Label(plugins.entries.first?.manifest.label ?? "Plugin", systemImage: "puzzlepiece.extension")
+                    .font(BakerTypography.section)
                 if let entry = plugins.entries.first {
-                    Text(entry.manifest.name).font(BakerTypography.section)
                     ForEach(OCRPluginJob.allCases, id: \.rawValue) { job in
                         HStack {
                             Text(job.title)
@@ -267,27 +268,32 @@ struct OCRPluginSettings: View {
                         }
                     }
                     HStack {
-                        if entry.manifest.configuration == true { Button("Configure…", action: plugins.configure) }
-                        Button("Test Connection", action: plugins.test)
-                        Button(entry.manifest.configuration == true ? "Clear Credentials" : "Clear Key") {
-                            do { try PluginSecret.save("", id: entry.id); state.keyMessage = "Saved credentials cleared." }
-                            catch { state.keyMessage = "Could not remove the key." }
+                        if entry.manifest.configuration == true {
+                            Button("Configure…", action: plugins.configure)
+                        } else {
+                            Button("Test Connection", action: plugins.test)
                         }
                         Spacer()
-                        Button("Remove Plugin") { state.apiKey = ""; state.keyMessage = ""; plugins.forget() }
-                            .help("Removes the plugin registration and Baker’s saved credentials. Files and usage remain on this Mac.")
+                        Menu("Manage Plugin") {
+                            if entry.manifest.configuration == true { Button("Test Connection", action: plugins.test) }
+                            Button(entry.manifest.configuration == true ? "Clear Credentials" : "Clear Key") {
+                                do { try PluginSecret.save("", id: entry.id); state.keyMessage = "Saved credentials cleared." }
+                                catch { state.keyMessage = "Could not remove saved credentials." }
+                            }
+                            Divider()
+                            Button("Remove Plugin…", role: .destructive) { state.confirmRemoval = true }
+                        }.fixedSize()
                     }
                     let usage = plugins.counts[entry.id] ?? OCRPlugins.Counts()
                     Divider()
                     HStack {
                         Text("Usage").font(BakerTypography.section)
-                        RecognitionProviderLabel(provider: entry.manifest.label)
                         Spacer()
                         Text("Since " + usage.since.formatted(date: .abbreviated, time: .omitted)).font(BakerTypography.supporting).foregroundStyle(.secondary)
                         Button("Reset…") { state.confirmReset = true }
                     }
                     Text("\(usage.images) images · \(usage.documents) PDFs · \(usage.pages) pages")
-                    Text("Completed in Baker; not the provider’s billing balance.").font(BakerTypography.supporting).foregroundStyle(.secondary)
+                    Text("Counts jobs completed in Baker.").font(BakerTypography.supporting).foregroundStyle(.secondary)
                 } else {
                     Text("Add one OCR plugin. It can use its own runtime or an online API.")
                         .font(BakerTypography.supporting).foregroundStyle(.secondary)
@@ -310,6 +316,9 @@ struct OCRPluginSettings: View {
             Button("Cancel", role: .cancel) {}
             Button("Reset Usage", role: .destructive) { if let entry = plugins.entries.first { plugins.resetUsage(entry.id) } }
         } message: { Text("Clear this plugin’s Baker counts and start again today. Provider billing and saved results remain.") }
+        .confirmationDialog("Remove this plugin?", isPresented: $state.confirmRemoval) {
+            Button("Remove Plugin", role: .destructive, action: plugins.forget)
+        } message: { Text("Baker removes the registration and saved credentials. Plugin files and usage stay on this Mac.") }
         .onChange(of: plugins.entries.map(\.id)) { _, _ in state.apiKey = ""; state.keyMessage = "" }
     }
 }

@@ -44,13 +44,13 @@ struct ScanControls: View {
                 Spacer()
                 ScanDelayField(seconds: $session.turnDelay).disabled(session.automatic)
             }
-            if AXIsProcessTrusted() {
-                Button(session.automatic ? "Pause Auto Turn" : "Start Auto Turn") { state.options = false; session.toggleAuto() }
-                    .buttonStyle(BakerButtonStyle(prominent: true, expands: true)).disabled(!session.automatic && !session.canAdd)
-            } else {
+            if !AXIsProcessTrusted() {
                 Text("Control access needed")
                     .font(BakerTypography.supporting).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Button("Allow…", action: session.openAccessibilitySettings).buttonStyle(BakerButtonStyle())
+            } else if !session.automaticSession {
+                Button("Start Auto Turn") { state.options = false; session.toggleAuto() }
+                    .buttonStyle(BakerButtonStyle(prominent: true, expands: true)).disabled(!session.canAdd)
             }
         }.padding(16).frame(width: 300)
     }

@@ -53,8 +53,12 @@ struct QuickStartView: View {
     let actions: QuickStartActions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var draft = QuickStartDraft()
-    private let tools = ["Capture", "Image…", "New", "History", "Edit"]
-    private let toolDescriptions = ["Capture another equation.", "Open a saved formula image.", "Start with an empty input. Saved formulas stay in History.", "Browse saved formulas. Arrows move between results.", "Correct the LaTeX and refresh the preview."]
+    private let tools = [
+        (title: "Capture", detail: "Capture another equation."),
+        (title: "New", detail: "Open a formula image or start with an empty workspace."),
+        (title: "History", detail: "Browse saved formulas. Arrows move between results."),
+        (title: "Edit", detail: "Correct the LaTeX and refresh the preview.")
+    ]
     private let formats = ["LaTeX", "Markdown", "Keynote", "Unicode"]
     private var sample: String { [#"x^{2}+2x+1=0"#, #"$$ x^{2}+2x+1=0 $$"#, #"x^{2}+2x+1=0"#, "x² + 2x + 1 = 0"][draft.selectedFormat] }
     var body: some View {
@@ -128,12 +132,12 @@ struct QuickStartView: View {
         case .workspace:
             detail("Review the original, preview and source together. Select a button below to learn what it does.")
             HStack(spacing: 8) {
-                ForEach(Array(tools.enumerated()), id: \.offset) { index, title in
-                    Button(title) { draft.selectedTool = index }.buttonStyle(BakerButtonStyle(prominent: draft.selectedTool == index, expands: true))
+                ForEach(tools.indices, id: \.self) { index in
+                    Button(tools[index].title) { draft.selectedTool = index }.buttonStyle(BakerButtonStyle(prominent: draft.selectedTool == index, expands: true))
                         .accessibilityAddTraits(draft.selectedTool == index ? .isSelected : [])
                 }
             }
-            Text(toolDescriptions[draft.selectedTool]).frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+            Text(tools[draft.selectedTool].detail).frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
             note("Original · Rendered · Both", "Compare the image and preview. Model score does not guarantee accuracy.")
             Button("Open Formula Workspace", action: actions.workspace)
                 .buttonStyle(BakerButtonStyle(expands: true)).frame(width: 220).disabled(model.busy)
@@ -227,7 +231,6 @@ struct QuickStartView: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    Button("Check Again", action: permission.refresh)
                     Button("Reopen Baker") {
                         model.preferences[PreferenceKeys.resumeQuickStart] = true
                         model.onReopen?()

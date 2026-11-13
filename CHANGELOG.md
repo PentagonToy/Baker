@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Group file and clipboard actions under Add Sources, and show output formats and OCR providers where they apply.
+- Keep Capture and Scan’s Pause or Resume controls visible. Group formula inputs, storage maintenance and less-used plugin actions.
 - Draw the area capture overlay across each connected display, including portrait monitors.
 - Add web pages and PDFs to Clipboard & Files from a link. Sign in when needed, then export the queued sources as PDF, Markdown or LaTeX.
 - Keep PDF conversion progress in place as page counts and timing become available.

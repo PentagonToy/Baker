@@ -25,25 +25,25 @@ struct FormulaWorkspace: View {
     @StateObject private var state = FormulaWorkspaceState()
     private var record: CaptureRecord? { model.captures.first { $0.id == model.focusedFormulaID } }
     private var result: FormulaResult? { model.formulaInputPending ? nil : model.focusedFormulaID.flatMap { model.formulaResults[$0] } }
-    private var formulaRecords: [CaptureRecord] { model.captures.filter { model.savedFormulas[$0.id] != nil || model.formulaResults[$0.id] != nil } }
 
     var body: some View {
+        let formulaRecords = model.captures.filter { model.savedFormulas[$0.id] != nil || model.formulaResults[$0.id] != nil }
+        let focusedIndex = formulaRecords.firstIndex { $0.id == model.focusedFormulaID }
         VStack(spacing: 0) {
             ViewThatFits(in: .horizontal) {
-                toolbar(compact: false)
-                toolbar(compact: true)
+                toolbar(records: formulaRecords, index: focusedIndex, compact: false)
+                toolbar(records: formulaRecords, index: focusedIndex, compact: true)
             }
             Divider()
-            if !state.showingHistory && result != nil {
-            HStack {
-                Text("Formula").font(BakerTypography.section)
-                if let provider = result?.recognitionProvider { RecognitionProviderLabel(provider: provider).help(result?.model ?? provider) }
-                Spacer()
-                Picker("Preview", selection: $state.previewMode) {
-                    ForEach(FormulaPreviewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().accessibilityLabel("Preview")
-                    .controlSize(.small).frame(width: 240)
-            }.padding(.horizontal, 18).padding(.vertical, 12)
+            if !state.showingHistory, let result {
+                HStack {
+                    if let provider = result.recognitionProvider { RecognitionProviderLabel(provider: provider).help(result.model) }
+                    Spacer()
+                    Picker("Preview", selection: $state.previewMode) {
+                        ForEach(FormulaPreviewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented).labelsHidden().accessibilityLabel("Preview")
+                        .controlSize(.small).frame(width: 240)
+                }.padding(.horizontal, 18).padding(.vertical, 12)
             }
             if state.showingHistory {
                 FormulaHistoryView(model: model, records: formulaRecords, format: $state.historyFormat,
@@ -52,9 +52,7 @@ struct FormulaWorkspace: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if let result, let record {
-                        if model.formulaInputPending {
-                            inputSlot
-                        } else if state.previewMode != .rendered {
+                        if state.previewMode != .rendered {
                             preview("Original") {
                                 if state.originalID == record.id, let image = state.original {
                                     GeometryReader { geometry in
@@ -70,8 +68,8 @@ struct FormulaWorkspace: View {
                             Text("\(record.pixelWidth) × \(record.pixelHeight) px · Original capture")
                                 .font(BakerTypography.supporting).foregroundStyle(.secondary)
                         }
-                        if model.formulaInputPending || state.previewMode != .original {
-                            preview(model.formulaInputPending ? "Previous result" : "Rendered") {
+                        if state.previewMode != .original {
+                            preview("Rendered") {
                                 if result.phase == .recognising {
                                     VStack(spacing: 10) { ProgressView(); Text(result.recognitionMessage).font(BakerTypography.body).foregroundStyle(.black) }
                                 } else if let image = result.preview {
@@ -152,7 +150,9 @@ struct FormulaWorkspace: View {
             HStack {
                 Text(model.busy || state.showingHistory ? model.status : result?.copyStatus ?? "Ready").lineLimit(1)
                 Spacer()
-                Text("\(formulaRecords.count) saved \(formulaRecords.count == 1 ? "result" : "results")").foregroundStyle(.secondary)
+                if !state.showingHistory {
+                    Text("\(formulaRecords.count) saved \(formulaRecords.count == 1 ? "result" : "results")").foregroundStyle(.secondary)
+                }
             }.font(BakerTypography.supporting).padding(.horizontal, 18).padding(.vertical, 10)
         }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $state.dropTargeted) { providers in
@@ -184,24 +184,43 @@ struct FormulaWorkspace: View {
         }
         .onDisappear { state.original = nil; state.originalID = nil }
     }
-    private func toolbar(compact: Bool) -> some View {
-        HStack(spacing: 10) {
-                Button { model.capture(scrolling: false, action: .formula) } label: { Label("Capture", systemImage: "viewfinder") }.labelStyle(BakerToolbarLabelStyle()).help("Capture another formula")
-                Button { model.openImage(asFormula: true) } label: { Label("Image…", systemImage: "photo.badge.plus") }
-                Button { state.showingHistory = false; model.formulaInputPending = true; state.previewMode = .both } label: { Label("New", systemImage: "plus") }.help("Drop or open another formula image")
-                if !state.showingHistory && !formulaRecords.isEmpty {
-                Divider().frame(height: 20)
-                Button { navigate(1) } label: { Image(systemName: "chevron.left") }.disabled(!canNavigate(1))
-                Text(position).monospacedDigit().font(BakerTypography.supporting).foregroundStyle(.secondary)
-                Button { navigate(-1) } label: { Image(systemName: "chevron.right") }.disabled(!canNavigate(-1))
+    private func toolbar(records: [CaptureRecord], index: Int?, compact: Bool) -> some View {
+        let previous = model.formulaInputPending ? (index.map { records[$0] } ?? records.first)
+            : index.flatMap { records.indices.contains($0 + 1) ? records[$0 + 1] : nil }
+        let next = model.formulaInputPending ? nil
+            : index.flatMap { records.indices.contains($0 - 1) ? records[$0 - 1] : nil }
+        let position = model.formulaInputPending ? "New" : "\(index.map { records.count - $0 } ?? 0) / \(records.count)"
+        return HStack(spacing: 10) {
+            Button { model.capture(scrolling: false, action: .formula) } label: { Label("Capture", systemImage: "viewfinder") }
+                .accessibilityLabel("Capture").help("Capture another formula")
+            Menu {
+                Button("Open Image…") { model.openImage(asFormula: true) }
+                Button("Empty Workspace") {
+                    state.showingHistory = false
+                    model.formulaInputPending = true
+                    state.previewMode = .both
                 }
-                Spacer()
-                Picker("Workspace view", selection: $state.showingHistory) {
-                    Image(systemName: "square.grid.2x2").accessibilityLabel("Formula History").tag(true)
-                    Image(systemName: "rectangle").accessibilityLabel("Formula Detail").tag(false)
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 72).help("Formula History or Detail")
-                if !state.showingHistory, !model.formulaInputPending, let id = model.focusedFormulaID { Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }.disabled(result?.phase != .ready) }
-            }.labelStyle(BakerToolbarLabelStyle(compact: compact)).buttonStyle(BakerButtonStyle()).controlSize(.regular).foregroundStyle(.primary).disabled(model.busy).padding(.horizontal, 18).padding(.vertical, 12).background(BakerTheme.sidebar)
+            } label: { Label("New", systemImage: "plus") }
+                .fixedSize().accessibilityLabel("New formula")
+            if !state.showingHistory && !records.isEmpty {
+                Divider().frame(height: 20)
+                Button { if let previous { select(previous) } } label: { Image(systemName: "chevron.left") }
+                    .accessibilityLabel("Previous formula").disabled(previous == nil)
+                Text(position).monospacedDigit().font(BakerTypography.supporting).foregroundStyle(.secondary)
+                Button { if let next { select(next) } } label: { Image(systemName: "chevron.right") }
+                    .accessibilityLabel("Next formula").disabled(next == nil)
+            }
+            Spacer()
+            Picker("Workspace view", selection: $state.showingHistory) {
+                Image(systemName: "square.grid.2x2").accessibilityLabel("Formula History").tag(true)
+                Image(systemName: "rectangle").accessibilityLabel("Formula Detail").tag(false)
+            }.pickerStyle(.segmented).labelsHidden().frame(width: 72).help("Formula History or Detail")
+            if !state.showingHistory, !model.formulaInputPending, let id = model.focusedFormulaID {
+                Button { model.editFormula(id) } label: { Label("Edit", systemImage: "square.and.pencil") }
+                    .accessibilityLabel("Edit").disabled(result?.phase != .ready)
+            }
+        }.labelStyle(BakerToolbarLabelStyle(compact: compact)).buttonStyle(BakerButtonStyle()).controlSize(.regular)
+            .foregroundStyle(.primary).disabled(model.busy).padding(.horizontal, 18).padding(.vertical, 12).background(BakerTheme.sidebar)
     }
     private func preview<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -246,7 +265,6 @@ struct FormulaWorkspace: View {
             VStack(spacing: 8) {
                 Image(systemName: "photo.badge.plus").font(.system(size: 23))
                 Text("Drop a formula image").font(BakerTypography.section)
-                Text("Drop a capture here, or choose Image… above.").font(BakerTypography.supporting)
             }.foregroundStyle(.black.opacity(0.75)).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -255,23 +273,5 @@ struct FormulaWorkspace: View {
         model.formulaInputPending = false
         if model.savedFormulas[entry.id] != nil { model.openSavedFormula(entry.id) }
         else { model.focusedFormulaID = entry.id }
-    }
-    private var position: String {
-        if model.formulaInputPending { return "New · \(formulaRecords.count) saved" }
-        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return "0 / \(formulaRecords.count)" }
-        return "\(formulaRecords.count - index) / \(formulaRecords.count)"
-    }
-    private func canNavigate(_ offset: Int) -> Bool {
-        if model.formulaInputPending { return offset == 1 && !formulaRecords.isEmpty }
-        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }) else { return false }
-        return formulaRecords.indices.contains(index + offset)
-    }
-    private func navigate(_ offset: Int) {
-        if model.formulaInputPending {
-            if offset == 1, let entry = formulaRecords.first(where: { $0.id == model.focusedFormulaID }) ?? formulaRecords.first { select(entry) }
-            return
-        }
-        guard let index = formulaRecords.firstIndex(where: { $0.id == model.focusedFormulaID }), canNavigate(offset) else { return }
-        select(formulaRecords[index + offset])
     }
 }

@@ -33,7 +33,7 @@ extension Workbench {
     func convertDocument(source: URL, destination: URL, format: PDFExportFormat, options: PDFConversionOptions, usePlugin: Bool = true,
                          progress: @escaping @MainActor (PDFConversionProgress) -> Void) async throws -> PDFConversionReport {
         if usePlugin, let plugin = plugins.selected(for: "pdf", format: format) {
-            progress(PDFConversionProgress(pageNumber: 0, totalPages: 0, phase: .recognising, message: "Converting with " + plugin.manifest.name + "…", provider: plugin.manifest.label))
+            progress(PDFConversionProgress(pageNumber: 0, totalPages: 0, phase: .recognising, message: "Converting…", provider: plugin.manifest.label))
             do {
                 let result = try await plugins.run(plugin, operation: "pdf", input: source, destination: destination, format: format)
                 guard let report = result.report else { throw BakerError(message: "The plugin returned no document.", code: .invalidResponse) }
