@@ -2,14 +2,15 @@
 
 ## Unreleased
 
-- Group file and clipboard actions under Add Sources, and show output formats and OCR providers where they apply.
-- Keep Capture and Scan’s Pause or Resume controls visible. Group formula inputs, storage maintenance and less-used plugin actions.
-- Draw the area capture overlay across each connected display, including portrait monitors.
-- Add web pages and PDFs to Clipboard & Files from a link. Sign in when needed, then export the queued sources as PDF, Markdown or LaTeX.
-- Keep PDF conversion progress in place as page counts and timing become available.
-- Validate CLI replies before returning their contents. Each reply must be a regular file owned by the current user, at most 8 MiB, and match the request ID.
-- Report PDF conversion output size from file metadata, avoiding a second read of the plugin export.
-- Run process, PDF conversion and formula rendering regression checks in macOS CI alongside XCTest and capture archive checks.
+## 0.1.3 — 2026-11-13
+
+- Import web pages and PDFs into Clipboard & Files from a link. Sign in when needed, then export queued documents as PDF, Markdown or LaTeX.
+- Group file, web and clipboard commands under **Add Sources**. Show output options for queued documents and the provider on each conversion result.
+- Keep PDF progress in place as page counts and timing become available. Read plugin export sizes from file metadata.
+- Show the area capture overlay across all connected displays, including portrait monitors.
+- Keep **Capture** visible in Formula Workspace and group image import and blank inputs under **New**. Put preview cache clearing under **Storage** and secondary plugin actions under **Manage Plugin**. Show Scan’s **Pause** or **Resume** in one place.
+- Validate CLI replies against the request ID. Accept regular files owned by the current user up to 8 MiB.
+- Add process, PDF and formula rendering regression checks to macOS CI.
 
 ## 0.1.2 — 2026-10-29
 
