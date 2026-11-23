@@ -88,7 +88,11 @@ final class CaptureEditorState: ObservableObject {
             undoStates.removeFirst()
         }
     }
-    func add(_ mark: CaptureMark) { guard canDraw else { return }; checkpoint(); marks.append(mark); error = nil }
+    func add(_ mark: CaptureMark) {
+        guard canDraw else { return }; checkpoint()
+        if mark.tool == .crop { marks.removeAll { $0.tool == .crop } }
+        marks.append(mark); error = nil
+    }
     func undo() {
         guard !saving, !processing, let previous = undoStates.popLast() else { return }
         redoStates.append(snapshot); restore(previous)
@@ -266,12 +270,15 @@ private struct CapturePaletteView: View {
 private struct CaptureCanvas: NSViewRepresentable {
     @ObservedObject var state: CaptureEditorState
     func makeNSView(context: Context) -> CaptureCanvasView { CaptureCanvasView(state: state) }
-    func updateNSView(_ view: CaptureCanvasView, context: Context) { view.needsDisplay = true }
+    func updateNSView(_ view: CaptureCanvasView, context: Context) { view.needsDisplay = true; view.window?.invalidateCursorRects(for: view) }
 }
 @MainActor
 private final class CaptureCanvasView: NSView, NSUserInterfaceValidations {
     let state: CaptureEditorState
     private var pending: CaptureMark?
+    private var dragStart: CGPoint?
+    private var originalCrop: CGRect?
+    private var resizeHandle: Int?
     init(state: CaptureEditorState) { self.state = state; super.init(frame: .zero) }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
     override var isFlipped: Bool { true }
@@ -279,6 +286,18 @@ private final class CaptureCanvasView: NSView, NSUserInterfaceValidations {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     private var scale: CGFloat { max(0.001, min((bounds.width - 40) / state.pixelSize.width, (bounds.height - 40) / state.pixelSize.height)) }
     private var imageRect: CGRect { CGRect(x: (bounds.width - state.pixelSize.width * scale) / 2, y: (bounds.height - state.pixelSize.height * scale) / 2, width: state.pixelSize.width * scale, height: state.pixelSize.height * scale) }
+    override func resetCursorRects() {
+        addCursorRect(imageRect, cursor: .crosshair)
+        guard state.tool == .crop else { return }
+        let saved = state.marks.last(where: { $0.tool == .crop })?.rect
+        let crop = saved ?? CGRect(origin: .zero, size: state.pixelSize)
+        let rect = CGRect(x: imageRect.minX + crop.minX * scale, y: imageRect.minY + crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
+        if saved != nil { addCursorRect(rect.insetBy(dx: 12, dy: 12), cursor: .openHand) }
+        for (index, anchor) in CaptureSelection.resizeAnchors.enumerated() {
+            let center = CGPoint(x: rect.minX + anchor.x * rect.width, y: rect.minY + anchor.y * rect.height)
+            addCursorRect(CGRect(x: center.x - 12, y: center.y - 12, width: 24, height: 24), cursor: CaptureSelection.cursor(handle: index, flipped: true))
+        }
+    }
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState(); context.translateBy(x: imageRect.minX, y: imageRect.minY); context.scaleBy(x: scale, y: scale)
@@ -292,12 +311,16 @@ private final class CaptureCanvasView: NSView, NSUserInterfaceValidations {
             }
         }
         state.image.draw(in: CGRect(origin: .zero, size: state.pixelSize), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-        for mark in state.marks + (pending.map { [$0] } ?? []) {
-            if mark.tool == .crop {
-                NSColor.white.setStroke(); let path = NSBezierPath(rect: mark.rect); path.lineWidth = 1 / scale; path.setLineDash([5 / scale, 4 / scale], count: 2, phase: 0); path.stroke()
-            } else { mark.draw() }
-        }
+        for mark in state.marks + (pending.map { [$0] } ?? []) where mark.tool != .crop { mark.draw() }
         context.restoreGState()
+        if let crop = pending?.tool == .crop ? pending?.rect : state.marks.last(where: { $0.tool == .crop })?.rect
+            ?? (state.tool == .crop ? CGRect(origin: .zero, size: state.pixelSize) : nil) {
+            context.saveGState(); context.translateBy(x: imageRect.minX, y: imageRect.minY); context.scaleBy(x: scale, y: scale)
+            let shade = NSBezierPath(rect: CGRect(origin: .zero, size: state.pixelSize)); shade.appendRect(crop); shade.windingRule = .evenOdd
+            NSColor.black.withAlphaComponent(0.5).setFill(); shade.fill()
+            CaptureSelection.draw(crop, scale: scale)
+            context.restoreGState()
+        }
     }
     private func pixelPoint(_ event: NSEvent) -> CGPoint {
         let p = convert(event.locationInWindow, from: nil)
@@ -311,21 +334,40 @@ private final class CaptureCanvasView: NSView, NSUserInterfaceValidations {
         return true
     }
     override func mouseDown(with event: NSEvent) {
-        guard state.canDraw, imageRect.contains(convert(event.locationInWindow, from: nil)) else { return }
+        let hitBounds = state.tool == .crop ? imageRect.insetBy(dx: -12, dy: -12) : imageRect
+        guard state.canDraw, hitBounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         window?.makeFirstResponder(self)
         let p = pixelPoint(event)
+        dragStart = p; originalCrop = nil; resizeHandle = nil
+        if state.tool == .crop {
+            let saved = state.marks.last(where: { $0.tool == .crop })?.rect
+            let crop = saved ?? CGRect(origin: .zero, size: state.pixelSize)
+            resizeHandle = CaptureSelection.resizeAnchors.firstIndex {
+                let center = CGPoint(x: crop.minX + $0.x * crop.width, y: crop.minY + $0.y * crop.height)
+                return abs(p.x - center.x) <= 12 / scale && abs(p.y - center.y) <= 12 / scale
+            }
+            if resizeHandle != nil || (saved != nil && crop.contains(p)) { originalCrop = crop }
+            if originalCrop != nil && resizeHandle == nil { NSCursor.closedHand.set() }
+        }
         pending = CaptureMark(tool: state.tool, points: [p, p], colour: NSColor(state.colour), width: state.width, text: state.text, filled: state.filled)
+        if let crop = originalCrop { pending?.points = [crop.origin, CGPoint(x: crop.maxX, y: crop.maxY)] }
         needsDisplay = true
     }
     override func mouseDragged(with event: NSEvent) {
         guard pending != nil else { return }
-        if pending?.tool == .pen { pending?.points.append(pixelPoint(event)) }
+        if let crop = originalCrop, let start = dragStart {
+            let point = pixelPoint(event)
+            let rect = CaptureSelection.adjusted(crop, delta: CGPoint(x: point.x - start.x, y: point.y - start.y), handle: resizeHandle,
+                within: CGRect(origin: .zero, size: state.pixelSize))
+            pending?.points = [rect.origin, CGPoint(x: rect.maxX, y: rect.maxY)]
+        } else if pending?.tool == .pen { pending?.points.append(pixelPoint(event)) }
         else { pending?.points[1] = pixelPoint(event) }
         needsDisplay = true
     }
     override func mouseUp(with event: NSEvent) {
-        guard let mark = pending else { return }; pending = nil
+        guard let mark = pending else { return }; pending = nil; originalCrop = nil; dragStart = nil; resizeHandle = nil
         if mark.tool == .text ? !mark.text.isEmpty : (mark.rect.width >= 1 || mark.rect.height >= 1) { state.add(mark) }
+        window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
 }

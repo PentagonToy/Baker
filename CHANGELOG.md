@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.1.4 — 2026-11-23
+
+- Adjust scrolling regions and image crops with a grid, directional resize cursors and larger handle targets. Keep capture actions in a compact bar with an overview beside the selection.
+- Start Auto Scroll directly from its button, with pause, window checks and end detection after successful scrolling. Keep an unresponsive session open for manual capture. Save the accepted portion at the image limit.
+- Match scrolling content beneath stationary browser headers, including toolbar focus-colour changes, while preserving the original header once.
+- Follow faster manual scrolling with more frequent moving-frame sampling and a wider overlap search. Reduce alignment work and redundant preview updates, and pace faster Auto Scroll against accepted content.
+- Preserve Retina capture dimensions and keep the complete scrolling overview within its preview. Pinned images support scrolling and zooming.
+- Move the thumbnail stack from a single button on its topmost preview, aligned with the close button, and remember the chosen side.
+- Keep history searches responsive, with consistent search fields and brief copy feedback. Reduce temporary memory in local formula image preparation.
+
 ## 0.1.3 — 2026-11-13
 
 - Import web pages and PDFs into Clipboard & Files from a link. Sign in when needed, then export queued documents as PDF, Markdown or LaTeX.

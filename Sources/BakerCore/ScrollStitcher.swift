@@ -5,6 +5,7 @@ public enum StitchOutcome: Equatable {
     case started
     case appended(Int)
     case unchanged
+    case limitReached
     case rejected(String)
 }
 
@@ -58,6 +59,7 @@ public struct ScrollStitcher {
     public private(set) var acceptedFrames = 0
     private var previous: FrameSignature?
     private var pieces: [CGImage] = []
+    private var matchingHeader = 0
     public init() {}
 
     public static func isStable(_ left: CGImage, _ right: CGImage) throws -> Bool {
@@ -81,14 +83,26 @@ public struct ScrollStitcher {
             return .rejected("The capture size changed. Start a new capture.")
         }
         if previous.error(to: signature, shift: 0) < 0.3 { return .unchanged }
-        let minimumOverlap = max(64, signature.height / 4)
-        let maximumShift = signature.height - minimumOverlap
-        let scores = (1...maximumShift).map { ($0, previous.error(to: signature, shift: $0, ceiling: 10)) }
+        let detectedHeader = previous.fixedHeader(comparedWith: signature)
+        var header = detectedHeader > 0 ? detectedHeader : matchingHeader
+        if header > 0, previous.error(to: signature, shift: 0, header: header) < 0.3 { return .unchanged }
+        let minimumOverlap = max(64, signature.height / 8)
+        var maximumShift = signature.height - max(minimumOverlap, header + 64)
+        guard maximumShift >= 1 else { return .rejected("Not enough scrolling content is visible. Select a taller region.") }
+        var scores = (1...maximumShift).map { ($0, previous.error(to: signature, shift: $0, ceiling: 10, header: header)) }
+        if (scores.lazy.map(\.1).min() ?? 255) >= 7, header < signature.height / 4 {
+            // Toolbar colors can change with focus; retry against the moving body.
+            header = signature.height / 4
+            if previous.error(to: signature, shift: 0, header: header) < 0.3 { matchingHeader = header; return .unchanged }
+            maximumShift = signature.height - max(minimumOverlap, header + 64)
+            guard maximumShift >= 1 else { return .rejected("Not enough scrolling content is visible. Select a taller region.") }
+            scores = (1...maximumShift).map { ($0, previous.error(to: signature, shift: $0, ceiling: 10, header: header)) }
+        }
         guard let best = scores.min(by: { $0.1 < $1.1 }), best.1 < 7 else {
             return .rejected("No overlap found. Return to the previous position and scroll down more slowly.")
         }
         // Distinct nearby shifts are expected; a second distant match indicates repetition.
-        let competitor = scores.filter { abs($0.0 - best.0) > 8 }.map(\.1).min() ?? 255
+        let competitor = scores.lazy.filter { abs($0.0 - best.0) > 8 }.map(\.1).min() ?? 255
         guard competitor > best.1 + max(0.3, best.1 * 0.4) else {
             return .rejected("Repeated content makes alignment ambiguous. Select a more distinctive region.")
         }
@@ -96,19 +110,19 @@ public struct ScrollStitcher {
         // Only the existence of a competitive reverse match matters. Stop as soon
         // as it is found, without allocating another array of every shift score.
         for shift in 1...maximumShift {
-            if signature.error(to: previous, shift: shift, ceiling: 10) <= best.1 + 0.3 {
+            if signature.error(to: previous, shift: shift, ceiling: best.1 + 0.3, header: header) <= best.1 + 0.3 {
                 return .rejected("Upward movement or repeated content detected. Continue down from the last accepted position.")
             }
         }
         let nextHeight = height + best.0
-        guard width <= Self.pixelLimit / nextHeight else {
-            return .rejected("The 32-megapixel limit was reached. Finish and continue in a separate capture.")
+        guard nextHeight <= CaptureArchive.maximumDimension, width <= Self.pixelLimit / nextHeight else {
+            return .limitReached
         }
         guard let strip = image.cropping(to: CGRect(x: 0, y: image.height - best.0, width: width, height: best.0)) else {
             throw BakerError(message: "Could not create the next image strip.", code: .captureFailed)
         }
         // Cropped CGImages can retain the complete source. Own only the appended rows.
-        pieces.append(try Self.ownedCopy(strip)); height = nextHeight; self.previous = signature; acceptedFrames += 1
+        pieces.append(try Self.ownedCopy(strip)); height = nextHeight; self.previous = signature; matchingHeader = header; acceptedFrames += 1
         return .appended(best.0)
     }
 
@@ -120,6 +134,7 @@ public struct ScrollStitcher {
             throw BakerError(message: "Not enough memory to assemble the image.", code: .resourceLimit)
         }
         var top = 0
+        context.interpolationQuality = .none
         for image in pieces {
             context.draw(image, in: CGRect(x: 0, y: height - top - image.height, width: width, height: image.height))
             top += image.height
@@ -135,6 +150,7 @@ public struct ScrollStitcher {
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
             throw BakerError(message: "Could not retain the captured image within its memory limit.", code: .resourceLimit)
         }
+        context.interpolationQuality = .none
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         guard let copy = context.makeImage() else { throw BakerError(message: "Could not retain the captured image.", code: .captureFailed) }
         return copy
@@ -175,13 +191,28 @@ private struct FrameSignature {
         self.features = features
     }
 
-    func error(to other: FrameSignature, shift: Int, ceiling: Double = .infinity) -> Double {
+    func fixedHeader(comparedWith other: FrameSignature) -> Int {
+        var end = 0, texture = 0
+        for y in 0..<(height / 3) {
+            var difference = 0, rowTexture = 0
+            for x in 0..<columns {
+                difference += abs(Int(pixels[y * columns + x]) - Int(other.pixels[y * columns + x]))
+                if features[y * columns + x] >= 5 { rowTexture += 1 }
+            }
+            if Double(difference) / Double(columns) > 0.75 { break }
+            end = y + 1; texture += rowTexture
+        }
+        // A textured, stationary prefix is browser chrome; blank margins alone are not.
+        return end >= 8 && texture >= columns * 2 ? end : 0
+    }
+
+    func error(to other: FrameSignature, shift: Int, ceiling: Double = .infinity, header: Int = 0) -> Double {
         let overlap = height - shift
-        // Test content at many rows. A fixed header/footer inside the selection raises the error.
-        let rowStep = max(1, overlap / 80)
-        let maximumSamples = ((overlap + rowStep - 1) / rowStep) * ((columns + 1) / 2)
+        guard overlap - header >= 1 else { return 255 }
+        let rowStep = max(1, (overlap - header) / 80)
+        let maximumSamples = ((overlap - header + rowStep - 1) / rowStep) * ((columns + 1) / 2)
         var sum = 0, count = 0, fallbackSum = 0, fallbackCount = 0
-        for y in stride(from: 0, to: overlap, by: rowStep) {
+        for y in stride(from: header, to: overlap, by: rowStep) {
             for x in stride(from: 0, to: columns, by: 2) {
                 let left = (y + shift) * columns + x, right = y * columns + x
                 let difference = abs(Int(pixels[left]) - Int(other.pixels[right]))

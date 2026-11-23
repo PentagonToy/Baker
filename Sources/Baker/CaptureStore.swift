@@ -18,11 +18,18 @@ actor CaptureStore {
         let value = try FormulaArchive(directory: directory); formulaArchive = value; return value
     }
     func search(_ query: String) throws -> Set<UUID> {
+        try Task.checkCancellation()
         let records = try opened().records
         let values = try formulas().formulas
-        return Set(records.compactMap { record in
-            record.fileName.localizedCaseInsensitiveContains(query) || (values[record.id]?.matchesSearchText.localizedCaseInsensitiveContains(query) ?? false) ? record.id : nil
-        })
+        var matches = Set<UUID>()
+        for record in records {
+            try Task.checkCancellation()
+            if record.fileName.localizedCaseInsensitiveContains(query)
+                || values[record.id]?.matchesSearchText.localizedCaseInsensitiveContains(query) == true {
+                matches.insert(record.id)
+            }
+        }
+        return matches
     }
     func savedFormulas() throws -> [UUID: SavedFormula] { try formulas().formulas }
     func saveFormula(_ value: SavedFormula) throws {

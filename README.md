@@ -9,13 +9,13 @@
 
 Baker is a macOS menu-bar app for screenshots, recording, text and formula recognition, and PDF conversion. Built-in recognition runs on your Mac.
 
-**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.3/Baker-0.1.3-arm64.dmg)**
+**[Download Baker for Mac (.dmg)](https://github.com/PentagonToy/Baker/releases/download/v0.1.4/Baker-0.1.4-arm64.dmg)**
 
-Apple Silicon · macOS 26.0 or later · Stable version 0.1.3
+Apple Silicon · macOS 26.0 or later · Stable version 0.1.4
 
 [Website and guide](https://pentagontoy.github.io/Baker/) · [Getting started](docs/help/getting-started.md) · [Changelog](CHANGELOG.md)
 
-See the [0.1.3 release notes](others/release/0.1.3.md) for what’s new.
+See the [0.1.4 release notes](others/release/0.1.4.md) for what’s new.
 
 | Task | Result |
 | --- | --- |
@@ -74,9 +74,9 @@ Text recognition and previews work offline with the included runtime. An optiona
 
 ## Requirements
 
-**Apple Silicon and macOS 26.0 or later**; PDF conversion requires **macOS 26.2 or later**. The interface is English. Scrolling is manual. Review recognised symbols and complex layouts against the source; see [limits](docs/help/limits.md).
+**Apple Silicon and macOS 26.0 or later**; PDF conversion requires **macOS 26.2 or later**. The interface is English. Scrolling supports manual capture and Auto Scroll. Review recognised symbols and complex layouts against the source; see [limits](docs/help/limits.md).
 
-See [Unreleased](CHANGELOG.md#unreleased) for changes made since the packaged release.
+See the [changelog](CHANGELOG.md) for release history.
 
 [Build from source](docs/help/development.md) · [Release preparation](others/release/README.md) · [Privacy](docs/legal/privacy.md)
 

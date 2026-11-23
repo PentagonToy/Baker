@@ -2,7 +2,7 @@
 
 ## Capture and history
 
-Images are limited to 8192 pixels per side and 32 megapixels. Scrolling is manual, downward only and limited to five minutes. Set global shortcuts in Settings → Shortcuts.
+Images are limited to 8192 pixels per side and 32 megapixels. Scrolling supports manual capture and Auto Scroll, downward only, for up to five minutes. Keep some content visible between frames; a jump past the entire selected area cannot be reconstructed. Set global shortcuts in Settings → Shortcuts.
 
 Background removal accepts images up to eight megapixels. SVG tracing accepts up to four megapixels, runs for at most 60 seconds and limits output to 8 MB and 50,000 paths. Photo Cutout can omit thin labels or axes. Inspect traced text and small details.
 

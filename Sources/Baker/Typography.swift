@@ -10,6 +10,47 @@ enum BakerTypography {
     static let sidebar = Font.system(size: 13, weight: .medium)
 }
 
+struct BakerSearchField: View {
+    let prompt: String
+    @Binding var text: String
+    var searching: Bool
+    @FocusState private var focused: Bool
+
+    init(_ prompt: String, text: Binding<String>, searching: Bool = false) {
+        self.prompt = prompt
+        _text = text
+        self.searching = searching
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField(prompt, text: $text).textFieldStyle(.plain).focused($focused)
+                .onKeyPress(.escape) {
+                    guard !text.isEmpty else { return .ignored }
+                    text = ""
+                    return .handled
+                }
+            if searching { ProgressView().controlSize(.small).accessibilityLabel("Searching") }
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                    focused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .frame(width: 28, height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless).foregroundStyle(.secondary)
+                .accessibilityLabel("Clear search").help("Clear search")
+            }
+        }
+        .padding(.horizontal, 10).frame(minHeight: 34)
+        .background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(focused ? BakerTheme.accent : BakerTheme.border, lineWidth: focused ? 2 : 1).allowsHitTesting(false) }
+    }
+}
+
 /// Shared action geometry; menus and segmented controls retain their native styles.
 struct BakerButtonStyle: ButtonStyle {
     var prominent = false

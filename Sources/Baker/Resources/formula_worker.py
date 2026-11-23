@@ -84,9 +84,14 @@ def prepare_image(path, max_pixels, processor):
             image.paste(rgba, mask=rgba.getchannel("A"))
         else:
             image = original.convert("RGB")
-        pixels = np.asarray(image.resize((384, 384), Image.Resampling.BICUBIC), dtype=np.float32) / np.float32(255)
-        pixels = (pixels - np.float32(0.5)) / np.float32(0.5)
-        return np.ascontiguousarray(pixels.transpose(2, 0, 1)[None])
+        resized = np.asarray(image.resize((384, 384), Image.Resampling.BICUBIC))
+        pixels = np.ascontiguousarray(resized.transpose(2, 0, 1)[None], dtype=np.float32)
+
+    pixels /= np.float32(255)
+    pixels -= np.float32(0.5)
+    pixels /= np.float32(0.5)
+
+    return pixels
 
 
 def decode_tokens(decoder, hidden, tokenizer, model, max_tokens, deadline, fallback_max_tokens=None):

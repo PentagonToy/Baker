@@ -66,6 +66,19 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "pixel limit"), patch.object(Image.Image, "load", side_effect=AssertionError("pixels loaded")):
             worker.prepare_image(self.image, 255, PROCESSOR)
 
+    def test_normalisation_matches_previous_tensor(self):
+        rgb_values = np.arange(256 * 3, dtype=np.uint8).reshape(16, 16, 3)
+        rgb_image = Image.fromarray(rgb_values)
+        rgb_image.save(self.image)
+
+        resized = np.asarray(rgb_image.resize((384, 384), Image.Resampling.BICUBIC), dtype=np.float32)
+        rescaled = resized / np.float32(255)
+        expected = ((rescaled - np.float32(0.5)) / np.float32(0.5)).transpose(2, 0, 1)[None]
+        pixels = worker.prepare_image(self.image, 256, PROCESSOR)
+
+        self.assertTrue(pixels.flags.c_contiguous)
+        np.testing.assert_array_equal(pixels, expected)
+
     def test_wrong_preprocessing_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "preprocessing"):
             worker.prepare_image(self.image, 256, {**PROCESSOR, "do_center_crop": True})

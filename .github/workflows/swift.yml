@@ -23,6 +23,8 @@ jobs:
         run: swift test --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2
       - name: Synthetic capture archive regression
         run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerCaptureRegression "$RUNNER_TEMP/baker-capture-checks"
+      - name: Scrolling pixel fidelity regression
+        run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerScrollRegression "$RUNNER_TEMP/baker-scroll-checks"
       - name: Process and core regression
         run: swift run --scratch-path "$RUNNER_TEMP/baker-build" --jobs 2 BakerRegression
       - name: Synthetic PDF regression

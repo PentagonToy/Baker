@@ -6,6 +6,9 @@ import ImageIO
 import QuartzCore
 
 enum CaptureStackLayout {
+    static func originX(in frame: CGRect, width: CGFloat, onRight: Bool) -> CGFloat {
+        onRight ? frame.maxX - width - 20 : frame.minX + 20
+    }
     static func capacity(heights: [CGFloat], availableHeight: CGFloat, limit: Int) -> Int {
         var used: CGFloat = 0, count = 0
         for height in heights.prefix(limit > 0 ? limit : heights.count) {
@@ -18,8 +21,24 @@ enum CaptureStackLayout {
 }
 
 @MainActor
+final class CapturePreviewPosition: ObservableObject {
+    @Published var topmostID: UUID?
+    @Published var onRight: Bool {
+        didSet { preferences[PreferenceKeys.previewsOnRight] = onRight }
+    }
+    private let preferences: BakerPreferences
+    init(preferences: BakerPreferences) {
+        self.preferences = preferences
+        onRight = preferences[PreferenceKeys.previewsOnRight]
+    }
+    var actionTitle: String { onRight ? "Move previews to left" : "Move previews to right" }
+    var symbol: String { onRight ? "arrow.left.to.line" : "arrow.right.to.line" }
+}
+
+@MainActor
 final class CaptureOverlayController {
     private let model: Workbench
+    private let position: CapturePreviewPosition
     private var cards: [(id: UUID, panel: NSPanel)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var visible = true
@@ -34,6 +53,10 @@ final class CaptureOverlayController {
 
     init(model: Workbench) {
         self.model = model
+        position = CapturePreviewPosition(preferences: model.preferences)
+        position.$onRight.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async { self?.layout() }
+        }.store(in: &subscriptions)
         model.$captures.sink { [weak self] records in
             let ids = Set(records.map(\.id))
             DispatchQueue.main.async {
@@ -73,6 +96,7 @@ final class CaptureOverlayController {
     func resetStorage() {
         cards.forEach { $0.panel.close() }; cards = []
         retiring.forEach { $0.close() }; retiring = []; screen = nil
+        updatePositionControl()
         updatePointerMonitoring()
     }
     func show(_ record: CaptureRecord) {
@@ -89,13 +113,13 @@ final class CaptureOverlayController {
             panel.isReleasedWhenClosed = false; panel.isOpaque = false; panel.backgroundColor = .clear
             panel.hasShadow = true; panel.level = .floating; panel.hidesOnDeactivate = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-            panel.contentView = CaptureHostingView(rootView: CaptureCardView(model: model, record: record, thumbnail: thumbnail, edit: { [weak self] in self?.edit(record) }, dismiss: { [weak self] in self?.dismiss(record.id) }, discard: { [weak self] in self?.discard(record) }))
+            panel.contentView = CaptureHostingView(rootView: CaptureCardView(model: model, position: position, record: record, thumbnail: thumbnail, edit: { [weak self] in self?.edit(record) }, dismiss: { [weak self] in self?.dismiss(record.id) }, discard: { [weak self] in self?.discard(record) }))
             if replacing == nil { screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main }
             cards.insert((record.id, panel), at: min(slot, cards.count))
             panel.alphaValue = 0
             if let frame = screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
                 let y = cards.prefix(slot).reduce(frame.minY + 20) { $0 + cardHeight($1.id) + 12 }
-                panel.setFrame(CGRect(x: frame.minX + 20, y: y - 8, width: previewWidth, height: cardHeight(record.id)), display: false)
+                panel.setFrame(CGRect(x: CaptureStackLayout.originX(in: frame, width: previewWidth, onRight: position.onRight), y: y - 8, width: previewWidth, height: cardHeight(record.id)), display: false)
             }
             layout()
             if visible { panel.orderFrontRegardless() }
@@ -126,6 +150,7 @@ final class CaptureOverlayController {
                 guard let self else { return }
                 self.editors.removeValue(forKey: record.id)
                 if self.visible { self.cards.first { $0.id == record.id }?.panel.orderFrontRegardless() }
+                self.updatePositionControl()
             }
             editor.contentView = CaptureHostingView(rootView: CaptureEditorView(state: state, done: { [weak self, weak editor] in
                 guard let self, !state.saving, !state.processing else { return }
@@ -141,6 +166,7 @@ final class CaptureOverlayController {
             }, cancel: { [weak editor] in editor?.close() }))
             editors[record.id] = editor
             cards.first { $0.id == record.id }?.panel.orderOut(nil)
+            updatePositionControl()
             editor.center(); editor.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         } catch { model.report(error, fallback: .storageFailed) }
     }
@@ -163,7 +189,7 @@ final class CaptureOverlayController {
             context.duration = reduced ? 0 : 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().alphaValue = 0
-            if !reduced { panel.animator().setFrame(panel.frame.offsetBy(dx: upwards ? 0 : -14, dy: upwards ? 48 : 6), display: true) }
+            if !reduced { panel.animator().setFrame(panel.frame.offsetBy(dx: upwards ? 0 : (position.onRight ? 14 : -14), dy: upwards ? 48 : 6), display: true) }
         } completionHandler: { [weak self, weak panel] in
             Task { @MainActor in
                 panel?.close()
@@ -176,6 +202,7 @@ final class CaptureOverlayController {
         updatePointerMonitoring()
         if !value { retiring.forEach { $0.close() }; retiring = [] }
         cards.forEach { if value && editors[$0.id] == nil { $0.panel.orderFrontRegardless() } else { $0.panel.orderOut(nil) } }
+        updatePositionControl()
     }
     private func followPointer() {
         guard visible, !cards.isEmpty, NSEvent.pressedMouseButtons == 0,
@@ -185,11 +212,16 @@ final class CaptureOverlayController {
     private func cardHeight(_ id: UUID) -> CGFloat {
         model.formulaResults[id] == nil ? previewHeight : FormulaCardLayout.size.height
     }
+    private func updatePositionControl() {
+        let id = visible ? cards.last(where: { editors[$0.id] == nil })?.id : nil
+        if position.topmostID != id { position.topmostID = id }
+    }
     private func layout(screenTransition: Bool = false) {
         updatePointerMonitoring()
         guard let frame = (screen.flatMap { candidate in NSScreen.screens.first { $0 == candidate } } ?? NSScreen.main)?.visibleFrame else { return }
         let capacity = CaptureStackLayout.capacity(heights: cards.map { cardHeight($0.id) }, availableHeight: frame.height - 40, limit: model.visibleCaptures)
         while cards.count > max(1, capacity) { retire(cards.removeLast().panel, upwards: true) }
+        updatePositionControl()
         NSAnimationContext.runAnimationGroup { context in
             // Longer travel between displays needs more time than rearranging a stack.
             context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : (screenTransition ? 0.45 : 0.3)
@@ -198,8 +230,8 @@ final class CaptureOverlayController {
             for card in cards {
                 let formula = model.formulaResults[card.id] != nil
                 let height = cardHeight(card.id)
-                let width: CGFloat = formula ? FormulaCardLayout.size.width : previewWidth
-                card.panel.animator().setFrame(CGRect(x: frame.minX + 20, y: y, width: min(width, frame.width - 40), height: height), display: true)
+                let width = min(formula ? FormulaCardLayout.size.width : previewWidth, frame.width - 40)
+                card.panel.animator().setFrame(CGRect(x: CaptureStackLayout.originX(in: frame, width: width, onRight: position.onRight), y: y, width: width, height: height), display: true)
                 y += height + 12
             }
         }
@@ -221,15 +253,16 @@ final class CaptureHostingView<Content: View>: NSHostingView<Content> {
 struct CaptureCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: Workbench
+    @ObservedObject var position: CapturePreviewPosition
     let record: CaptureRecord
     let thumbnail: NSImage
     let edit: () -> Void
     let dismiss: () -> Void
     let discard: () -> Void
-    @ObservedObject var state = CaptureCardState()
+    @StateObject private var state = CaptureCardState()
     var body: some View {
         if let result = model.formulaResults[record.id] {
-            FormulaResultCard(model: model, record: record, result: result, discard: discard)
+            FormulaResultCard(model: model, record: record, result: result, discard: discard, position: position)
         } else { imageCard }
     }
     private var imageCard: some View {
@@ -253,11 +286,22 @@ struct CaptureCardView: View {
                 }.buttonStyle(.plain).foregroundStyle(.white).padding(10)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if state.hovering {
-                Button(action: discard) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).padding(7).background(.ultraThinMaterial, in: Circle()) }
-                    .buttonStyle(.plain).padding(8).help("Move capture to Trash").accessibilityLabel("Discard capture")
-            }
+        .overlay(alignment: .top) {
+            HStack {
+                if position.topmostID == record.id {
+                    Button { position.onRight.toggle() } label: {
+                        Image(systemName: position.symbol).font(.system(size: 12, weight: .medium))
+                            .frame(width: 24, height: 24).background(.ultraThinMaterial, in: Circle())
+                    }.buttonStyle(.plain).help(position.actionTitle).accessibilityLabel(position.actionTitle)
+                }
+                Spacer()
+                if state.hovering {
+                    Button(action: discard) {
+                        Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                            .frame(width: 24, height: 24).background(.ultraThinMaterial, in: Circle())
+                    }.buttonStyle(.plain).help("Move capture to Trash").accessibilityLabel("Discard capture")
+                }
+            }.padding(8)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.2), lineWidth: 1))
@@ -268,6 +312,7 @@ struct CaptureCardView: View {
             Button("Save") { Task { if await model.confirmCaptureSaved(record) { dismiss() } } }
             Button("Save a Copy As…") { model.saveCapture(record) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([model.captureURL(record)]) }
+            Button(position.actionTitle) { position.onRight.toggle() }
             Divider()
             Button("Close Preview", action: dismiss)
         }

@@ -76,6 +76,7 @@ import Darwin
                     "formulaPreview": FormulaPreviewRenderer.shared.resourceState,
                     "recognition": ["running": m.recognitionFlow.isRecognising, "rendering": m.recognitionFlow.isRendering],
                     "scan": m.scanSession?.resourceState ?? ["state": "idle"],
+                    "scrollCapture": m.captureFlow.scrollResourceState,
                     "document": ["running": m.documentFlow.isConverting],
                     "clipboard": ["preparingImage": m.clipboardFlow.isPreparingImage],
                     "recognitionProvider": m.plugins.selected(for: "formula")?.manifest.label ?? "Baker · On this Mac",

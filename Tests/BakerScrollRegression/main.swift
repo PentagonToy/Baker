@@ -10,13 +10,13 @@ func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {
     guard try condition() else { throw BakerError(message: "FAIL: \(name)", code: .operationFailed) }
     checks += 1; print("PASS \(name)")
 }
-func page(repeating: Bool = false, blankMargin: Int = 36) -> CGImage {
-    let width = 640, height = 2600
+func page(repeating: Bool = false, blankMargin: Int = 36, height: Int = 2600) -> CGImage {
+    let width = 640
     let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
         space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     context.setFillColor(CGColor(gray: 1, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: width, height: height))
     let font = CTFontCreateWithName("Helvetica" as CFString, 15, nil)
-    for row in 0..<80 {
+    for row in 0..<((height - 70) / 31) {
         let identifier = repeating ? 0 : row
         let top = 28 + row * 31
         if row % 8 == 0 || repeating {
@@ -52,11 +52,40 @@ func write(_ image: CGImage, _ url: URL) throws {
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { throw BakerError(message: "PNG output failed", code: .operationFailed) }
 }
+func headerFrame(_ source: CGImage, offset: Int, height: Int = 480, active: Bool = true) -> CGImage {
+    let header = 80
+    let context = CGContext(data: nil, width: source.width, height: height, bitsPerComponent: 8, bytesPerRow: source.width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.draw(crop(source, 1200, height: header), in: CGRect(x: 0, y: height - header, width: source.width, height: header))
+    if !active {
+        context.setFillColor(CGColor(gray: 0.5, alpha: 0.25))
+        context.fill(CGRect(x: 0, y: height - header, width: source.width, height: header))
+    }
+    context.draw(crop(source, offset, height: height - header), in: CGRect(x: 0, y: 0, width: source.width, height: height - header))
+    return context.makeImage()!
+}
 guard CommandLine.arguments.count == 2 else { fatalError("Pass an output directory") }
 let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 do {
     let source = page()
+    var fast = ScrollCaptureBuffer()
+    _ = try fast.observe(crop(source, 0), allowMoving: true)
+    for offset in [400, 800, 1200] {
+        try check(try fast.observe(crop(source, offset), allowMoving: true) == .appended(400),
+            "fast scrolling aligns with only 80 rows of overlap at \(offset)")
+    }
+    try check(samePixels(try fast.finish()!, crop(source, 0, height: 1680)), "fast scrolling preserves every source row without gaps")
+    var browser = ScrollStitcher()
+    try check(try browser.append(headerFrame(source, offset: 0)) == .started, "browser frame starts with its header")
+    for offset in [120, 240, 360] {
+        try check(try browser.append(headerFrame(source, offset: offset)) == .appended(120), "stationary browser header does not block alignment at \(offset)")
+    }
+    try check(samePixels(try browser.render(), headerFrame(source, offset: 0, height: 840)), "fixed header appears once and every moving content row is preserved")
+    var focusChanged = ScrollStitcher()
+    _ = try focusChanged.append(headerFrame(source, offset: 0, active: false))
+    try check(try focusChanged.append(headerFrame(source, offset: 120)) == .appended(120), "toolbar focus-color changes do not block body alignment")
+    try check(samePixels(try focusChanged.render(), headerFrame(source, offset: 0, height: 600, active: false)), "toolbar focus changes preserve the original header and every content pixel")
     var stitcher = ScrollStitcher()
     try check(try stitcher.append(crop(source, 0)) == .started, "first real text-page frame starts immediately")
     for offset in [120, 240, 360, 480] {
@@ -129,8 +158,8 @@ do {
     let shared = surface!
     CVPixelBufferLockBaseAddress(shared, [])
     let base = CVPixelBufferGetBaseAddress(shared)!
-    let stride = CVPixelBufferGetBytesPerRow(shared)
-    let raster = CGContext(data: base, width: 640, height: 480, bitsPerComponent: 8, bytesPerRow: stride,
+    let bytesPerRow = CVPixelBufferGetBytesPerRow(shared)
+    let raster = CGContext(data: base, width: 640, height: 480, bitsPerComponent: 8, bytesPerRow: bytesPerRow,
         space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
     raster.draw(crop(source, 0), in: CGRect(x: 0, y: 0, width: 640, height: 480))
     CVPixelBufferUnlockBaseAddress(shared, [])
@@ -139,9 +168,70 @@ do {
     var ownership = ScrollCaptureBuffer()
     _ = try ownership.observe(borrowed!, allowMoving: true)
     CVPixelBufferLockBaseAddress(shared, [])
-    memset(base, 0, stride * 480)
+    memset(base, 0, bytesPerRow * 480)
     CVPixelBufferUnlockBaseAddress(shared, [])
     let owned = try ownership.finish()!
     try check(samePixels(owned, crop(source, 0)), "accepted frame survives capture-surface reuse without a sampler copy")
+    let retina = CGContext(data: nil, width: source.width * 2, height: source.height * 2, bitsPerComponent: 8,
+        bytesPerRow: source.width * 8, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    retina.interpolationQuality = .none
+    retina.draw(source, in: CGRect(x: 0, y: 0, width: retina.width, height: retina.height))
+    retina.setFillColor(CGColor(gray: 0, alpha: 1))
+    for x in stride(from: 1200, to: 1260, by: 2) {
+        retina.fill(CGRect(x: x, y: 0, width: 1, height: retina.height))
+    }
+    let retinaPage = retina.makeImage()!
+    var fastNative = ScrollCaptureBuffer()
+    _ = try fastNative.observe(crop(retinaPage, 0, height: 960), allowMoving: true)
+    for offset in [800, 1600, 2400] {
+        try check(try fastNative.observe(crop(retinaPage, offset, height: 960), allowMoving: true) == .appended(800),
+            "fast Retina scrolling keeps the native offset at \(offset)")
+    }
+    try check(samePixels(try fastNative.finish()!, crop(retinaPage, 0, height: 3360)),
+        "fast Retina scrolling preserves text and one-pixel strokes")
+    var native = ScrollCaptureBuffer()
+    _ = try native.observe(crop(retinaPage, 0, height: 960), allowMoving: true)
+    for offset in [240, 480, 720] {
+        try check(try native.observe(crop(retinaPage, offset, height: 960), allowMoving: true) == .appended(240),
+            "Retina frames align at their native row offset \(offset)")
+    }
+    let nativeResult = try native.finish()!
+    let expected = crop(retinaPage, 0, height: 1680)
+    try check(nativeResult.width == 1280 && samePixels(nativeResult, expected), "native output retains every pixel and one-pixel strokes")
+    let nativeFile = directory.appendingPathComponent("native-scroll.png")
+    try write(nativeResult, nativeFile)
+    let archive = try CaptureArchive(directory: directory.appendingPathComponent("archive"))
+    let saved = try archive.add(source: nativeFile)
+    try check(saved.pixelWidth == 1280 && saved.pixelHeight == 1680, "saved capture retains the native pixel dimensions")
+    try check(try samePixels(archive.original(for: saved), expected), "archived PNG retains the complete native raster")
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("baker-scroll-test-" + UUID().uuidString))
+    defer { pasteboard.releaseGlobally() }
+    try ImageClipboard.write(imageURL: archive.fileURL(for: saved), to: pasteboard)
+    for type in [NSPasteboard.PasteboardType.png, .tiff] {
+        let data = pasteboard.data(forType: type)!
+        let decoded = CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithData(data as CFData, nil)!, 0, nil)!
+        try check(samePixels(decoded, expected), "clipboard \(type.rawValue) preserves native pixels")
+    }
+    var bounded = ScrollStitcher()
+    let noise = CGContext(data: nil, width: 128, height: 10_000, bitsPerComponent: 8,
+        bytesPerRow: 512, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    let pixels = noise.data!.assumingMemoryBound(to: UInt32.self)
+    var seed: UInt32 = 7
+    for index in 0..<(128 * 10_000) {
+        seed = seed &* 1664525 &+ 1013904223
+        pixels[index] = (seed & 0x00ffffff) | 0xff000000
+    }
+    let tallPage = noise.makeImage()!
+    _ = try bounded.append(crop(tallPage, 0))
+    var limitReached = false
+    for offset in stride(from: 120, to: 9000, by: 120) {
+        let outcome = try bounded.append(crop(tallPage, offset))
+        if outcome == .limitReached { limitReached = true; break }
+        if rejected(outcome) { break }
+    }
+    try check(limitReached && bounded.height <= CaptureArchive.maximumDimension, "capture stops before exceeding the archive height limit")
+    try check(try bounded.render().height == bounded.height, "the accepted portion remains available at the image limit")
     print("\(checks) scrolling checks passed")
 } catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }

@@ -29,7 +29,7 @@ struct FormulaCapturePopover: View {
                     .help("Review the original, edit LaTeX and browse saved formulas")
             }.frame(height: 32)
             preview.frame(maxWidth: .infinity).frame(height: 128)
-                .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                .background(BakerTheme.paper, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.black.opacity(0.08)))
             Picker("Copy format", selection: Binding(get: { format }, set: { selected in
                 guard let id = model.focusedFormulaID else { return }
@@ -70,7 +70,11 @@ struct FormulaCapturePopover: View {
         if let result, result.phase == .ready, let image = result.preview {
             Image(nsImage: image).resizable().scaledToFit().padding(16)
         } else if result?.phase == .recognising {
-            VStack(spacing: 12) { ProgressView().controlSize(.small); Text(result?.recognitionMessage ?? "Recognising…").foregroundStyle(.secondary) }
+            VStack(spacing: 12) {
+                ProgressView().controlSize(.small)
+                Text(result?.recognitionMessage ?? "Recognising…").foregroundStyle(.black.opacity(0.7))
+            }
+            .environment(\.colorScheme, .light)
         } else if let result, result.phase == .failed {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.circle").font(.title2)

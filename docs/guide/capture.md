@@ -13,9 +13,9 @@ Choose a capture action from Baker’s menu-bar icon. Drag to select an area; Es
 
 Text copies automatically when **Settings → Capture → Copy recognised text** is enabled. Formula always copies the selected format. Its result appears below the Baker icon. Choose **Workspace** for the original image, editing and history. Both save the source in history without a thumbnail. Baker warms text recognition after launch; the first use can still take longer.
 
-Image thumbnails fit without cropping and follow the pointer to the lower-left corner of the active monitor. The stack moves gently between displays and stays in place during a drag.
+Image thumbnails fit without cropping and follow the pointer to the active monitor. Use the arrow on the topmost preview to move the stack to the opposite edge. Baker remembers the chosen side. The stack moves gently between displays and stays in place during a drag.
 
-Hover over an image thumbnail to copy, save, pin or recognise it. **Save** confirms the file in the capture folder and closes the thumbnail without a location chooser. For another destination, use **Save a Copy As…** in the context menu.
+Hover over an image thumbnail to copy, save, pin or recognise it. Scroll through a pinned image and pinch to zoom. **Save** confirms the file in the capture folder and closes the thumbnail. For another destination, use **Save a Copy As…** in the context menu.
 
 A successful drop closes its thumbnail and keeps the file. A cancelled or rejected drop keeps the thumbnail. Click **X** to move the capture to Trash and remove its linked formula result from History.
 
@@ -29,9 +29,11 @@ While entering a shortcut, Baker pauses its capture shortcuts. Switching away ca
 
 ## Scrolling
 
-Select the moving content, leaving out fixed headers and sidebars. Scroll down steadily as new content appears in the preview. Baker matches overlapping frames while the page moves. Choose **Finish** for one long image, or **Cancel** to discard it.
+Select the content and use the grid and handles to adjust the area, then choose **Start Capture**. Scroll down steadily or choose **Auto Scroll**. Stationary browser headers remain once at the top; keep fixed footers and scrollbars outside the selection. **Done** saves one long image; **Cancel** discards the session.
 
-Scrolling is manual and downward only. Slower scrolling helps when the page contains repeated patterns or animation.
+The compact controls show captured pixel dimensions, with a small overview beside the selection. Saved and copied images retain the capture’s pixel dimensions. The overview is reduced for display.
+
+Choose **Auto Scroll** to start scrolling the selected content immediately. It requires control permission and leaves the pointer in place. **Pause** returns to manual scrolling. Reaching the bottom after scrolling finishes the capture. If scrolling does not start or alignment fails, Baker pauses so you can scroll manually. Switching or moving windows also pauses automatic input. Keep the captured content visible. At the image or five-minute limit, Baker saves the accepted portion.
 
 ## Formula results
 
@@ -50,7 +52,7 @@ Results and edits are saved. Find them in [Recent](recent.md) without repeating 
 
 ## Edit a capture
 
-Double-click an image thumbnail, or choose its **Edit** action. Add a pen stroke, rectangle, ellipse, arrow or text; drag with Crop to select a crop. **Undo** removes the last edit; **Redo** restores it. The drawing canvas supports Command–Z and Shift–Command–Z.
+Double-click an image thumbnail, or choose its **Edit** action. Add a pen stroke, rectangle, ellipse, arrow or text. **Crop** shows a grid and resize handles; drag inside an existing crop to move it. **Undo** removes the last edit; **Redo** restores it. The drawing canvas supports Command–Z and Shift–Command–Z.
 
 Choose from the eight **Okabe–Ito** colours or Baker’s additional white masking swatch. **Mask** selects a white, filled rectangle; **Fill** makes rectangles and ellipses opaque. **Done** replaces the capture, removes its previous OCR result and returns it to the thumbnail stack. **Cancel** preserves the original. Previously exported copies remain unchanged.
 

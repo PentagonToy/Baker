@@ -49,9 +49,17 @@ extension Workbench {
         window.title = "Baker · Pinned image"
         window.isReleasedWhenClosed = false
         window.level = .floating; window.hidesOnDeactivate = false
-        let view = NSImageView(frame: CGRect(origin: .zero, size: size))
-        view.image = image; view.imageScaling = .scaleProportionallyUpOrDown
-        window.contentView = view; window.orderFrontRegardless(); pinWindows.append(window)
+        let view = NSImageView(frame: CGRect(origin: .zero, size: image.size))
+        view.image = image; view.imageScaling = .scaleNone
+        let scroll = NSScrollView(frame: CGRect(origin: .zero, size: size))
+        scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+        scroll.allowsMagnification = true; scroll.minMagnification = 0.01; scroll.maxMagnification = 4
+        scroll.documentView = view
+        window.contentView = scroll
+        scroll.magnification = min(1, scroll.contentSize.width / max(1, image.size.width))
+        scroll.contentView.scroll(to: CGPoint(x: 0, y: max(0, image.size.height - scroll.contentSize.height / scroll.magnification)))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        window.orderFrontRegardless(); pinWindows.append(window)
     }
     func saveImage() {
         guard let imageURL else { return }

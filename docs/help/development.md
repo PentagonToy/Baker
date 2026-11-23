@@ -78,6 +78,8 @@ For relevant pushes to main and dev and for pull requests, macOS CI builds the R
 
 Run each tool with `--output /absolute/path/outside/the/repository`. Checks interpret Swift without building or installing the app.
 
+`tools/test_scroll_capture.py` checks native scrolling pixels through stitching, PNG storage and clipboard encoding, along with selection geometry, automatic pacing and image limits. `tools/test_scroll_start.py` checks automatic focus transfer and cancellation during start, pause and resume without sending input. Both require `--output` pointing outside the source tree. `tools/test_preview_layout.py` checks stack capacity and left/right placement across display layouts.
+
 | Tool | Coverage |
 | --- | --- |
 | `tools/test_preferences.py` | Preference compatibility, migration, errors and recovery |

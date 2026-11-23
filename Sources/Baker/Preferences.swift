@@ -33,6 +33,7 @@ enum PreferenceKeys {
     static let captureSounds = PreferenceKey("captureSounds", true)
     static let mathFont = PreferenceKey("mathFont", "Latin Modern Math")
     static let visibleCaptures = PreferenceKey("visibleCaptures", 0)
+    static let previewsOnRight = PreferenceKey("previewsOnRight", false)
     static let imageHistoryLimit = PreferenceKey("imageHistoryLimit", 0)
     static let imageHistoryDays = PreferenceKey("imageHistoryDays", 0)
     static let imageHistoryApprovedDirectory = PreferenceKey("imageHistoryApprovedDirectory", "")

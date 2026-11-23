@@ -36,6 +36,8 @@ Baker receives requests through an owner-only mailbox. Each reply must be a regu
 
 `clipboard.preparingImage` reports pending image encoding. `diagnostics` is read-only and remains available during conversion. `process.residentBytes` and `physicalFootprintBytes` describe the app process, excluding OCR workers and WebKit services. Compare repeated samples under the same workload; one reading cannot establish a leak. Cache limits are budgets, not the total memory retained by visible views.
 
+`scrollCapture` reports the current or last scrolling session, control permissions, whether the pointer is inside the selection, automatic start requests, posted scroll events, accepted frames and the last automatic-input issue. Posted events do not prove that the source accepted them. The last state remains available after cancellation.
+
 For structured input, pipe a JSON object to `baker request`, for example `{"operation":"history","limit":5}`. The CLI supplies a fresh request identity and timestamp. Unhandled operations return `ok: false`. Nonzero exit status indicates failure. Output paths must be new absolute paths. No existing file is intentionally overwritten.
 
 To expose the bundled launcher on PATH, create a link in your own command directory without replacing an existing command:

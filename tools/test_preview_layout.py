@@ -25,10 +25,19 @@ check(656, 0, 3, [166, 300, 166])
 check(655, 0, 2, [166, 300, 166])
 check(1000, 0, 0, [])
 check(100, 0, 0)
-print("8 adaptive preview layout checks passed")
+for frame in [CGRect(x: 0, y: 0, width: 1512, height: 950),
+              CGRect(x: -1920, y: 0, width: 1920, height: 1080),
+              CGRect(x: 1512, y: -400, width: 1080, height: 1920)] {
+    for width in [CGFloat(268), 400] {
+        let left = CaptureStackLayout.originX(in: frame, width: width, onRight: false)
+        let right = CaptureStackLayout.originX(in: frame, width: width, onRight: true)
+        guard left == frame.minX + 20, right + width == frame.maxX - 20 else { fatalError("Preview side does not match display bounds") }
+    }
+}
+print("14 adaptive preview layout checks passed")
 '''
 script = out / 'layout.swift'
-script.write_text('import Foundation\n' + helper + tests)
+script.write_text('import Foundation\nimport CoreGraphics\n' + helper + tests)
 result = subprocess.run(['swift', str(script)], capture_output=True, text=True, timeout=60)
 (out / 'layout.log').write_text(result.stdout + result.stderr)
 print(result.stdout + result.stderr)

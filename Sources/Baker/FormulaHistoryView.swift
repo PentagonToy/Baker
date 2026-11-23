@@ -41,8 +41,7 @@ struct FormulaHistoryView: View {
                 VStack(alignment: .leading, spacing: 10) { heading(count: filtered.count); copyPicker }
             }
             if !recent {
-                TextField("Search formulas", text: $state.query).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Search formula history")
+                BakerSearchField("Search formulas", text: $state.query)
             }
             if !state.selection.isEmpty {
                 HStack(spacing: 12) {

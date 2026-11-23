@@ -80,6 +80,14 @@ final class Flag: @unchecked Sendable {
     _ = try await one.value; _ = try await two.value
     let kept = try await keep.value
     check(kept.count == 1 && kept[captures[1].record.id] != nil, "History writes and retention keep enqueue order")
+    let formulaMatches = try await library.store.search("X")
+    check(formulaMatches == [captures[1].record.id], "Capture search finds saved formulas without including removed metadata")
+    let cancelledSearch = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        return try await library.store.search("X")
+    }
+    do { _ = try await cancelledSearch.value; check(false, "Cancelled capture search returned results") }
+    catch is CancellationError { check(true, "Cancelled capture search exits before scanning") }
     _ = try await library.enqueue(.clear).value
     await library.flushHistory()
     let cleared = try await library.store.savedFormulas()

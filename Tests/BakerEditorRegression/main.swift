@@ -37,6 +37,11 @@ func check(_ condition: Bool, _ message: String) {
     editor.add(CaptureMark(tool: .crop, points: [.zero, CGPoint(x: 32, y: 24)], colour: .white, width: 2))
     let cropped = try editor.rendered()
     check(cropped.width == 32 && cropped.height == 24, "Cropping keeps pixel geometry")
+    editor.add(CaptureMark(tool: .crop, points: [CGPoint(x: 8, y: 4), CGPoint(x: 40, y: 36)], colour: .white, width: 2))
+    check(editor.marks.filter { $0.tool == .crop }.count == 1, "Adjusting a crop replaces its previous boundary")
+    check(try editor.rendered().height == 32, "Adjusted crop renders at pixel size")
+    editor.undo()
+    check(try editor.rendered().height == 24, "Undo restores the previous crop")
     editor.reset(); check(editor.marks.isEmpty && editor.redoMarks.isEmpty, "Reset clears both histories")
 
     let size = CGSize(width: 1920, height: 1080), rect = CGRect(x: 20, y: 40, width: 600, height: 400)
@@ -65,7 +70,7 @@ func check(_ condition: Bool, _ message: String) {
         check(live.resolve(screens: []) == nil, "Disconnected display is unavailable")
     }
     check(CaptureShortcuts.actions.map(\.0).prefix(7) == ["area", "scroll", "text", "formula", "video", "gif", "all"], "Existing hot-key numeric IDs remain stable")
-    check(CaptureShortcuts.actions.last?.0 == "repeat", "Repeat Area has a separately configurable shortcut")
+    check(CaptureShortcuts.actions[7].0 == "repeat", "Repeat Area retains its separately configurable shortcut ID")
     print("Passed \(checks) editor/palette/repeat-area checks")
 }
 Task { @MainActor in

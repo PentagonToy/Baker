@@ -18,6 +18,12 @@ final class CaptureCoordinator {
     private let setup: RecordingSetup
     private var task: Task<Void, Never>?
     private var scrolling: ScrollCaptureSession?
+    private var lastScrollState: [String: Any] = ["state": "idle"]
+    var scrollResourceState: [String: Any] {
+        var value = scrolling?.resourceState ?? lastScrollState
+        value.merge(ScrollCaptureSession.permissions) { _, current in current }
+        return value
+    }
     private var recording: RecordingSession?
     init(preferences: BakerPreferences) { setup = RecordingSetup(preferences: preferences) }
     func warmSelection() { service.warmSelection() }
@@ -31,7 +37,7 @@ final class CaptureCoordinator {
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
             complete(.failure(BakerError(message: "Allow Baker in Screen & System Audio Recording before selecting a region.", code: .permissionDenied))); return
         }
-        if region == nil && !window { service.beginSelection(freeze: !scroll, hideDesktopIcons: hideDesktopIcons) }
+        if region == nil && !window { service.beginSelection(freeze: true, hideDesktopIcons: hideDesktopIcons, confirmsSelection: scroll) }
         task = Task {
             defer { task = nil; service.cancelSelection() }
             guard !Task.isCancelled else { complete(.failure(CancellationError())); return }
@@ -45,10 +51,12 @@ final class CaptureCoordinator {
             do {
                 try Task.checkCancellation()
                 if scroll {
+                    let session = ScrollCaptureSession(); scrolling = session
+                    session.prepareControls(region: selected)
                     let prepared = try await service.prepare(selected, hideDesktopIcons: hideDesktopIcons)
                     try Task.checkCancellation()
-                    let session = ScrollCaptureSession(); scrolling = session
-                    session.start(capture: prepared, region: selected, targetApplication: previousApp) { [weak self] result in
+                    session.start(capture: prepared, region: selected, targetApplication: CaptureService.application(in: selected) ?? previousApp) { [weak self, weak session] result in
+                        if let session { self?.lastScrollState = session.resourceState }
                         self?.scrolling = nil
                         complete(result.map { image in image.map { CapturedFrame(image: $0, region: selected) } })
                     }
@@ -57,7 +65,7 @@ final class CaptureCoordinator {
                     try Task.checkCancellation()
                     complete(.success(CapturedFrame(image: image, region: selected)))
                 }
-            } catch { complete(.failure(error)) }
+            } catch { scrolling?.cancel(); scrolling = nil; complete(.failure(error)) }
         }
     }
 

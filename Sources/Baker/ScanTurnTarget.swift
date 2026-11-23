@@ -2,12 +2,34 @@ import AppKit
 import ApplicationServices
 import BakerCore
 
+enum ScrollInputEvent {
+    static func make(pixels: Int32, point: CGPoint, windowNumber: Int, bounds: CGRect) -> CGEvent? {
+        guard pixels > 0, windowNumber > 0, bounds.contains(point) else { return nil }
+        let local = CGPoint(x: point.x - bounds.minX, y: bounds.height - (point.y - bounds.minY))
+        guard let event = NSEvent.mouseEvent(with: .mouseMoved, location: local, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber, context: nil,
+            eventNumber: 0, clickCount: 0, pressure: 0)?.cgEvent,
+              let wheel = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -pixels, wheel2: 0, wheel3: 0) else { return nil }
+        // Keep AppKit's window-relative position; setting the global location discards it.
+        event.type = .scrollWheel
+        let fields: [CGEventField] = [.scrollWheelEventDeltaAxis1, .scrollWheelEventDeltaAxis2, .scrollWheelEventDeltaAxis3,
+            .scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis2, .scrollWheelEventFixedPtDeltaAxis3,
+            .scrollWheelEventPointDeltaAxis1, .scrollWheelEventPointDeltaAxis2, .scrollWheelEventPointDeltaAxis3,
+            .scrollWheelEventIsContinuous, .scrollWheelEventScrollPhase, .scrollWheelEventMomentumPhase]
+        for field in fields { event.setIntegerValueField(field, value: wheel.getIntegerValueField(field)) }
+        event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(windowNumber))
+        event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(windowNumber))
+        return event
+    }
+}
+
 /// Automatic input is pinned to one selected reader window; never send keys to a different app or window.
 @MainActor struct ScanTurnTarget {
     let application: NSRunningApplication
     let element: AXUIElement
     let origin: CGPoint
     let size: CGSize
+    let windowNumber: Int?
     let point: CGPoint?
     private let button: AXUIElement?
     private let keyCode: CGKeyCode
@@ -16,6 +38,7 @@ import BakerCore
         self.application = application; self.point = point; self.keyCode = keyCode
         element = try Self.focused(application.processIdentifier)
         origin = try Self.point(element); size = try Self.size(element)
+        windowNumber = Self.windowNumber(pid: application.processIdentifier, frame: CGRect(origin: origin, size: size))
         if let expectedWindow {
             var title: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &title)
@@ -66,6 +89,30 @@ import BakerCore
         guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { throw BakerError(message: "Could not turn the page.", code: .operationFailed) }
         down.flags = []; up.flags = []; down.postToPid(application.processIdentifier); up.postToPid(application.processIdentifier)
+    }
+    func scroll(pixels: Int32, at point: CGPoint) throws {
+        try validate()
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == application.processIdentifier,
+              CGRect(origin: origin, size: size).contains(point) else {
+            throw BakerError(message: "Auto Scroll paused. Return to the selected window to continue.", code: .invalidState)
+        }
+        guard let windowNumber, let event = ScrollInputEvent.make(pixels: pixels, point: point, windowNumber: windowNumber,
+            bounds: CGRect(origin: origin, size: size)) else {
+            throw BakerError(message: "Could not scroll the selected window.", code: .operationFailed)
+        }
+        event.postToPid(application.processIdentifier)
+    }
+    private static func windowNumber(pid: pid_t, frame: CGRect) -> Int? {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        for window in windows {
+            guard window[kCGWindowOwnerPID as String] as? Int32 == pid, window[kCGWindowLayer as String] as? Int == 0,
+                  let value = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: value as CFDictionary),
+                  abs(bounds.minX - frame.minX) < 3, abs(bounds.minY - frame.minY) < 3,
+                  abs(bounds.width - frame.width) < 3, abs(bounds.height - frame.height) < 3 else { continue }
+            return window[kCGWindowNumber as String] as? Int
+        }
+        return nil
     }
     private static func pressable(at point: CGPoint, application: pid_t, window: AXUIElement) -> AXUIElement? {
         var hit: AXUIElement?

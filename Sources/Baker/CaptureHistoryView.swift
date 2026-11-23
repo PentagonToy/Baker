@@ -17,28 +17,33 @@ enum CaptureHistoryItem: Identifiable {
     }()
     static func age(_ date: Date, relativeTo now: Date = Date()) -> String { abs(date.timeIntervalSince(now)) < 30 ? "Just now" : relativeDate.localizedString(for: date, relativeTo: now) }
 }
+private struct CaptureSearchIdentity: Equatable {
+    let query: String
+    let revision: Int
+    let count: Int
+}
+
 @MainActor private final class CaptureHistoryState: ObservableObject {
     @Published var limit = 100
     @Published var query = ""
     @Published var filter = CaptureHistoryFilter.all
-    @Published var matches = Set<UUID>()
+    @Published var searchResult: (identity: CaptureSearchIdentity, matches: Set<UUID>)?
     @Published var selected: UUID?
-    @Published var searching = false
-    var searchToken = UUID()
 }
 
 struct CaptureHistoryView: View {
     @ObservedObject var model: Workbench
     let show: (CaptureRecord) -> Void
     @StateObject private var state = CaptureHistoryState()
-    private var records: [CaptureRecord] {
-        let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return model.captures.filter {
-            state.filter.includes(formula: model.savedFormulas[$0.id] != nil) && (query.isEmpty || state.matches.contains($0.id))
+    private var query: String { state.query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var searching: Bool { !query.isEmpty && state.searchResult?.identity != searchIdentity }
+
+    private func items() -> [CaptureHistoryItem] {
+        let query = query
+        let matches = state.searchResult?.identity == searchIdentity ? state.searchResult?.matches : nil
+        let records = model.captures.filter {
+            state.filter.includes(formula: model.savedFormulas[$0.id] != nil) && (query.isEmpty || matches?.contains($0.id) == true)
         }
-    }
-    private var items: [CaptureHistoryItem] {
-        let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
         let media = model.recordings.filter {
             (state.filter == .all || (state.filter == .gifs && $0.isGIF) || (state.filter == .videos && !$0.isGIF))
                 && (query.isEmpty || $0.fileName.localizedCaseInsensitiveContains(query))
@@ -49,25 +54,24 @@ struct CaptureHistoryView: View {
         return result
     }
     var body: some View {
-        historyContent
+        let identity = searchIdentity
+        return historyContent
             .buttonStyle(BakerButtonStyle()).padding(20).font(BakerTypography.body).tint(BakerTheme.accent).background(BakerTheme.background)
             .frame(minWidth: 720, minHeight: 460)
             .onChange(of: state.query) { state.limit = 100 }
             .onChange(of: state.filter) { state.limit = 100 }
-            .task(id: searchIdentity) { await search() }
+            .task(id: identity) { await search(identity) }
     }
-    private var searchIdentity: String {
-        let revision = String(model.historyRevision)
-        let count = String(model.captures.count)
-        return [state.query, revision, count].joined(separator: ":")
+    private var searchIdentity: CaptureSearchIdentity {
+        CaptureSearchIdentity(query: query, revision: model.historyRevision, count: model.captures.count)
     }
     private var historyContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let items = items()
+        return VStack(alignment: .leading, spacing: 16) {
             historyHeader
-            filters
-            searchField
-            results
-
+            filters(count: items.count)
+            BakerSearchField("Search formulas or filenames", text: $state.query, searching: searching)
+            results(items)
         }
     }
     private var historyHeader: some View {
@@ -77,32 +81,24 @@ struct CaptureHistoryView: View {
             Button(action: model.revealCaptures) { Label("Open Folder", systemImage: "folder") }
         }
     }
-    private var filters: some View {
+    private func filters(count: Int) -> some View {
         HStack(spacing: 14) {
             Picker("Capture type", selection: $state.filter) {
                 ForEach(CaptureHistoryFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 460)
             Spacer()
-            Text("\(items.count) captures").font(BakerTypography.supporting).foregroundStyle(.secondary)
+            if !searching {
+                Text(count == 1 ? "1 capture" : "\(count) captures")
+                    .font(BakerTypography.supporting.monospacedDigit()).foregroundStyle(.secondary)
+            }
         }
     }
-    private var searchField: some View {
-        HStack {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search formulas or filenames", text: $state.query).textFieldStyle(.plain)
-            if state.searching { ProgressView().controlSize(.small) }
-            if !state.query.isEmpty {
-                Button { state.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain).frame(width: 28, height: 28).accessibilityLabel("Clear search")
-            }
-        }.padding(10).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 9))
-    }
     @ViewBuilder
-    private var results: some View {
+    private func results(_ items: [CaptureHistoryItem]) -> some View {
         if items.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "photo.stack").font(.system(size: 36)).foregroundStyle(.secondary)
-                Text(model.captures.isEmpty && model.recordings.isEmpty ? "Your captures will appear here" : state.searching ? "Searching…" : "No matching captures").font(.headline)
+                Text(searching ? "Searching…" : model.captures.isEmpty && model.recordings.isEmpty ? "Your captures will appear here" : "No matching captures").font(BakerTypography.section)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
@@ -121,18 +117,19 @@ struct CaptureHistoryView: View {
             }
         }
     }
-    private func search() async {
-        let token = UUID(); state.searchToken = token
-        let query = state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { state.matches = []; state.searching = false; return }
-        state.searching = true
-        defer { if state.searchToken == token { state.searching = false } }
+    private func search(_ identity: CaptureSearchIdentity) async {
+        guard !Task.isCancelled, identity == searchIdentity else { return }
+        guard !identity.query.isEmpty else { state.searchResult = nil; return }
         do {
             try await Task.sleep(nanoseconds: 180_000_000)
-            let matches = try await model.searchCaptures(query)
-            guard !Task.isCancelled, state.searchToken == token else { return }
-            state.matches = matches
-        } catch is CancellationError {} catch { model.report(error, fallback: .storageFailed) }
+            let matches = try await model.searchCaptures(identity.query)
+            guard !Task.isCancelled, identity == searchIdentity else { return }
+            state.searchResult = (identity, matches)
+        } catch is CancellationError {} catch {
+            guard !Task.isCancelled, identity == searchIdentity else { return }
+            state.searchResult = (identity, [])
+            model.report(error, fallback: .storageFailed)
+        }
     }
 }
 
@@ -142,6 +139,12 @@ struct CaptureHistoryView: View {
     @Published var copied = false
     @Published var previewing = false
     init(image: NSImage? = nil) { self.image = image }
+
+    func clearCopyFeedback() async {
+        guard copied else { return }
+        do { try await Task.sleep(for: .seconds(2)) } catch { return }
+        copied = false
+    }
 }
 private struct CaptureHistoryCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -181,7 +184,7 @@ private struct CaptureHistoryCard: View {
                 Button {
                     Task { state.copied = await model.copyCapture(record) }
                 } label: { Label(state.copied ? "Copied" : "Copy", systemImage: state.copied ? "checkmark" : "doc.on.doc") }
-                    .frame(width: 88).help("Copy the capture image").accessibilityLabel("Copy Image")
+                    .frame(width: 88).help("Copy the capture image").accessibilityLabel(state.copied ? "Copied image" : "Copy image")
             }.buttonStyle(BakerButtonStyle())
         }.padding(12).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? BakerTheme.accent : Color.secondary.opacity(0.18), lineWidth: selected ? 2 : 1))
@@ -202,6 +205,7 @@ private struct CaptureHistoryCard: View {
                 } catch is CancellationError {} catch { state.error = true }
             }
             .sheet(isPresented: $state.previewing) { CaptureVectorPreview(model: model, record: record) }
+            .task(id: state.copied) { await state.clearCopyFeedback() }
             .onDisappear { state.image = nil }
     }
 }
@@ -233,6 +237,7 @@ private struct RecordingHistoryCard: View {
                 Button { state.copied = model.copyRecording(record) } label: {
                     Label(state.copied ? "Copied" : "Copy", systemImage: state.copied ? "checkmark" : "doc.on.doc")
                 }.frame(width: 88).help("Copy the recording file")
+                    .accessibilityLabel(state.copied ? "Copied recording" : "Copy recording")
             }.buttonStyle(BakerButtonStyle())
         }.padding(12).background(BakerTheme.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.18)))
@@ -244,6 +249,7 @@ private struct RecordingHistoryCard: View {
                 do { let image = try await model.recordingThumbnail(record); if !Task.isCancelled { state.image = image } }
                 catch { state.error = true }
             }
+            .task(id: state.copied) { await state.clearCopyFeedback() }
             .onDisappear { state.image = nil }
     }
 }
