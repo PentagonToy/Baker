@@ -82,6 +82,7 @@ Run each tool with `--output /absolute/path/outside/the/repository`. Checks inte
 
 | Tool | Coverage |
 | --- | --- |
+| `tools/test_app_installation.py` | Staged app copies, signature checks, retained backups, downgrade refusal and concurrent changes; optional `--signed-app` verifies an existing app |
 | `tools/test_preferences.py` | Preference compatibility, migration, errors and recovery |
 | `tools/test_workflows.py` | Ownership, cancellation, cache bounds and clipboard precedence |
 | `tools/test_lifecycles.py` | Retained windows, settings state and PDF process protocol |

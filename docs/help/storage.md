@@ -6,7 +6,7 @@ You can select an iCloud Drive, Dropbox or Google Drive folder already available
 
 Changing the location opens the selected folder’s Baker history. Existing files stay in the previous folder; select that folder again to reopen them. Baker checks the new folder before switching. Close image editors and finish active work first.
 
-New captures use `baker_<type>_yyyy-MM-dd_HH-mm-ss-SSS`, for example `baker_formula_2026-10-24_16-30-00-123.png`. Types are `formula`, `image`, `video` and `gif`; the timestamp uses local time. A numbered suffix prevents collisions. Existing filenames stay unchanged, and edits retain the filename stem.
+New captures use `<type>_yyyyMMdd_HHmmss`, for example `fx_20261124_163000.png`. Prefixes are `img` for images, `fx` for formula images, `vid` for videos and `gif` for GIFs. The timestamp uses local time through seconds. A numbered suffix such as `_2` prevents collisions within the same second. Existing filenames stay unchanged, and edits retain the filename stem.
 
 Capture edits replace the archived image; previously exported copies remain unchanged. See [editing and SVG conversion](../guide/capture.md#edit-a-capture).
 

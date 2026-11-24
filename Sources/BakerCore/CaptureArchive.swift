@@ -6,13 +6,23 @@ import ImageIO
 
 /// Shared names for new files; archive IDs remain independent of their visible names.
 public enum CaptureFileName {
-    public enum Kind: String, Sendable { case image, formula, video, gif }
+    public enum Kind: String, Sendable {
+        case image, formula, video, gif
+        var prefix: String {
+            switch self {
+            case .image: return "img"
+            case .formula: return "fx"
+            case .video: return "vid"
+            case .gif: return "gif"
+            }
+        }
+    }
     public static func available(kind: Kind, date: Date, extension suffix: String, directory: URL) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
-        let stem = "baker_\(kind.rawValue)_\(formatter.string(from: date))"
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let stem = "\(kind.prefix)_\(formatter.string(from: date))"
         var name = stem + "." + suffix, number = 2
         // Include dangling symlinks in collision detection. Copy/move still refuses overwrites.
         while (try? directory.appendingPathComponent(name).resourceValues(forKeys: [.isSymbolicLinkKey])) != nil {
@@ -22,7 +32,12 @@ public enum CaptureFileName {
     }
     public static func valid(_ name: String, kinds: [Kind]) -> Bool {
         let types = kinds.map(\.rawValue).joined(separator: "|")
-        return name.range(of: "\\Abaker_(?:" + types + ")_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}(?:_[2-9][0-9]*|_1[0-9]+)?\\.[a-z0-9]+\\z", options: .regularExpression) != nil
+        let prefixes = kinds.map(\.prefix).joined(separator: "|")
+        let suffix = "(?:_[2-9][0-9]*|_1[0-9]+)?\\.[a-z0-9]+\\z"
+        let current = "\\A(?:" + prefixes + ")_[0-9]{8}_[0-9]{6}" + suffix
+        let legacy = "\\Abaker_(?:" + types + ")_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}" + suffix
+        return name.range(of: current, options: .regularExpression) != nil
+            || name.range(of: legacy, options: .regularExpression) != nil
     }
 }
 

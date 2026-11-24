@@ -20,7 +20,6 @@ cleanup() {
 trap cleanup EXIT
 mkdir -p "$work/staging" "$work/module-cache"
 ditto "$app" "$work/staging/Baker.app"
-ln -s /Applications "$work/staging/Applications"
 swift -module-cache-path "$work/module-cache" "$source_directory/dmg_layout.swift" background "$work/staging/.background.tiff"
 # HFS+ Finder presentation needs explicit invisibility, not only a dot-prefixed name.
 chflags hidden "$work/staging/.background.tiff"

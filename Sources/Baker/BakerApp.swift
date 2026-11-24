@@ -10,8 +10,17 @@ struct BakerApp {
         if let status = BakerCLI.run(Array(CommandLine.arguments.dropFirst())) { exit(status) }
         if let status = FormulaAdapter.run(arguments: Array(CommandLine.arguments.dropFirst())) { exit(status) }
         let application = NSApplication.shared
+        if AppInstallation.isReadOnlyApplication(Bundle.main.bundleURL) {
+            let installer = DMGInstaller()
+            application.delegate = installer
+            withExtendedLifetime(installer) { application.run() }
+            return
+        }
         if let identifier = Bundle.main.bundleIdentifier,
-           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: {
+               $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
+                   && $0.bundleURL.map(AppInstallation.isReadOnlyApplication) != true
+           }) {
             existing.activate(options: []); return
         }
         let delegate = BakerDelegate()

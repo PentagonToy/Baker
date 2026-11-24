@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Install from a disk image by double-clicking Baker and choosing Install. Verify the copied app and retain the previous version until the new app launches.
+
+- Shorten new capture names to `img`, `fx`, `vid` or `gif` plus a compact local timestamp through seconds. Keep existing names readable and add a numbered suffix for collisions.
+
 ## 0.1.4 — 2026-11-23
 
 - Adjust scrolling regions and image crops with a grid, directional resize cursors and larger handle targets. Keep capture actions in a compact bar with an overview beside the selection.

@@ -50,7 +50,7 @@ Silent demos, under 10 seconds each. Select a preview for the MP4. [Demo sources
 ## Start
 
 1. Download and open the DMG.
-2. Drag **Baker.app** to **Applications**, then open it there.
+2. Double-click **Baker.app** and choose **Install**. Baker opens from Applications.
 3. Allow Screen Recording when prompted. Choose **Text** or **Formula**, select an area and paste the result.
 
 Baker is Developer ID signed and notarised by Apple. Set shortcuts and your save folder in Settings.
