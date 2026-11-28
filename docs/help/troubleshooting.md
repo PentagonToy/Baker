@@ -17,7 +17,7 @@
 
 ## Opening a downloaded app
 
-Baker 0.1.0 and later are Developer ID signed and notarised by Apple. Download the DMG from [GitHub releases](https://github.com/PentagonToy/Baker/releases/latest), drag Baker to Applications and open it there. macOS may ask you to confirm the first launch. If it reports damage or cannot verify the app, download a fresh copy and [report the exact message](https://github.com/PentagonToy/Baker/issues).
+Baker 0.1.0 and later are Developer ID signed and notarised by Apple. Download the DMG from [GitHub releases](https://github.com/PentagonToy/Baker/releases/latest), double-click Baker and choose Install. Baker opens from Applications. macOS may ask you to confirm the first launch. If it reports damage or cannot verify the app, download a fresh copy and [report the exact message](https://github.com/PentagonToy/Baker/issues).
 
 ## Screen Recording permission after an update
 

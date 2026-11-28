@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 — 2026-11-28
 
 - Install from a disk image by double-clicking Baker and choosing Install. Verify the copied app and retain the previous version until the new app launches.
 
